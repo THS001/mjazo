@@ -3,6 +3,7 @@
 // it and is the fallback when the CMS is unreachable. Prices are PLACEHOLDERS until the founder confirms them.
 
 import type { Img } from "@/lib/cms/fields"
+import type { Seo } from "@/lib/cms/types/seo"
 
 export type Status = "live" | "waitlist" | "hidden"
 export type ProType = "women" | "technician" | "care"
@@ -29,6 +30,7 @@ export interface Service {
   addOns?: AddOn[]
   includes?: string[]
   image?: Img // photo from the media library; the icon on its tint shows without one
+  seo?: Seo
 }
 
 export interface Category {
@@ -45,6 +47,7 @@ export interface Category {
   faqs: [string, string][]
   services: Service[]
   image?: Img
+  seo?: Seo
 }
 
 export interface World {
@@ -57,6 +60,7 @@ export interface World {
   tint: string
   image?: Img
   model?: Img // a GLB from the media library replaces the built-in 3D object
+  seo?: Seo
 }
 
 export type ThreeObject =
@@ -75,6 +79,7 @@ export interface Area {
   status: Status
   subAreas: string[]
   blurb: string
+  seo?: Seo
 }
 
 

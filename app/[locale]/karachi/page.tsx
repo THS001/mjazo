@@ -11,15 +11,11 @@ import { pairs } from "@/lib/cms/types/pages/blocks"
 import type { KarachiContent } from "@/lib/cms/types/pages/catalogue"
 import { waLink } from "@/lib/site"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  const { areas } = await getCatalog()
-  return {
-    title: "Home services across Karachi: DHA, Clifton, PECHS, Gulshan & more",
-    description: `Mjazo comes to ${areas.length} Karachi neighbourhoods: ${areas.map((a) => a.name).join(", ")}. Salon at home, cleaning, AC, repairs and more, with verified pros.`,
-    alternates: { canonical: "/karachi" },
-  }
+  return pageMetadata({ path: "/karachi", seo: (await getPage("karachi")).seo })
 }
 
 const SEA = "linear-gradient(180deg, oklch(0.93 0.035 220) 0%, oklch(0.96 0.025 200) 55%, oklch(0.975 0.015 85) 100%)"

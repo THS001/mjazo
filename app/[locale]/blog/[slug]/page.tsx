@@ -10,6 +10,7 @@ import type { PostSite } from "@/lib/cms/types/content"
 import type { BlogContent } from "@/lib/cms/types/pages/editorial"
 import { CmsImage, isImage } from "@/components/cms/image"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateStaticParams() {
   return (await getContent<PostSite>("post")).map((p) => ({ slug: p.slug }))
@@ -19,7 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   await pageLocale(params)
   const { slug } = await params
   const p = (await getContent<PostSite>("post")).find((x) => x.slug === slug)
-  return p ? { title: p.title, description: p.excerpt, alternates: { canonical: `/blog/${p.slug}` }, openGraph: { type: "article", title: p.title, description: p.excerpt } } : {}
+  return p ? pageMetadata({ path: `/blog/${p.slug}`, seo: p.seo, title: p.title, description: p.excerpt, type: "article", image: p.cover }) : {}
 }
 
 export default async function PostPage({ params }: { params: Promise<{ locale: string; slug: string }> }) {

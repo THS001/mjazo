@@ -6,11 +6,11 @@ import { ObjectCanvas } from "@/components/three"
 import { getPage } from "@/lib/cms/read"
 import type { GiftContent } from "@/lib/cms/types/pages/commerce"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  title: "Mjazo gift cards: give a glow-up in Karachi",
-  description: "Send a Mjazo gift card for birthdays, Eid, the bride-to-be or a thank-you. Redeemable on every service, from salon at home to deep cleaning.",
-  alternates: { canonical: "/gift-cards" },
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/gift-cards", seo: (await getPage("gift-cards")).seo })
 }
 
 const ROSE = "linear-gradient(160deg, #fbe9e4 0%, #f6d9cf 45%, #efc9a8 100%)"

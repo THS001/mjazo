@@ -6,15 +6,11 @@ import { getPage, getSettings } from "@/lib/cms/read"
 import type { ComplaintContent } from "@/lib/cms/types/pages/company"
 import { waLink } from "@/lib/site"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  const { policy } = await getSettings()
-  return {
-    alternates: { canonical: "/complaint" },
-    title: "Report a problem with a booking",
-    description: `Something not right with your Mjazo visit? Tell us within ${policy.redoHours} hours for a free redo. A real person reviews every report.`,
-  }
+  return pageMetadata({ path: "/complaint", seo: (await getPage("complaint")).seo })
 }
 
 export default async function ComplaintPage({ params }: { params: Promise<{ locale: string }> }) {

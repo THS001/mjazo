@@ -9,11 +9,11 @@ import { getPage } from "@/lib/cms/read"
 import { pairs } from "@/lib/cms/types/pages/blocks"
 import type { ToolPageContent } from "@/lib/cms/types/pages/tools"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/ghar-scan" },
-  title: "Ghar Scan: snap a photo, get the fix and the price",
-  description: "Photograph an AC leak, damp wall, termite trail or appliance error, or a beauty look you love. Mjazo's AI tells you the likely issue, the right service and the price range, and books it.",
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/ghar-scan", seo: (await getPage("ghar-scan")).seo })
 }
 
 export default async function GharScanPage({ params }: { params: Promise<{ locale: string }> }) {

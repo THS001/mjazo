@@ -8,11 +8,11 @@ import type { PostSite } from "@/lib/cms/types/content"
 import type { BlogContent } from "@/lib/cms/types/pages/editorial"
 import { CmsImage, isImage } from "@/components/cms/image"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/blog" },
-  title: "Mjazo Journal: beauty plans & home guides for Karachi",
-  description: "Beauty plans, home checklists and how we work, written for Karachi.",
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/blog", seo: (await getPage("blog")).seo })
 }
 
 const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })

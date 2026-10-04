@@ -10,7 +10,7 @@ import { SiteOnly } from "@/components/site/site-only"
 import { PreviewBar } from "@/components/cms/preview-bar"
 import { SITE_URL } from "@/lib/site"
 import { dirOf, LOCALES, OG_LOCALE } from "@/lib/i18n"
-import { getCatalogData, getNav, getSettings, getUi, isPreview } from "@/lib/cms/read"
+import { getCatalogData, getNav, getSeoSettings, getSettings, getUi, isPreview } from "@/lib/cms/read"
 import { pageLocale } from "@/lib/cms/locale"
 import { CmsProvider } from "@/components/cms/provider"
 import { fontVars } from "../fonts"
@@ -25,19 +25,19 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const locale = await pageLocale(params)
-  const { flags } = await getSettings(locale)
+  const [{ flags }, seo] = await Promise.all([getSettings(locale), getSeoSettings(locale)])
   return {
     metadataBase: new URL(SITE_URL),
-    title: { default: "Mjazo · Home services in Karachi: salon at home, cleaning, AC & repairs", template: "%s · Mjazo" },
-    description:
-      "Book verified pros for salon at home, cleaning, AC service, repairs, health and care across Karachi. Women-only beauty pros, all-in prices, pay after the service.",
+    title: { default: seo.defaultTitle, template: seo.titleTemplate.includes("%s") ? seo.titleTemplate : "%s · Mjazo" },
+    description: seo.defaultDescription,
     applicationName: "Mjazo",
-    keywords: ["home services Karachi", "salon at home Karachi", "beautician at home", "waxing at home", "AC service Karachi", "deep cleaning Karachi", "pest control Karachi", "electrician Karachi", "plumber Karachi", "mehndi artist Karachi"],
+    keywords: seo.keywords,
     openGraph: { siteName: "Mjazo", type: "website", locale: OG_LOCALE[locale] },
     twitter: { card: "summary_large_image" },
     formatDetection: { telephone: false },
+    verification: { ...(seo.googleVerification ? { google: seo.googleVerification } : {}), ...(seo.bingVerification ? { other: { "msvalidate.01": seo.bingVerification } } : {}) },
     // The Urdu site stays out of search results until it's switched on (Settings → Feature switches).
-    ...(locale === "ur" && !flags.URDU_SITE ? { robots: { index: false, follow: false } } : {}),
+    ...(!seo.indexing || (locale === "ur" && !flags.URDU_SITE) ? { robots: { index: false, follow: false } } : {}),
   }
 }
 

@@ -1,6 +1,7 @@
 import { DEFAULT_CATALOG, type Area, type Bundle, type Category, type Service, type World } from "@/lib/catalog"
 import { f } from "../fields"
 import { register } from "../registry"
+import { seoGroup } from "./seo"
 
 // Catalogue content types: worlds, categories, services, areas and bundles. Services are their
 // own collection (one editor per service, with a price table across all of them) and are nested
@@ -32,6 +33,7 @@ export const worldType = register<World, World>({
     tint: f.color("Tint"),
     image: f.image("Card photo", { help: "Shown on the world's card on the home page. Without one, the icon on its tint shows." }),
     model: f.model("3D model (GLB)", { help: "Replaces the built-in 3D object on the world page. Keep it under 5 MB." }),
+    seo: seoGroup("Overrides the world page's title pattern (Settings → SEO settings)."),
   },
   defaults: () => DEFAULT_CATALOG.worlds,
   idOf: (w) => w.slug,
@@ -70,6 +72,7 @@ export const categoryType = register<Category, CategoryCms>({
     excludes: f.list("Not included", f.text("Item")),
     faqs: faqList,
     image: f.image("Hero photo", { help: "Shown in the category page's heading. Without one, the tint and icon show." }),
+    seo: seoGroup("Overrides the category page's title pattern (Settings → SEO settings)."),
   },
   defaults: () => DEFAULT_CATALOG.categories,
   idOf: (c) => c.slug,
@@ -102,6 +105,7 @@ export const serviceType = register<ServiceCms, ServiceCms>({
     duration: f.number("Duration", { unit: "min", min: 0, step: 5, help: "0 shows “Flexible”." }),
     popular: f.boolean("Popular", { help: "Shown in “Most booked” and boosted in search." }),
     image: f.image("Photo", { help: "Shown on the service page and its cards. Without one, the category icon on its tint shows." }),
+    seo: seoGroup("Overrides the service page's title pattern (Settings → SEO settings)."),
     includes: f.list("What's included", f.text("Item")),
     variants: f.list(
       "Options",
@@ -135,6 +139,7 @@ export const areaType = register<Area, Area>({
     status: f.select("Status", STATUS),
     blurb: f.textarea("Blurb", { max: 200 }),
     subAreas: f.list("Sub-areas", f.text("Sub-area")),
+    seo: seoGroup("Overrides the area page's title pattern (Settings → SEO settings)."),
   },
   defaults: () => DEFAULT_CATALOG.areas,
   idOf: (a) => a.slug,

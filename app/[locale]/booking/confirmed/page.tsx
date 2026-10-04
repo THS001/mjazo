@@ -2,9 +2,12 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import { Confirmation } from "@/components/checkout/confirmation"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/booking/confirmed" }, title: "Booking confirmed", robots: { index: false, follow: false } }
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/booking/confirmed", title: "Booking confirmed", noindex: true })
+}
 
 export default async function ConfirmedPage({ params }: { params: Promise<{ locale: string }> }) {
   await pageLocale(params)

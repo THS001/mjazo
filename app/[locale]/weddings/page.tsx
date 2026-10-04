@@ -11,11 +11,11 @@ import { getCatalog, getPage } from "@/lib/cms/read"
 import { renderTokens } from "@/lib/cms/fields"
 import type { WeddingsContent } from "@/lib/cms/types/pages/tools"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/weddings" },
-  title: "Bridal party & wedding glam at home in Karachi",
-  description: "Party makeup, hair, mehndi and pre-event glow for the bride's family and guests, at home across Karachi. Squad bookings for 3+ guests.",
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/weddings", seo: (await getPage("weddings")).seo })
 }
 
 const BLUSH = "linear-gradient(180deg, #f9e3df 0%, #fbeee6 55%, #fdf7f1 100%)"

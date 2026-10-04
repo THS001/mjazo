@@ -10,11 +10,11 @@ import { renderTokens } from "@/lib/cms/fields"
 import type { OffersContent } from "@/lib/cms/types/pages/commerce"
 import { waLink } from "@/lib/site"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  title: "Offers & bundles: beauty bundles and seasonal home packs",
-  description: "Save with Mjazo bundles: The Quick Refresh, Weekend Reset, Full Glow and Shaadi Season Ready, plus the Pre-summer AC Pack and Pre-monsoon Home Pack. All-in prices, pay after.",
-  alternates: { canonical: "/offers" },
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/offers", seo: (await getPage("offers")).seo })
 }
 
 export default async function OffersPage({ params }: { params: Promise<{ locale: string }> }) {

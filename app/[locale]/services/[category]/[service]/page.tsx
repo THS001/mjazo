@@ -9,10 +9,11 @@ import { CheckList } from "@/components/site/forms"
 import { ServiceCard } from "@/components/site/service-card"
 import { FAQ } from "@/components/site/faq"
 import { ServicePurchase } from "@/components/services/service-purchase"
-import { getCatalog, getPage, getSettings, getUi } from "@/lib/cms/read"
+import { getCatalog, getPage, getSettings, getUi, getSeoSettings } from "@/lib/cms/read"
 import type { ServiceContent } from "@/lib/cms/types/pages/catalogue"
 import { CmsImage, isImage } from "@/components/cms/image"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateStaticParams() {
   const { allServices } = await getCatalog()
@@ -21,16 +22,20 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; category: string; service: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  const { getService } = await getCatalog()
+  const [{ getService }, s] = await Promise.all([getCatalog(), getSeoSettings()])
   const p = await params
   const found = getService(p.category, p.service)
   if (!found) return {}
   const { category, service } = found
-  return {
-    title: `${service.name} at home in Karachi${service.price > 0 ? ` from ${formatPKR(service.price)}` : ""}`,
-    alternates: { canonical: `/services/${category.slug}/${service.slug}` },
-    description: `${service.short} ${service.price > 0 ? `From ${formatPKR(service.price)}, all-in.` : ""} ${category.status === "live" ? "Book across Karachi, pay after." : "Coming soon."}`.trim(),
-  }
+  const priced = service.price > 0
+  return pageMetadata({
+    path: `/services/${category.slug}/${service.slug}`,
+    seo: service.seo,
+    title: priced ? s.patterns.serviceTitle : s.patterns.serviceTitleNoPrice,
+    description: category.status !== "live" ? s.patterns.serviceDescriptionSoon : priced ? s.patterns.serviceDescription : s.patterns.serviceDescriptionNoPrice,
+    vars: { service: service.name, short: service.short, price: formatPKR(service.price), category: category.name },
+    image: service.image,
+  })
 }
 
 const STEP_ICONS = [Sparkles, CalendarClock, UserCheck, Star]

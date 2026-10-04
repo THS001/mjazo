@@ -18,7 +18,7 @@ export type { Result }
 const reload = async (type: string, id: string) => (await w.loadEntry(type, id))!
 
 export async function saveDraftAction(type: string, id: string, data: Data, version: number, manual = false) {
-  return run("edit", async (u) => {
+  return run("view", async (u) => {
     await w.saveDraft(u, type, id, data, version, { manual })
     return reload(type, id)
   })
@@ -32,7 +32,7 @@ export async function submitForReviewAction(type: string, id: string, data: Data
 }
 
 export async function publishAction(type: string, id: string, data: Data, version: number) {
-  return run("publish", async (u) => {
+  return run("view", async (u) => {
     // Save what's on screen first, then publish it.
     const saved = await w.saveDraft(u, type, id, data, version)
     await w.publish(u, type, id, saved.version)

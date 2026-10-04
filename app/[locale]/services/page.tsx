@@ -10,15 +10,11 @@ import { getCatalog, getPage } from "@/lib/cms/read"
 import { renderTokens } from "@/lib/cms/fields"
 import type { ServicesContent } from "@/lib/cms/types/pages/catalogue"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  const { serviceCount } = await getCatalog()
-  return {
-  alternates: { canonical: "/services" },
-  title: "All home services in Karachi: salon, cleaning, AC, repairs & more",
-  description: `Book ${serviceCount}+ home services in Karachi: salon at home, spa, makeup, deep cleaning, pest control, AC service, appliance repair, electricians, plumbers, painting, health visits and care.`,
-  }
+  return pageMetadata({ path: "/services", seo: (await getPage("services")).seo })
 }
 
 export default async function ServicesPage({ params }: { params: Promise<{ locale: string }> }) {

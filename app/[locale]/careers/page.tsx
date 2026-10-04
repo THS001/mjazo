@@ -4,11 +4,11 @@ import { Container, Pill, Reveal } from "@/components/site/primitives"
 import { getPage } from "@/lib/cms/read"
 import type { CareersContent } from "@/lib/cms/types/pages/company"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/careers" },
-  title: "Careers at Mjazo: jobs in Karachi",
-  description: "Help build Karachi's most trusted home-services platform. Operations, customer care, training and technology.",
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/careers", seo: (await getPage("careers")).seo })
 }
 
 export default async function CareersPage({ params }: { params: Promise<{ locale: string }> }) {

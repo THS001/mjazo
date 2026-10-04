@@ -7,11 +7,11 @@ import { getPage } from "@/lib/cms/read"
 import { pairs } from "@/lib/cms/types/pages/blocks"
 import type { HowContent } from "@/lib/cms/types/pages/company"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/how-it-works" },
-  title: "How Mjazo works: book home services in 2 minutes",
-  description: "Pick a service, choose a time window, a verified pro arrives and checks in, and you pay after. Here's how Mjazo works for customers and for pros.",
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/how-it-works", seo: (await getPage("how-it-works")).seo })
 }
 
 export default async function HowItWorksPage({ params }: { params: Promise<{ locale: string }> }) {

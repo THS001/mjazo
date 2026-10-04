@@ -7,11 +7,11 @@ import { getContent, getPage, getSettings } from "@/lib/cms/read"
 import type { HelpContent } from "@/lib/cms/types/pages/editorial"
 import { waLink } from "@/lib/site"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/help" },
-  title: "Help centre: bookings, payments, safety & more",
-  description: "Answers about booking, prices and payment, safety, products and hygiene, changes and cancellations, and joining as a pro.",
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/help", seo: (await getPage("help")).seo })
 }
 
 export default async function HelpPage({ params }: { params: Promise<{ locale: string }> }) {

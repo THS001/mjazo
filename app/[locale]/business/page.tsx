@@ -7,11 +7,11 @@ import { getCatalog, getPage } from "@/lib/cms/read"
 import type { BusinessContent } from "@/lib/cms/types/pages/company"
 import { EnquiryForm } from "@/components/site/forms"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/business" },
-  title: "Mjazo for Business: corporate wellness, office cleaning & AC servicing",
-  description: "Corporate wellness days, glam stations for events, office cleaning and bulk AC servicing for Karachi offices. One invoice, verified pros.",
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/business", seo: (await getPage("business")).seo })
 }
 
 const GRID = { backgroundImage: "linear-gradient(rgba(0,0,0,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.06) 1px, transparent 1px)", backgroundSize: "48px 48px" }

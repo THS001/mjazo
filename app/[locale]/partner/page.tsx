@@ -4,11 +4,11 @@ import { FAQ } from "@/components/site/faq"
 import type { HelpTopic } from "@/lib/content"
 import { getContent } from "@/lib/cms/read"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/partner" },
-  title: "Become a Mjazo pro: beautician jobs in Karachi",
-  description: "Join Karachi's women-only beauty team. Weekly payouts, pick your days, safe transport support, free training and kits supplied. Apply in English or Urdu.",
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/partner", title: "Become a Mjazo pro: beautician jobs in Karachi", description: "Join Karachi's women-only beauty team. Weekly payouts, pick your days, safe transport support, free training and kits supplied. Apply in English or Urdu." })
 }
 
 export default async function PartnerPage({ params }: { params: Promise<{ locale: string }> }) {

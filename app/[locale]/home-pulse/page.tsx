@@ -10,11 +10,11 @@ import { getPage } from "@/lib/cms/read"
 import { pairs } from "@/lib/cms/types/pages/blocks"
 import type { ToolPageContent } from "@/lib/cms/types/pages/tools"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/home-pulse" },
-  title: "Home Pulse: your home's care calendar for Karachi",
-  description: "A 90-day plan for your home and routine: AC service before heatwaves, tank cleaning after the monsoon, dengue fumigation, waxing and facial rhythms, Eid and wedding glow plans. One tap to book.",
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/home-pulse", seo: (await getPage("home-pulse")).seo })
 }
 
 export default async function HomePulsePage({ params }: { params: Promise<{ locale: string }> }) {

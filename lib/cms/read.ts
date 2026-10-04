@@ -13,6 +13,7 @@ import { listRows, type Data, type EntryRow } from "./store"
 import type { ServiceCms } from "./types/catalog"
 import type { NavContent } from "./types/nav"
 import type { UiStrings } from "./types/ui"
+import type { Seo, SeoSettings } from "./types/seo"
 import "./types"
 
 // The public site's view of the CMS. Published content is cached per type (tag `cms:<type>`) and
@@ -171,7 +172,7 @@ export const getTokens = cache(async (locale: Locale = requestLocale()): Promise
 })
 
 /** Fields every page may have on top of its own (added by page() in types/pages/blocks.ts). */
-export type PageExtras = { heroImage?: Img }
+export type PageExtras = { heroImage?: Img; seo?: Seo }
 
 /** A page's editable content (a `page-<id>` singleton), with {{tokens}} filled in. */
 export async function getPage<S>(id: string, locale: Locale = requestLocale()): Promise<S & PageExtras> {
@@ -183,6 +184,9 @@ export const getNav = cache(async (locale: Locale = requestLocale()) => getSingl
 
 /** Buttons, labels and messages (Navigation → Buttons & labels). */
 export const getUi = cache(async (locale: Locale = requestLocale()) => getSingleton<UiStrings>("ui", locale))
+
+/** Site-wide SEO defaults and title patterns (Settings → SEO settings). */
+export const getSeoSettings = cache(async (locale: Locale = requestLocale()) => getSingleton<SeoSettings>("settings-seo", locale))
 
 /** A content collection (posts, help topics, ...) with {{tokens}} filled in. */
 export async function getContent<S>(type: string, locale: Locale = requestLocale()): Promise<S[]> {

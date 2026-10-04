@@ -18,7 +18,10 @@ export type FormCtx = {
   showUr: boolean
   canPrices: boolean
   canMedia: boolean
+  /** The SEO role: only fields with perm "seo" are editable. */
+  seoOnly?: boolean
   readOnly: boolean
+  entryType?: string
   refs: Record<string, { id: string; title: string }[]>
 }
 
@@ -115,7 +118,9 @@ function Label({ field, extra, locked }: { field: Field; extra?: ReactNode; lock
 // One field
 // ---------------------------------------------------------------------------
 
-export function FieldInput({ name, field: fd, value, onChange, ctx, siblings }: { name: string; field: Field; value: V; onChange: (v: V) => void; ctx: FormCtx; siblings?: Record<string, V> }) {
+export function FieldInput({ name, field: fd, value, onChange, ctx: outer, siblings }: { name: string; field: Field; value: V; onChange: (v: V) => void; ctx: FormCtx; siblings?: Record<string, V> }) {
+  // The SEO role sees everything but can change SEO fields only (and everything inside an SEO group).
+  const ctx = outer.seoOnly && fd.perm === "seo" ? { ...outer, seoOnly: false } : outer.seoOnly && fd.kind !== "group" && fd.kind !== "list" ? { ...outer, readOnly: true } : outer
   const ro = ctx.readOnly
   switch (fd.kind) {
     case "text":

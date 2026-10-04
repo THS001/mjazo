@@ -1,9 +1,12 @@
 import type { Metadata } from "next"
 import { CartPageView } from "@/components/checkout/cart-page"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/cart" }, title: "Your cart", robots: { index: false, follow: true } }
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/cart", title: "Your cart", noindex: "follow" })
+}
 
 export default async function CartPage({ params }: { params: Promise<{ locale: string }> }) {
   await pageLocale(params)

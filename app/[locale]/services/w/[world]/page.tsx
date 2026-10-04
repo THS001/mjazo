@@ -9,10 +9,11 @@ import { ServiceCard } from "@/components/site/service-card"
 import { NotifyForm } from "@/components/site/notify-form"
 import { FAQ } from "@/components/site/faq"
 import { ObjectCanvas } from "@/components/three"
-import { getCatalog, getPage } from "@/lib/cms/read"
+import { getCatalog, getPage, getSeoSettings } from "@/lib/cms/read"
 import { renderTokens, tokensDeep } from "@/lib/cms/fields"
 import type { WorldContent } from "@/lib/cms/types/pages/catalogue"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 const fromPrice = (svcs: { price: number }[], c: WorldContent) => {
   const p = svcs.filter((s) => s.price > 0).map((s) => s.price)
@@ -27,10 +28,11 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; world: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  const { getWorld, categoriesOf } = await getCatalog()
+  const [{ getWorld, categoriesOf }, s] = await Promise.all([getCatalog(), getSeoSettings()])
   const w = getWorld((await params).world)
   if (!w) return {}
-  return { title: `${w.name} at home in Karachi: book verified pros`, description: `Book ${w.name.toLowerCase()} at home across Karachi: ${categoriesOf(w.slug).map((c) => c.name).join(", ")}. All-in prices, pay after.`, alternates: { canonical: `/services/w/${w.slug}` } }
+  const vars = { world: w.name, worldLower: w.name.toLowerCase(), categories: categoriesOf(w.slug).map((c) => c.name).join(", ") }
+  return pageMetadata({ path: `/services/w/${w.slug}`, seo: w.seo, title: s.patterns.worldTitle, description: s.patterns.worldDescription, vars, image: w.image })
 }
 
 export default async function WorldPage({ params }: { params: Promise<{ locale: string; world: string }> }) {

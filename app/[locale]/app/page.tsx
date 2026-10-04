@@ -7,11 +7,11 @@ import { InstallApp } from "@/components/site/install-app"
 import { getPage } from "@/lib/cms/read"
 import type { AppContent } from "@/lib/cms/types/pages/commerce"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  title: "Get the Mjazo app: install on iPhone & Android",
-  description: "Install Mjazo on your home screen in seconds. Book home services, rebook favourite pros and manage bookings, on iPhone and Android, no app store needed.",
-  alternates: { canonical: "/app" },
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/app", seo: (await getPage("app")).seo })
 }
 
 const FEATURE_ICONS = [Zap, CalendarCheck, RefreshCw, MapPin, Bell, Smartphone]

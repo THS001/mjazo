@@ -2,7 +2,8 @@ import Link from "@/components/site/locale-link"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import type { LegalDoc } from "@/lib/content"
-import { getContent, getPage } from "@/lib/cms/read"
+import { getContent, getPage, getSeoSettings } from "@/lib/cms/read"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 import type { LegalLabels } from "@/lib/cms/types/pages/editorial"
 import { Breadcrumbs } from "./page-hero"
 import { Container } from "./primitives"
@@ -18,9 +19,10 @@ export async function loadLegal(slug: string) {
   return { doc, docs, labels }
 }
 
-export async function legalMetadata(slug: string, canonical: string): Promise<Metadata> {
-  const doc = (await getContent<LegalDoc>("legal")).find((d) => d.slug === slug)
-  return doc ? { alternates: { canonical }, title: doc.title, description: `${doc.title} for Mjazo home services in Karachi.` } : {}
+export async function legalMetadata(slug: string, path: string): Promise<Metadata> {
+  const [docs, s] = await Promise.all([getContent<LegalDoc>("legal"), getSeoSettings()])
+  const doc = docs.find((d) => d.slug === slug)
+  return doc ? pageMetadata({ path, seo: doc.seo, title: doc.title, description: s.patterns.legalDescription, vars: { title: doc.title } }) : {}
 }
 
 export function LegalPage({ doc, docs, labels }: { doc: LegalDoc; docs: LegalDoc[]; labels: LegalLabels }) {

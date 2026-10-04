@@ -5,11 +5,12 @@ import { ArrowUpRight, MapPin } from "lucide-react"
 import { PageHero } from "@/components/site/page-hero"
 import { Container, Icon, Pill, Reveal, SectionTitle } from "@/components/site/primitives"
 import { FAQ } from "@/components/site/faq"
-import { getCatalog, getPage } from "@/lib/cms/read"
+import { getCatalog, getPage, getSeoSettings } from "@/lib/cms/read"
 import { renderTokens, tokensDeep } from "@/lib/cms/fields"
 import { pairs } from "@/lib/cms/types/pages/blocks"
 import type { AreaContent } from "@/lib/cms/types/pages/catalogue"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateStaticParams() {
   const { areas } = await getCatalog()
@@ -18,14 +19,10 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; area: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  const { getArea } = await getCatalog()
+  const [{ getArea }, s] = await Promise.all([getCatalog(), getSeoSettings()])
   const a = getArea((await params).area)
   if (!a) return {}
-  return {
-    title: `Home services in ${a.name}, Karachi: salon at home, cleaning, AC & repairs`,
-    description: `Verified pros at your door across ${a.name}: ${a.subAreas.join(", ")}. Salon and spa at home, cleaning, AC service, repairs and more. All-in prices, pay after.`,
-    alternates: { canonical: `/karachi/${a.slug}` },
-  }
+  return pageMetadata({ path: `/karachi/${a.slug}`, seo: a.seo, title: s.patterns.areaTitle, description: s.patterns.areaDescription, vars: { area: a.name, subAreas: a.subAreas.join(", ") } })
 }
 
 export default async function AreaPage({ params }: { params: Promise<{ locale: string; area: string }> }) {

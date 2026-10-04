@@ -9,15 +9,11 @@ import { getPage, getSettings } from "@/lib/cms/read"
 import { pairs } from "@/lib/cms/types/pages/blocks"
 import type { ReferContent } from "@/lib/cms/types/pages/commerce"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  const { referral } = await getSettings()
-  return {
-    title: "Refer a friend: give and get on Mjazo",
-    description: `Share your Mjazo link: friends get ${formatPKR(referral.friendOff)} off their first booking and you get ${formatPKR(referral.youGet)} credit when they book.`,
-    alternates: { canonical: "/refer" },
-  }
+  return pageMetadata({ path: "/refer", seo: (await getPage("refer")).seo })
 }
 
 export default async function ReferPage({ params }: { params: Promise<{ locale: string }> }) {

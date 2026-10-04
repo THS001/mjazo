@@ -5,11 +5,12 @@ import type { HelpTopic } from "@/lib/content"
 import { Breadcrumbs } from "@/components/site/page-hero"
 import { Container, Icon } from "@/components/site/primitives"
 import { FAQ } from "@/components/site/faq"
-import { getContent, getPage, getSettings } from "@/lib/cms/read"
+import { getContent, getPage, getSettings, getSeoSettings } from "@/lib/cms/read"
 import { renderTokens } from "@/lib/cms/fields"
 import type { HelpContent } from "@/lib/cms/types/pages/editorial"
 import { waLink } from "@/lib/site"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateStaticParams() {
   return (await getContent<HelpTopic>("help-topic")).map((t) => ({ topic: t.slug }))
@@ -18,8 +19,9 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; topic: string }> }): Promise<Metadata> {
   await pageLocale(params)
   const { topic } = await params
-  const t = (await getContent<HelpTopic>("help-topic")).find((x) => x.slug === topic)
-  return t ? { title: `${t.title}: help & answers`, description: `${t.blurb}. ${t.articles.map(([q]) => q).join(" ")}`.slice(0, 300), alternates: { canonical: `/help/${t.slug}` } } : {}
+  const [topics, s] = await Promise.all([getContent<HelpTopic>("help-topic"), getSeoSettings()])
+  const t = topics.find((x) => x.slug === topic)
+  return t ? pageMetadata({ path: `/help/${t.slug}`, seo: t.seo, title: s.patterns.helpTitle, description: `${t.blurb}. ${t.articles.map(([q]) => q).join(" ")}`.slice(0, 300), vars: { topic: t.title } }) : {}
 }
 
 export default async function HelpTopicPage({ params }: { params: Promise<{ locale: string; topic: string }> }) {

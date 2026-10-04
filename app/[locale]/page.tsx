@@ -7,8 +7,12 @@ import { getPage } from "@/lib/cms/read"
 import { pairs } from "@/lib/cms/types/pages/blocks"
 import type { HomeContent } from "@/lib/cms/types/pages/home"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = { alternates: { canonical: "/" } }
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/", seo: (await getPage("home")).seo, absolute: true })
+}
 
 export default async function Home({ params }: { params: Promise<{ locale: string }> }) {
   await pageLocale(params)

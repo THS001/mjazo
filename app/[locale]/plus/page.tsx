@@ -12,16 +12,11 @@ import { getCatalog, getPage, getSettings } from "@/lib/cms/read"
 import { pairs } from "@/lib/cms/types/pages/blocks"
 import type { PlusContent } from "@/lib/cms/types/pages/commerce"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  const { plus } = await getSettings()
-  const pct = Math.round(plus.discount * 100)
-  return {
-  title: "Mjazo Plus membership: member prices on every home service",
-  description: `Mjazo Plus: ${pct}% member prices on every booking, priority shaadi-season slots, free reschedules and first pick of your favourite pro. ${formatPKR(plus.price)} a ${plus.period}.`,
-  alternates: { canonical: "/plus" },
-  }
+  return pageMetadata({ path: "/plus", seo: (await getPage("plus")).seo })
 }
 
 const PERK_ICONS = [Crown, CalendarCheck, Heart, RefreshCw]

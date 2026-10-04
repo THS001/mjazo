@@ -1,6 +1,7 @@
 import { helpTopics, legal, posts, type HelpTopic, type LegalDoc, type Post } from "@/lib/content"
 import { docFrom, f, type RichDoc } from "../fields"
 import { register } from "../registry"
+import { seoGroup } from "./seo"
 
 // Editorial collections: blog posts, help-centre topics and legal documents.
 
@@ -27,6 +28,7 @@ export const postType = register<PostSite, PostSite>({
     tint: f.color("Card colour"),
     cover: f.image("Cover image", { help: "Shown on the blog index and at the top of the article. Without one, the card colour shows." }),
     body: f.richText("Article"),
+    seo: seoGroup("Empty fields use the article's title and excerpt."),
   },
   defaults: () => posts.map((p) => ({ ...p, body: docFrom(p.body) })),
   idOf: (p) => p.slug,
@@ -49,6 +51,7 @@ export const helpType = register<HelpTopic, HelpCms>({
     icon: f.icon("Icon"),
     blurb: f.text("Short description", { max: 80 }),
     articles: f.list("Questions", f.group("Question", { q: f.text("Question", { required: true }), a: f.textarea("Answer", { required: true }) }), { itemLabel: "q" }),
+    seo: seoGroup("Empty fields use the help title pattern and the topic's questions."),
   },
   defaults: () => helpTopics,
   idOf: (t) => t.slug,
@@ -76,6 +79,7 @@ export const legalType = register<LegalDoc, LegalDoc>({
     slug: f.slug(),
     updated: f.date("Last updated", { help: "Set automatically when you publish." }),
     sections: f.list("Sections", f.group("Section", { h: f.text("Heading", { required: true }), p: f.textarea("Text", { required: true, help: "Leave a blank line between paragraphs." }) }), { itemLabel: "h" }),
+    seo: seoGroup(),
   },
   defaults: () => Object.values(legal).map((d) => ({ ...d, updated: toIso(d.updated) })),
   idOf: (d) => d.slug,

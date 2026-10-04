@@ -3,11 +3,11 @@ import { ShaadiPlanner } from "@/components/shaadi/planner"
 import { getPage } from "@/lib/cms/read"
 import type { PlannerContent } from "@/lib/cms/types/pages/tools"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/weddings/planner" },
-  title: "Shaadi Orchestrator: plan the whole family's wedding glam",
-  description: "Tell us your events and who needs glam. Mjazo's AI plans everyone's pre-wedding glow and works backwards from photo time, so the whole family is ready together. Karachi, at home.",
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/weddings/planner", seo: (await getPage("shaadi-planner")).seo })
 }
 
 export default async function ShaadiPlannerPage({ params }: { params: Promise<{ locale: string }> }) {

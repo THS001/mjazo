@@ -3,11 +3,11 @@ import { GlamMirror } from "@/components/glam/glam-mirror"
 import { getPage } from "@/lib/cms/read"
 import type { GlamContent } from "@/lib/cms/types/pages/tools"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/glam-mirror" },
-  title: "Glam Mirror: try mehndi and makeup before you book",
-  description: "Try mehndi designs on a photo of your own hand and see lip colours, blush, kajal and hair colour live on your face. It all runs on your phone. Save the look and send it to your Mjazo pro.",
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/glam-mirror", seo: (await getPage("glam-mirror")).seo })
 }
 
 export default async function GlamMirrorPage({ params }: { params: Promise<{ locale: string }> }) {

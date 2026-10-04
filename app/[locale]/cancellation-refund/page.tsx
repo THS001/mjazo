@@ -1,7 +1,10 @@
 import { LegalPage, legalMetadata, loadLegal } from "@/components/site/legal-page"
 import { pageLocale } from "@/lib/cms/locale"
 
-export const generateMetadata = () => legalMetadata("cancellation-refund", "/cancellation-refund")
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
+  await pageLocale(params)
+  return legalMetadata("cancellation-refund", "/cancellation-refund")
+}
 
 export default async function Page({ params }: { params: Promise<{ locale: string }> }) {
   await pageLocale(params)

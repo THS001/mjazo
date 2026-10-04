@@ -1,9 +1,12 @@
 import type { Metadata } from "next"
 import { PartnerThanks } from "@/components/partner/thanks"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/partner/thanks" }, title: "Application received", robots: { index: false, follow: true } }
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/partner/thanks", title: "Application received", noindex: "follow" })
+}
 
 export default async function ThanksPage({ params }: { params: Promise<{ locale: string }> }) {
   await pageLocale(params)

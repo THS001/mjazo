@@ -13,7 +13,7 @@ import { LOCALES, type Locale } from "@/lib/i18n"
 export { LOCALES, type Locale }
 export type Localized<T = string> = { en: T; ur?: T; ai?: boolean }
 
-type Common = { label: string; help?: string; required?: boolean; width?: "full" | "half" | "third"; perm?: "prices" | "settings" }
+type Common = { label: string; help?: string; required?: boolean; width?: "full" | "half" | "third"; perm?: "prices" | "settings" | "seo" }
 
 export type TextField = Common & { kind: "text" | "textarea"; localized?: boolean; max?: number; placeholder?: string; mono?: boolean }
 export type RichTextField = Common & { kind: "richText" }
@@ -29,7 +29,8 @@ export type DateField = Common & { kind: "date" }
 export type ImageField = Common & { kind: "image"; accept?: "image" | "video" | "model" }
 export type RefField = Common & { kind: "ref"; to: string }
 export type ListField = Common & { kind: "list"; of: Field; itemLabel?: string; min?: number; max?: number }
-export type GroupField = Common & { kind: "group"; fields: Fields }
+/** `ui: "seo"` shows the group with a Google result preview and live checks in the admin. */
+export type GroupField = Common & { kind: "group"; fields: Fields; ui?: "seo" }
 export type Field =
   | TextField
   | RichTextField

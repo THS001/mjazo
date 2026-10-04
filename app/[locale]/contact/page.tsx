@@ -7,11 +7,11 @@ import { getPage, getSettings } from "@/lib/cms/read"
 import type { ContactContent } from "@/lib/cms/types/pages/company"
 import { waLink } from "@/lib/site"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  const { site } = await getSettings()
-  return { alternates: { canonical: "/contact" }, title: "Contact Mjazo: WhatsApp, phone & email", description: `WhatsApp, call or email Mjazo. ${site.hours}.` }
+  return pageMetadata({ path: "/contact", seo: (await getPage("contact")).seo })
 }
 
 export default async function ContactPage({ params }: { params: Promise<{ locale: string }> }) {

@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { CategoryView } from "@/components/services/category-view"
-import { getCatalog } from "@/lib/cms/read"
+import { getCatalog, getSeoSettings } from "@/lib/cms/read"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateStaticParams() {
   const { visibleCategories } = await getCatalog()
@@ -11,14 +12,10 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; category: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  const { getCategory } = await getCatalog()
+  const [{ getCategory }, s] = await Promise.all([getCatalog(), getSeoSettings()])
   const c = getCategory((await params).category)
   if (!c) return {}
-  return {
-    title: `${c.name} at home in Karachi: ${c.tagline}`,
-    alternates: { canonical: `/services/${c.slug}` },
-    description: `${c.tagline}. ${c.status === "live" ? "Book verified pros across Karachi with all-in prices. Pay after the service." : "Coming soon: join the waitlist."}`,
-  }
+  return pageMetadata({ path: `/services/${c.slug}`, seo: c.seo, title: s.patterns.categoryTitle, description: c.status === "live" ? s.patterns.categoryDescription : s.patterns.categoryDescriptionSoon, vars: { category: c.name, tagline: c.tagline }, image: c.image })
 }
 
 export default async function CategoryPage({ params }: { params: Promise<{ locale: string; category: string }> }) {

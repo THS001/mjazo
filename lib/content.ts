@@ -22,6 +22,7 @@ export interface HelpTopic {
   icon: string
   blurb: string
   articles: [string, string][]
+  seo?: import("@/lib/cms/types/seo").Seo
 }
 
 export const helpTopics: HelpTopic[] = [
@@ -198,6 +199,7 @@ export interface Post {
   tag: string
   tint: string
   cover?: import("@/lib/cms/fields").Img
+  seo?: import("@/lib/cms/types/seo").Seo
   body: { h?: string; p: string }[]
 }
 
@@ -259,6 +261,7 @@ export interface LegalDoc {
   title: string
   updated: string
   sections: { h: string; p: string }[]
+  seo?: import("@/lib/cms/types/seo").Seo
 }
 
 export const legal: Record<string, LegalDoc> = {

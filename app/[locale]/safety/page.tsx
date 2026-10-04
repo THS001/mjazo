@@ -10,11 +10,11 @@ import { getContent, getPage, getSettings } from "@/lib/cms/read"
 import type { SafetyContent } from "@/lib/cms/types/pages/company"
 import { waLink } from "@/lib/site"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/safety" },
-  title: "Safety & trust: vetted, women-only beauty pros",
-  description: "Women-only beauty pros, five-step vetting with CNIC and background checks, sealed single-use kits, live check-in and check-out, and a women-led support line.",
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/safety", seo: (await getPage("safety")).seo })
 }
 
 const FOREST = "#14201b"

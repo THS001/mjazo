@@ -5,11 +5,11 @@ import { HeroReveal } from "@/components/site/reveal-client"
 import { getCatalog, getPage } from "@/lib/cms/read"
 import type { AboutContent } from "@/lib/cms/types/pages/company"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/about" },
-  title: "About Mjazo: built in Karachi, for Karachi",
-  description: "Built in Karachi, for Karachi. Why we started Mjazo, what we stand for, and where we're going.",
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  await pageLocale(params)
+  return pageMetadata({ path: "/about", seo: (await getPage("about")).seo })
 }
 
 export default async function AboutPage({ params }: { params: Promise<{ locale: string }> }) {

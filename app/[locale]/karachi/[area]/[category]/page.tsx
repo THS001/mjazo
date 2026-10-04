@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { CategoryView } from "@/components/services/category-view"
-import { getCatalog } from "@/lib/cms/read"
+import { getCatalog, getSeoSettings } from "@/lib/cms/read"
 import { pageLocale } from "@/lib/cms/locale"
+import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 // Local SEO pages, e.g. /karachi/dha/womens-salon → "Women's Salon in DHA".
 export async function generateStaticParams() {
@@ -12,17 +13,13 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; area: string; category: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  const { getArea, getCategory } = await getCatalog()
+  const [{ getArea, getCategory }, s] = await Promise.all([getCatalog(), getSeoSettings()])
   const p = await params
   const a = getArea(p.area)
   const c = getCategory(p.category)
   if (!a || !c) return {}
   const live = a.status === "live" && c.status === "live"
-  return {
-    title: `${c.name} at home in ${a.name}, Karachi`,
-    description: `${c.tagline} in ${a.name}. ${live ? "Book today with all-in prices and pay after." : "Coming soon: join the waitlist."}`,
-    alternates: { canonical: `/karachi/${a.slug}/${c.slug}` },
-  }
+  return pageMetadata({ path: `/karachi/${a.slug}/${c.slug}`, title: s.patterns.areaCategoryTitle, description: live ? s.patterns.areaCategoryDescription : s.patterns.areaCategoryDescriptionSoon, vars: { category: c.name, area: a.name, tagline: c.tagline }, image: c.image })
 }
 
 export default async function AreaCategoryPage({ params }: { params: Promise<{ locale: string; area: string; category: string }> }) {
