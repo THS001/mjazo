@@ -16,8 +16,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files
+# env files (real values stay local; the example with empty values is committed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -26,9 +27,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# local CMS / store data
+# local CMS / store data (development only)
 /.data
-!.env.example
-
-.vercel
-.env*
