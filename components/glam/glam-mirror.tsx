@@ -12,12 +12,14 @@ import { DESIGNS, HENNA, drawDesignOn, renderMehndi, templateHand, type DesignId
 import { BLUSH, HAIR, KAJAL, LIPS, NO_MAKEUP, drawHair, drawMakeup, type MakeupChoice } from "@/lib/glam/makeup"
 import type { LookService } from "@/lib/glam/look"
 import { cn } from "@/lib/utils"
+import { Accent } from "@/components/cms/accent"
+import type { GlamContent } from "@/lib/cms/types/pages/tools"
 
 type Mode = "mehndi" | "makeup"
 type Card = { title: string; brief: string; services: LookService[]; ai: boolean }
 const ROSE = "linear-gradient(135deg,#f3c6b3 0%,#b97c66 45%,#f6d7c8 70%,#a86c58 100%)"
 
-export function GlamMirror() {
+export function GlamMirror({ content }: { content: GlamContent }) {
   const [mode, setMode] = useState<Mode>("mehndi")
   const [design, setDesign] = useState<DesignId>("arabic-trail")
   const [stain, setStain] = useState<"fresh" | "dark">("dark")
@@ -30,16 +32,16 @@ export function GlamMirror() {
   return (
     <div className="min-h-screen" style={{ background: "linear-gradient(180deg,#fbeee6 0%,#f6e4e6 45%,#fdf7f1 100%)" }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-32 sm:pt-40 pb-10">
-        <p className="text-sm tracking-[0.2em] uppercase text-[#a86c58]">Glam Mirror · on your phone</p>
+        <p className="text-sm tracking-[0.2em] uppercase text-[#a86c58]">{content.hero.eyebrow}</p>
         <h1 className="font-serif text-[clamp(2.6rem,7vw,5.5rem)] leading-[0.95] mt-4 max-w-4xl">
-          See the look <span className="italic text-[#a86c58]">before</span> you book it.
+          <Accent text={content.hero.title} className="italic text-[#a86c58]" />
         </h1>
-        <p className="text-lg text-black/60 mt-6 max-w-2xl">Try mehndi designs on a photo of your own hand, and lip colours, blush, kajal and hair colour live on your face. Pick the one you love and it becomes a Look Card for the pro who comes to you.</p>
+        <p className="text-lg text-black/60 mt-6 max-w-2xl">{content.hero.sub}</p>
         <div className="mt-8 inline-flex rounded-full bg-white/70 backdrop-blur p-1 border border-black/5" role="tablist">
           {(
             [
-              ["mehndi", "Mehndi on my hand", Hand],
-              ["makeup", "Makeup & hair, live", Sparkles],
+              ["mehndi", content.tabs.mehndi, Hand],
+              ["makeup", content.tabs.makeup, Sparkles],
             ] as const
           ).map(([id, label, Icon]) => (
             <button key={id} role="tab" aria-selected={mode === id} onClick={() => setMode(id)} className={cn("h-11 px-5 rounded-full text-sm flex items-center gap-2 transition-colors", mode === id ? "bg-black text-white" : "text-black/60 hover:text-black")}>

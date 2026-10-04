@@ -8,6 +8,7 @@ import { localizeObject, resolveObject, tokensDeep, zodObject, type Locale, type
 import { getType, type ContentType } from "./registry"
 import { listRows, type Data, type EntryRow } from "./store"
 import type { ServiceCms } from "./types/catalog"
+import type { NavContent } from "./types/nav"
 import "./types"
 
 // The public site's view of the CMS. Published content is cached per type (tag `cms:<type>`) and
@@ -132,6 +133,7 @@ export const getTokens = cache(async (locale: Locale = "en"): Promise<TokenConte
   return {
     ...base,
     catalog: {
+      worldCount: cat.worlds.length,
       areaCount: live.length,
       areaNames: live.map((a) => a.name).join(", "),
       categoryCount: cat.visibleCategories.length,
@@ -146,6 +148,9 @@ export const getTokens = cache(async (locale: Locale = "en"): Promise<TokenConte
 export async function getPage<S>(id: string, locale: Locale = "en"): Promise<S> {
   return getSingleton<S>(`page-${id}`, locale, await getTokens(locale))
 }
+
+/** Header, mobile tab bar and footer (the `nav` singleton), with {{tokens}} filled in. */
+export const getNav = cache(async (locale: Locale = "en") => getSingleton<NavContent>("nav", locale, await getTokens(locale)))
 
 /** A content collection (posts, help topics, ...) with {{tokens}} filled in. */
 export async function getContent<S>(type: string, locale: Locale = "en"): Promise<S[]> {

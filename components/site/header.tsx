@@ -10,14 +10,7 @@ import { cn } from "@/lib/utils"
 import { EASE, Icon, Pill } from "./primitives"
 import { LocationDialog } from "./location-dialog"
 import { SearchDialog } from "./search-dialog"
-import { useCatalog } from "@/components/cms/provider"
-
-const NAV = [
-  { href: "/offers", label: "Offers" },
-  { href: "/plus", label: "Plus" },
-  { href: "/safety", label: "Safety" },
-  { href: "/partner", label: "Become a Pro" },
-]
+import { useCatalog, useNav } from "@/components/cms/provider"
 
 export function Logo({ className, light }: { className?: string; light?: boolean }) {
   return (
@@ -34,6 +27,7 @@ export function Logo({ className, light }: { className?: string; light?: boolean
 
 export function Header() {
   const { categoriesOf, getArea, worlds, worldStatus } = useCatalog()
+  const { header: nav } = useNav()
   const pathname = usePathname()
   const [menu, setMenu] = useState(false)
   const [mobile, setMobile] = useState(false)
@@ -44,7 +38,7 @@ export function Header() {
   const setCartOpen = useCart((s) => s.setOpen)
   const { area, subArea } = useLocation()
   const count = mounted ? cartCount(items) : 0
-  const areaName = mounted && area ? `${getArea(area)?.name ?? ""}${subArea ? ` · ${subArea}` : ""}` : "Select area"
+  const areaName = mounted && area ? `${getArea(area)?.name ?? ""}${subArea ? ` · ${subArea}` : ""}` : nav.selectArea
 
   useEffect(() => setMounted(true), [])
   useEffect(() => {
@@ -94,9 +88,9 @@ export function Header() {
                 className="flex items-center gap-1 text-sm text-zinc-600 hover:text-black transition-colors whitespace-nowrap"
                 aria-expanded={menu}
               >
-                Services <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", menu && "rotate-180")} />
+                {nav.services} <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", menu && "rotate-180")} />
               </button>
-              {NAV.map((n) => (
+              {nav.links.map((n) => (
                 <Link key={n.href} href={n.href} onMouseEnter={() => setMenu(false)} className={cn("text-sm transition-colors", pathname.startsWith(n.href) ? "text-black" : "text-zinc-600 hover:text-black")}>
                   {n.label}
                 </Link>
@@ -111,9 +105,9 @@ export function Header() {
                 <ShoppingBag className="w-4 h-4" />
                 {count > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-brand text-[10px] font-semibold flex items-center justify-center">{count}</span>}
               </button>
-              <Link href="/login" className="hidden lg:flex xl:hidden w-10 h-10 rounded-full items-center justify-center hover:bg-zinc-100 transition-colors" aria-label="Log in"><User className="w-4 h-4" /></Link>
-              <Link href="/login" className="hidden md:block lg:hidden xl:block text-sm text-zinc-600 hover:text-black px-3 whitespace-nowrap">Log in</Link>
-              <Pill href="/services/w/beauty-wellness" className="hidden md:inline-flex">Book now</Pill>
+              <Link href="/login" className="hidden lg:flex xl:hidden w-10 h-10 rounded-full items-center justify-center hover:bg-zinc-100 transition-colors" aria-label={nav.login}><User className="w-4 h-4" /></Link>
+              <Link href="/login" className="hidden md:block lg:hidden xl:block text-sm text-zinc-600 hover:text-black px-3 whitespace-nowrap">{nav.login}</Link>
+              <Pill href={nav.book.href} className="hidden md:inline-flex">{nav.book.label}</Pill>
               <button className="lg:hidden w-10 h-10 flex items-center justify-center" onClick={() => setMobile((m) => !m)} aria-label="Menu" aria-expanded={mobile}>
                 {mobile ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
@@ -145,7 +139,7 @@ export function Header() {
                           <li key={c.slug}>
                             <Link href={`/services/${c.slug}`} className="text-[13px] text-zinc-500 hover:text-black transition-colors">
                               {c.name}
-                              {c.status !== "live" && <span className="ml-1.5 text-[10px] text-zinc-400">soon</span>}
+                              {c.status !== "live" && <span className="ml-1.5 text-[10px] text-zinc-400">{nav.soon}</span>}
                             </Link>
                           </li>
                         ))}
@@ -154,8 +148,8 @@ export function Header() {
                   ))}
                 </div>
                 <div className="flex justify-between items-center border-t border-zinc-200 pt-3 pb-1 text-xs text-zinc-500">
-                  <span><span className="inline-block w-1.5 h-1.5 rounded-full bg-brand mr-1.5 align-middle" />Every service, bookable across 8 Karachi neighbourhoods. All-in prices, pay after.</span>
-                  <Link href="/services" className="text-black underline underline-offset-4">All services</Link>
+                  <span><span className="inline-block w-1.5 h-1.5 rounded-full bg-brand mr-1.5 align-middle" />{nav.megaNote}</span>
+                  <Link href="/services" className="text-black underline underline-offset-4">{nav.allServices}</Link>
                 </div>
               </motion.div>
             )}
@@ -169,13 +163,11 @@ export function Header() {
                   <button onClick={() => setLocOpen(true)} className="sm:hidden flex items-center gap-2 py-2 text-sm text-zinc-700">
                     <MapPin className="w-4 h-4" /> {areaName}
                   </button>
-                  <Link href="/services" className="py-2 text-base">All services</Link>
-                  {NAV.map((n) => (
+                  <Link href="/services" className="py-2 text-base">{nav.allServices}</Link>
+                  {[...nav.links, ...nav.mobileLinks].map((n) => (
                     <Link key={n.href} href={n.href} className="py-2 text-base text-zinc-700">{n.label}</Link>
                   ))}
-                  <Link href="/karachi" className="py-2 text-base text-zinc-700">Areas</Link>
-                  <Link href="/help" className="py-2 text-base text-zinc-700">Help</Link>
-                  <Link href="/login" className="py-2 text-base text-zinc-700">Log in</Link>
+                  <Link href="/login" className="py-2 text-base text-zinc-700">{nav.login}</Link>
                 </div>
               </motion.nav>
             )}

@@ -6,7 +6,9 @@ import { PageHero } from "@/components/site/page-hero"
 import { Container, Icon, Reveal, StatusChip } from "@/components/site/primitives"
 import { WorldRing } from "@/components/services/world-ring"
 import { WorldJump } from "@/components/services/world-jump"
-import { getCatalog } from "@/lib/cms/read"
+import { getCatalog, getPage } from "@/lib/cms/read"
+import { renderTokens } from "@/lib/cms/fields"
+import type { ServicesContent } from "@/lib/cms/types/pages/catalogue"
 
 export async function generateMetadata(): Promise<Metadata> {
   const { serviceCount } = await getCatalog()
@@ -18,14 +20,14 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ServicesPage() {
-  const { categoriesOf, serviceCount, visibleCategories, worlds, worldStatus } = await getCatalog()
+  const [{ categoriesOf, worlds, worldStatus }, c] = await Promise.all([getCatalog(), getPage<ServicesContent>("services")])
   return (
     <div className="bg-cream">
       <PageHero
         crumbs={[{ label: "Services" }]}
-        eyebrow={`${worlds.length} worlds · ${visibleCategories.length} categories · ${serviceCount}+ services`}
-        title="Every corner of your home, covered."
-        sub="Spin the worlds or scroll the full menu. Every service is bookable today, with all-in prices you pay after."
+        eyebrow={c.hero.eyebrow}
+        title={c.hero.title}
+        sub={c.hero.sub}
         center
       >
         <div className="mt-12 -mx-4">
@@ -51,32 +53,32 @@ export default async function ServicesPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <StatusChip status={live ? "live" : "waitlist"} />
-                  <Link href={`/services/w/${w.slug}`} className="inline-block py-2 text-sm underline underline-offset-4">Explore {w.name}</Link>
+                  <Link href={`/services/w/${w.slug}`} className="inline-block py-2 text-sm underline underline-offset-4">{renderTokens(c.explore, { world: w.name })}</Link>
                 </div>
               </Reveal>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {cats.map((c, ci) => (
-                  <Reveal key={c.slug} delay={ci * 0.05}>
-                    <Link href={`/services/${c.slug}`} className="group flex flex-col h-full rounded-3xl bg-white border border-zinc-200 p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_-28px_rgba(0,0,0,0.3)]">
+                {cats.map((cat, ci) => (
+                  <Reveal key={cat.slug} delay={ci * 0.05}>
+                    <Link href={`/services/${cat.slug}`} className="group flex flex-col h-full rounded-3xl bg-white border border-zinc-200 p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_-28px_rgba(0,0,0,0.3)]">
                       <div className="flex items-start justify-between mb-5">
                         <span className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: w.tint }}>
-                          <Icon name={c.icon} className="w-6 h-6" />
+                          <Icon name={cat.icon} className="w-6 h-6" />
                         </span>
                         <ArrowUpRight className="w-5 h-5 text-zinc-400 transition-all group-hover:text-black group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                       </div>
-                      <p className="text-xl font-medium">{c.name}</p>
-                      <p className="text-sm text-zinc-500 mt-1">{c.tagline}</p>
+                      <p className="text-xl font-medium">{cat.name}</p>
+                      <p className="text-sm text-zinc-500 mt-1">{cat.tagline}</p>
                       <ul className="mt-5 space-y-1.5 flex-1">
-                        {c.services.slice(0, 4).map((s) => (
+                        {cat.services.slice(0, 4).map((s) => (
                           <li key={s.slug} className="flex justify-between gap-3 text-sm">
                             <span className="text-zinc-700 truncate">{s.name}</span>
-                            <span className="text-zinc-400 whitespace-nowrap">{s.price > 0 ? formatPKR(s.price) : "Quote"}</span>
+                            <span className="text-zinc-400 whitespace-nowrap">{s.price > 0 ? formatPKR(s.price) : c.quote}</span>
                           </li>
                         ))}
                       </ul>
                       <div className="mt-5 pt-4 border-t border-zinc-100 flex items-center justify-between text-xs">
-                        <span className="text-zinc-500">{c.services.length} services</span>
-                        <StatusChip status={c.status} liveLabel="Live" />
+                        <span className="text-zinc-500">{cat.services.length} {c.services}</span>
+                        <StatusChip status={cat.status} liveLabel="Live" />
                       </div>
                     </Link>
                   </Reveal>

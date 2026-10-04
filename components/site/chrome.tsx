@@ -9,7 +9,7 @@ import { formatPKR } from "@/lib/catalog"
 import { captureAttribution, track } from "@/lib/site"
 import { cartCount, cartTotal, useCart } from "@/lib/store"
 import { cn } from "@/lib/utils"
-import { useSite } from "@/components/cms/provider"
+import { useNav, useSite } from "@/components/cms/provider"
 
 /** Lenis smooth scroll (lerp 0.1, matching the template) + first-touch attribution capture. */
 export function SmoothScroll() {
@@ -64,16 +64,17 @@ export function WhatsAppFab() {
 }
 
 const TABS = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/services", label: "Services", icon: LayoutGrid },
-  { href: "#search", label: "Search", icon: Search },
-  { href: "/account/bookings", label: "Bookings", icon: CalendarCheck },
-  { href: "/account", label: "Account", icon: User },
-]
+  { href: "/", key: "home", icon: Home },
+  { href: "/services", key: "services", icon: LayoutGrid },
+  { href: "#search", key: "search", icon: Search },
+  { href: "/account/bookings", key: "bookings", icon: CalendarCheck },
+  { href: "/account", key: "account", icon: User },
+] as const
 
 /** Mobile bottom tab bar + sticky "View cart" bar. */
 export function MobileBar() {
   const pathname = usePathname()
+  const { tabs } = useNav()
   const { items, setOpen } = useCart()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -96,15 +97,15 @@ export function MobileBar() {
           const cls = cn("flex flex-col items-center justify-center gap-0.5 min-h-14 py-1.5 text-[11px]", active ? "text-black" : "text-zinc-500")
           if (t.href === "#search")
             return (
-              <button key={t.label} className={cls} onClick={() => window.dispatchEvent(new Event("mjazo:search"))}>
+              <button key={t.key} className={cls} onClick={() => window.dispatchEvent(new Event("mjazo:search"))}>
                 <t.icon className="w-5 h-5" strokeWidth={1.5} />
-                {t.label}
+                {tabs[t.key]}
               </button>
             )
           return (
-            <Link key={t.label} href={t.href} className={cls}>
+            <Link key={t.key} href={t.href} className={cls}>
               <t.icon className="w-5 h-5" strokeWidth={1.5} />
-              {t.label}
+              {tabs[t.key]}
             </Link>
           )
         })}

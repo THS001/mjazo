@@ -9,7 +9,8 @@ import { CheckList } from "@/components/site/forms"
 import { ServiceCard } from "@/components/site/service-card"
 import { FAQ } from "@/components/site/faq"
 import { ServicePurchase } from "@/components/services/service-purchase"
-import { getCatalog, getSettings } from "@/lib/cms/read"
+import { getCatalog, getPage, getSettings } from "@/lib/cms/read"
+import type { ServiceContent } from "@/lib/cms/types/pages/catalogue"
 
 export async function generateStaticParams() {
   const { allServices } = await getCatalog()
@@ -29,15 +30,10 @@ export async function generateMetadata({ params }: { params: Promise<{ category:
   }
 }
 
-const PREP = {
-  women: ["Pick a spot with good light and a little space; your pro brings sheets and towels.", "For waxing, let hair grow about 5 mm (2–3 weeks) and skip moisturiser that day.", "Mention allergies or sensitive skin in your booking notes."],
-  technician: ["Clear access to the area (AC unit, sink, appliance) before the visit.", "Keep the model number handy if it's an appliance.", "Any parts are priced and approved by you before fitting."],
-  care: ["Share any medical notes or routines in your booking notes.", "Keep prescriptions and reports handy for health visits.", "In an emergency, call 1122 first."],
-}
+const STEP_ICONS = [Sparkles, CalendarClock, UserCheck, Star]
 
 export default async function ServicePage({ params }: { params: Promise<{ category: string; service: string }> }) {
-  const { allServices, areas, getService, getWorld } = await getCatalog()
-  const { policy, site } = await getSettings()
+  const [{ areas, getService, getWorld }, { site }, c] = await Promise.all([getCatalog(), getSettings(), getPage<ServiceContent>("service")])
   const p = await params
   const found = getService(p.category, p.service)
   if (!found) notFound()
@@ -45,12 +41,7 @@ export default async function ServicePage({ params }: { params: Promise<{ catego
   const world = getWorld(category.world)!
   const live = category.status === "live"
   const related = category.services.filter((s) => s.slug !== service.slug).sort((a, b) => Number(!!b.popular) - Number(!!a.popular)).slice(0, 4)
-  const steps = [
-    { icon: Sparkles, t: "Book in 2 minutes", d: "Pick options, a date and a time window." },
-    { icon: CalendarClock, t: "We match your pro", d: category.proType === "women" ? "A verified woman pro, confirmed on WhatsApp." : "A verified professional, confirmed on WhatsApp." },
-    { icon: UserCheck, t: "She arrives & checks in", d: category.proType === "women" ? "With a sealed kit, opened in front of you." : "With tools, on time, and checks in live." },
-    { icon: Star, t: "Pay after, rate, rebook", d: "Cash, JazzCash, Easypaisa or Raast." },
-  ]
+  const steps = (category.proType === "women" ? c.stepsWomen : c.stepsOther).map((st, i) => ({ ...st, icon: STEP_ICONS[i] ?? Sparkles }))
   const schema = {
     "@context": "https://schema.org",
     "@type": "Service",
@@ -77,13 +68,13 @@ export default async function ServicePage({ params }: { params: Promise<{ catego
                   <div className="absolute w-[46%] aspect-square rounded-full bg-white/40" />
                   <Icon name={category.icon} className="relative w-28 h-28 sm:w-36 sm:h-36 text-black/75" strokeWidth={0.8} />
                   <div className="absolute top-5 left-5 flex flex-wrap gap-2">
-                    <StatusChip status={category.status} liveLabel="Available across Karachi" className="bg-white/85" />
-                    {service.popular && <span className="rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-medium">Most booked</span>}
+                    <StatusChip status={category.status} liveLabel={c.chips.available} className="bg-white/85" />
+                    {service.popular && <span className="rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-medium">{c.chips.popular}</span>}
                   </div>
                   <div className="absolute bottom-5 left-5 right-5 flex flex-wrap gap-2 text-xs">
                     <span className="rounded-full bg-black/80 text-white px-3 py-1.5 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" />{formatDuration(service.duration)}</span>
                     <span className="rounded-full bg-black/80 text-white px-3 py-1.5 flex items-center gap-1.5"><BadgeCheck className="w-3.5 h-3.5" />{proLabel[category.proType]}</span>
-                    {category.proType === "women" && <span className="rounded-full bg-black/80 text-white px-3 py-1.5 flex items-center gap-1.5"><PackageCheck className="w-3.5 h-3.5" />Sealed kit</span>}
+                    {category.proType === "women" && <span className="rounded-full bg-black/80 text-white px-3 py-1.5 flex items-center gap-1.5"><PackageCheck className="w-3.5 h-3.5" />{c.chips.sealedKit}</span>}
                   </div>
                 </div>
               </HeroReveal>
@@ -98,27 +89,27 @@ export default async function ServicePage({ params }: { params: Promise<{ catego
 
               <Reveal className="mt-14 grid sm:grid-cols-2 gap-6">
                 <div className="rounded-3xl bg-zinc-50 p-6">
-                  <p className="font-medium mb-4">What's included</p>
+                  <p className="font-medium mb-4">{c.included}</p>
                   <CheckList items={[...(service.includes ?? []), ...category.includes]} />
                 </div>
                 <div className="rounded-3xl bg-zinc-50 p-6">
-                  <p className="font-medium mb-4">Before your visit</p>
+                  <p className="font-medium mb-4">{c.prepTitle}</p>
                   <ul className="space-y-3 text-sm text-zinc-700 list-disc pl-5 marker:text-brand-ink">
-                    {PREP[category.proType].map((x) => <li key={x}>{x}</li>)}
+                    {(c.prep[category.proType] ?? []).map((x) => <li key={x}>{x}</li>)}
                   </ul>
                 </div>
               </Reveal>
 
               <div className="mt-14">
-                <p className="font-serif text-3xl mb-6">How it works</p>
+                <p className="font-serif text-3xl mb-6">{c.howTitle}</p>
                 <ol className="grid sm:grid-cols-2 gap-4">
                   {steps.map((s, i) => (
-                    <Reveal as="li" key={s.t} delay={i * 0.06} className="flex gap-4 rounded-3xl border border-zinc-200 p-5">
+                    <Reveal as="li" key={s.title} delay={i * 0.06} className="flex gap-4 rounded-3xl border border-zinc-200 p-5">
                       <span className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: world.tint }}><s.icon className="w-5 h-5" strokeWidth={1.5} /></span>
                       <span>
-                        <span className="block text-xs text-zinc-400">Step {i + 1}</span>
-                        <span className="block font-medium">{s.t}</span>
-                        <span className="block text-sm text-zinc-500 mt-0.5">{s.d}</span>
+                        <span className="block text-xs text-zinc-400">{c.step} {i + 1}</span>
+                        <span className="block font-medium">{s.title}</span>
+                        <span className="block text-sm text-zinc-500 mt-0.5">{s.body}</span>
                       </span>
                     </Reveal>
                   ))}
@@ -126,9 +117,9 @@ export default async function ServicePage({ params }: { params: Promise<{ catego
               </div>
 
               <div className="mt-14 rounded-3xl border border-zinc-200 p-6 text-sm text-zinc-600 grid sm:grid-cols-3 gap-4">
-                <p><b className="text-black block">Free changes</b>Up to {policy.freeChangeHours} hrs before your slot.</p>
-                <p><b className="text-black block">Love it or we redo it</b>Tell us within {policy.redoHours} hrs.</p>
-                <p><b className="text-black block">Pay after</b>Cash, JazzCash, Easypaisa, Raast.</p>
+                {c.policies.map((x) => (
+                  <p key={x.title}><b className="text-black block">{x.title}</b>{x.body}</p>
+                ))}
               </div>
             </div>
 
@@ -142,7 +133,7 @@ export default async function ServicePage({ params }: { params: Promise<{ catego
       {related.length > 0 && (
         <section className="py-20 bg-zinc-50">
           <Container>
-            <p className="font-serif text-4xl mb-8">Often booked with this</p>
+            <p className="font-serif text-4xl mb-8">{c.related}</p>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {related.map((s, i) => (
                 <Reveal key={s.slug} delay={i * 0.05}>
@@ -154,7 +145,7 @@ export default async function ServicePage({ params }: { params: Promise<{ catego
         </section>
       )}
 
-      <FAQ items={category.faqs} title="Good to know" />
+      <FAQ items={category.faqs} title={c.faqTitle} />
     </>
   )
 }

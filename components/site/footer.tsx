@@ -4,41 +4,19 @@ import { Logo } from "./header"
 import { Pill } from "./primitives"
 import { waLink, type Settings } from "@/lib/site"
 import type { Area, World } from "@/lib/catalog"
+import { renderTokens } from "@/lib/cms/fields"
+import type { FooterColumn, NavContent } from "@/lib/cms/types/nav"
 
-const footerCols = (worlds: World[], liveAreas: Area[]) => ({
-  Services: worlds.map((w) => ({ label: w.name, href: `/services/w/${w.slug}` })).concat([{ label: "All services", href: "/services" }]),
-  Company: [
-    { label: "About", href: "/about" },
-    { label: "Safety & trust", href: "/safety" },
-    { label: "How it works", href: "/how-it-works" },
-    { label: "Careers", href: "/careers" },
-    { label: "Mjazo for Business", href: "/business" },
-    { label: "Weddings & events", href: "/weddings" },
-    { label: "Journal", href: "/blog" },
-  ],
-  Explore: [
-    { label: "Ghar Scan (AI)", href: "/ghar-scan" },
-    { label: "Home Pulse (AI)", href: "/home-pulse" },
-    { label: "Glam Mirror (AI)", href: "/glam-mirror" },
-    { label: "Shaadi Orchestrator (AI)", href: "/weddings/planner" },
-    { label: "Offers & bundles", href: "/offers" },
-    { label: "Mjazo Plus", href: "/plus" },
-    { label: "Gift cards", href: "/gift-cards" },
-    { label: "Refer & earn", href: "/refer" },
-    { label: "Get the app", href: "/app" },
-    { label: "Areas we cover", href: "/karachi" },
-    ...liveAreas.slice(0, 2).map((a) => ({ label: `Mjazo in ${a.name}`, href: `/karachi/${a.slug}` })),
-  ],
-  Support: [
-    { label: "Help centre", href: "/help" },
-    { label: "Report a problem", href: "/complaint" },
-    { label: "Contact", href: "/contact" },
-    { label: "Cancellation & refunds", href: "/cancellation-refund" },
-    { label: "Terms", href: "/terms" },
-    { label: "Privacy", href: "/privacy" },
-    { label: "Pro code of conduct", href: "/pro-code-of-conduct" },
-  ],
-})
+/** Footer columns from the CMS, with the automatic world and area links filled in. */
+const footerCols = (columns: FooterColumn[], areaLink: string, worlds: World[], liveAreas: Area[]) =>
+  columns.map((col) => ({
+    title: col.title,
+    links: [
+      ...(col.auto === "worlds" ? worlds.map((w) => ({ label: w.name, href: `/services/w/${w.slug}` })) : []),
+      ...col.links,
+      ...(col.auto === "areas" ? liveAreas.slice(0, 2).map((a) => ({ label: renderTokens(areaLink, { area: a.name }), href: `/karachi/${a.slug}` })) : []),
+    ],
+  }))
 
 /** Karachi sunset over the sea, with a skyline silhouette: replaces the template's footer photo. */
 function Skyline() {
@@ -52,9 +30,9 @@ function Skyline() {
   )
 }
 
-export function Footer({ worlds, liveAreas, site }: { worlds: World[]; liveAreas: Area[]; site: Settings["site"] }) {
+export function Footer({ worlds, liveAreas, site, nav }: { worlds: World[]; liveAreas: Area[]; site: Settings["site"]; nav: NavContent["footer"] }) {
   const whatsappLink = (message: string) => waLink(site.whatsapp, message)
-  const cols = footerCols(worlds, liveAreas)
+  const cols = footerCols(nav.columns, nav.areaLink, worlds, liveAreas)
   return (
     <div className="relative mt-[22vw] md:mt-[18vw]">
       <div className="absolute -top-[22vw] md:-top-[18vw] left-0 right-0 h-[40vw] md:h-[32vw] overflow-hidden" aria-hidden>
@@ -70,23 +48,23 @@ export function Footer({ worlds, liveAreas, site }: { worlds: World[]; liveAreas
         <div className="max-w-7xl mx-auto">
           <div className="rounded-3xl bg-foreground text-background p-8 md:p-10 mb-14 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
-              <p className="font-serif text-3xl md:text-4xl">Are you a beautician?</p>
-              <p className="text-white/70 mt-2" dir="auto">Your skills. Your schedule. Better pay. · <span className="font-urdu">اپنی مہارت، اپنا وقت، بہتر کمائی</span></p>
+              <p className="font-serif text-3xl md:text-4xl">{nav.banner.title}</p>
+              <p className="text-white/70 mt-2" dir="auto">{nav.banner.line}{nav.banner.urdu && <> · <span className="font-urdu">{nav.banner.urdu}</span></>}</p>
             </div>
-            <Pill href="/partner" variant="brand">Join Mjazo</Pill>
+            <Pill href={nav.banner.cta.href} variant="brand">{nav.banner.cta.label}</Pill>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
             <div className="col-span-2 md:col-span-1">
               <Logo className="mb-4" />
-              <p className="text-sm text-muted-foreground mb-6">Everything your home needs, in one tap. Built in Karachi, for Karachi.</p>
+              <p className="text-sm text-muted-foreground mb-6">{nav.tagline}</p>
               <div className="flex gap-3">
                 <a href={site.instagram} target="_blank" rel="noopener noreferrer" className="w-9 h-9 border border-border rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="Instagram"><Instagram className="w-4 h-4" /></a>
                 <a href={whatsappLink("Hi Mjazo!")} target="_blank" rel="noopener noreferrer" className="w-9 h-9 border border-border rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="WhatsApp"><MessageCircle className="w-4 h-4" /></a>
                 <a href={`mailto:${site.email}`} className="w-9 h-9 border border-border rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="Email"><Mail className="w-4 h-4" /></a>
               </div>
             </div>
-            {Object.entries(cols).map(([title, links]) => (
+            {cols.map(({ title, links }) => (
               <div key={title}>
                 <p className="text-sm font-medium mb-4">{title}</p>
                 <ul className="space-y-0.5">
@@ -98,8 +76,8 @@ export function Footer({ worlds, liveAreas, site }: { worlds: World[]; liveAreas
             ))}
           </div>
           <div className="pt-8 border-t border-border flex flex-col md:flex-row justify-between gap-3 text-xs text-muted-foreground">
-            <p>© {new Date().getFullYear()} Mjazo. Karachi, Pakistan.</p>
-            <p>Prices shown are all-in. Pay after your service.</p>
+            <p>{renderTokens(nav.copyright, { year: new Date().getFullYear() })}</p>
+            <p>{nav.note}</p>
           </div>
         </div>
       </footer>

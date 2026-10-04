@@ -10,6 +10,8 @@ import { LOOKS, PREP, ROLE_LABEL, computeSchedule, diffSchedules, emptyPlan, per
 import { cn } from "@/lib/utils"
 import { EASE } from "@/components/site/primitives"
 import { useCatalog, useSite } from "@/components/cms/provider"
+import { Accent } from "@/components/cms/accent"
+import type { ToolHero } from "@/lib/cms/types/pages/tools"
 
 const KEY = "mjazo-shaadi"
 const SHARED = "mjazo-shaadi-shared"
@@ -21,7 +23,7 @@ const PERSON_TINTS = ["#f6d9cf", "#f7e3b5", "#e7d9ee", "#d6e9e4", "#f3dbe2", "#d
 
 type Msg = { role: "user" | "assistant"; text: string }
 
-export function ShaadiPlanner() {
+export function ShaadiPlanner({ hero }: { hero: ToolHero }) {
   const { whatsappLink } = useSite()
   const cat = useCatalog()
   const today = useMemo(() => karachiNow().date, [])
@@ -97,12 +99,12 @@ export function ShaadiPlanner() {
         <div aria-hidden className="absolute -right-24 top-24 w-[28rem] h-[28rem] rounded-full blur-[110px] opacity-30" style={{ background: GOLD }} />
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-32 sm:pt-40 pb-14">
           <p className="text-sm tracking-[0.2em] uppercase" style={{ color: GOLD }}>
-            Shaadi Orchestrator · AI
+            {hero.eyebrow}
           </p>
           <h1 className="font-serif text-[clamp(2.5rem,7vw,5.5rem)] leading-[0.95] mt-4 max-w-4xl">
-            Everyone ready, <span className="italic" style={{ color: GOLD }}>together</span>, for every photo.
+            <Accent text={hero.title} style={{ color: GOLD }} />
           </h1>
-          <p className="text-white/70 text-lg mt-6 max-w-2xl">Tell us your events and who needs glam. We plan each person&apos;s pre-wedding glow and work backwards from photo time, so the bride finishes last and nobody waits in their outfit.</p>
+          <p className="text-white/70 text-lg mt-6 max-w-2xl">{hero.sub}</p>
 
           <div className="mt-10 rounded-[28px] bg-white/[0.06] border border-white/15 backdrop-blur p-3 sm:p-4 max-w-3xl">
             {msgs.length > 0 && (
