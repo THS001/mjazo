@@ -1,0 +1,164 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Added smooth scroll behavior globally */
+
+
+:root {
+  /* Converting to light mode theme */
+  --background: oklch(0.98 0 0);
+  --foreground: oklch(0.1 0 0);
+  --card: oklch(0.99 0 0);
+  --card-foreground: oklch(0.1 0 0);
+  --popover: oklch(0.99 0 0);
+  --popover-foreground: oklch(0.1 0 0);
+  --primary: oklch(0.1 0 0);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.94 0 0);
+  --secondary-foreground: oklch(0.1 0 0);
+  --muted: oklch(0.92 0 0);
+  --muted-foreground: oklch(0.45 0 0);
+  --accent: oklch(0.94 0 0);
+  --accent-foreground: oklch(0.1 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.88 0 0);
+  --input: oklch(0.94 0 0);
+  --ring: oklch(0.1 0 0);
+  --chart-1: oklch(0.1 0 0);
+  --chart-2: oklch(0.4 0 0);
+  --chart-3: oklch(0.6 0 0);
+  --chart-4: oklch(0.3 0 0);
+  --chart-5: oklch(0.5 0 0);
+  --radius: 0.75rem;
+  /* Mjazo brand accent: saffron. Used only for CTAs, live badges and 3D highlights. */
+  --brand: oklch(0.78 0.15 70);
+  --brand-ink: oklch(0.5 0.12 60);
+  --brand-soft: oklch(0.95 0.04 80);
+  --cream: oklch(0.975 0.012 80);
+  --sidebar: oklch(0.99 0 0);
+  --sidebar-foreground: oklch(0.1 0 0);
+  --sidebar-primary: oklch(0.1 0 0);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.94 0 0);
+  --sidebar-accent-foreground: oklch(0.1 0 0);
+  --sidebar-border: oklch(0.88 0 0);
+  --sidebar-ring: oklch(0.1 0 0);
+}
+
+@theme inline {
+  /* Add serif font for headings */
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-serif: var(--font-playfair), Georgia, serif;
+  --font-urdu: var(--font-urdu-nastaliq), serif;
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-cream: var(--cream);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+html, body { overflow-x: clip; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+h1, h2, h3 { overflow-wrap: break-word; }
+
+/* Lenis */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-stopped { overflow: hidden; }
+
+@layer utilities {
+  .bg-word {
+    @apply pointer-events-none select-none whitespace-nowrap font-bold leading-none tracking-tighter text-zinc-100;
+  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
+}
+
+@keyframes drawPath {
+  from { stroke-dasharray: 1000; stroke-dashoffset: 1000; }
+  to { stroke-dasharray: 1000; stroke-dashoffset: 0; }
+}
+.animate-draw-icon :is(path, line, polyline, circle, rect, ellipse) { animation: drawPath 2s ease-out forwards; }
+
+@keyframes pulse-dot { 0%,100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--brand) 60%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }
+.live-dot { animation: pulse-dot 2s ease-in-out infinite; }
+
+/* Liquid glow (dark hero cards): independent drift loops; irregular shapes rotate + stretch */
+@keyframes liquid-a {
+  0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1, 1); }
+  25% { transform: translate(-22%, 18%) rotate(90deg) scale(1.15, 0.9); }
+  50% { transform: translate(-38%, 40%) rotate(180deg) scale(0.92, 1.12); }
+  75% { transform: translate(-10%, 28%) rotate(270deg) scale(1.1, 1); }
+}
+@keyframes liquid-b {
+  0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1, 1); }
+  33% { transform: translate(26%, -18%) rotate(-120deg) scale(1.2, 0.85); }
+  66% { transform: translate(-28%, 26%) rotate(-240deg) scale(0.85, 1.18); }
+}
+@keyframes liquid-c {
+  0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+  50% { transform: translate(-46%, -22%) rotate(180deg) scale(1.25, 1.05); }
+}
+.liquid-paused * { animation-play-state: paused !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+/* CMS rich-text editor (admin) */
+.prose-cms > * + * { margin-top: 0.6em; }
+.prose-cms h2 { font-family: var(--font-serif); font-size: 1.5rem; line-height: 1.2; margin-top: 1em; }
+.prose-cms h3 { font-weight: 600; font-size: 1.05rem; margin-top: 0.9em; }
+.prose-cms p { font-size: 0.9375rem; line-height: 1.65; }
+.prose-cms ul { list-style: disc; padding-inline-start: 1.4em; }
+.prose-cms ol { list-style: decimal; padding-inline-start: 1.4em; }
+.prose-cms blockquote { border-inline-start: 2px solid var(--brand); padding-inline-start: 0.9em; font-style: italic; }
+.prose-cms a { text-decoration: underline; text-underline-offset: 3px; color: var(--brand-ink); }
+.prose-cms p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: #a1a1aa; float: inline-start; height: 0; pointer-events: none; }
