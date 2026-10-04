@@ -21,7 +21,7 @@ export default async function BusinessPage() {
   return (
     <>
       <div style={GRID} className="bg-white">
-        <PageHero crumbs={[{ label: c.hero.eyebrow || "Mjazo for Business" }]} eyebrow={c.hero.eyebrow} title={c.hero.title} sub={c.hero.sub} bgWord="TEAMS" />
+        <PageHero image={c.heroImage} crumbs={[{ label: c.hero.eyebrow || "Mjazo for Business" }]} eyebrow={c.hero.eyebrow} title={c.hero.title} sub={c.hero.sub} bgWord="TEAMS" />
       </div>
       <section className="py-16 sm:py-24 border-t border-zinc-200">
         <Container>

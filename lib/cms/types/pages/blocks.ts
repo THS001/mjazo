@@ -21,7 +21,12 @@ export const lines = (label: string, o: { min?: number; max?: number; help?: str
 /** FAQ items in the [question, answer] form the FAQ component takes. */
 export const pairs = (items: Faq[] | undefined) => (items ?? []).map((x) => [x.q, x.a] as [string, string])
 
+/** Pages whose heading (PageHero) can show a photo from the media library. */
+const HERO_IMAGE = new Set(["blog", "business", "careers", "complaint", "contact", "gift-cards", "how-it-works", "karachi", "offers", "plus", "refer", "safety", "services", "weddings"])
+const heroImage = f.image("Hero image", { help: "Shown beside the heading, in place of the 3D object where there is one. Leave empty for the built-in design." })
+
 export function page<S extends object>(id: string, opts: { label: string; path: string; description?: string; fields: Fields; defaults: S }) {
+  const fields = HERO_IMAGE.has(id) ? { heroImage, ...opts.fields } : opts.fields
   return register<S, S>({
     type: `page-${id}`,
     label: opts.label,
@@ -29,7 +34,7 @@ export function page<S extends object>(id: string, opts: { label: string; path: 
     kind: "singleton",
     icon: "FileText",
     description: opts.description ?? `Text on ${opts.path}. Use {{tokens}} like {{policy.redoHours}} or {{catalog.areaCount}} for values that come from settings and the catalogue.`,
-    fields: opts.fields,
+    fields,
     defaults: () => opts.defaults,
     path: () => opts.path,
   } as ContentType<S, S>)

@@ -31,6 +31,7 @@ export default async function PlusPage() {
       {/* Moving water behind the whole page (fixed, so it keeps flowing as you scroll) */}
       <LiquidWater className="fixed inset-0 -z-10" />
       <PageHero
+        image={c.heroImage}
         dark
         crumbs={[{ label: "Mjazo Plus" }]}
         eyebrow={c.hero.eyebrow}

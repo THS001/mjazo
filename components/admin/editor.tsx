@@ -12,7 +12,7 @@ import { archiveAction, createAction, discardAction, publishAction, restoreActio
 import { FieldsForm, emptyObject, type FormCtx } from "./fields"
 import { Btn, Card, Notice, StateBadge, ago, when } from "./ui"
 
-export type EditorPerms = { canEdit: boolean; canPublish: boolean; canPrices: boolean; readOnlyReason: string | null }
+export type EditorPerms = { canEdit: boolean; canPublish: boolean; canPrices: boolean; canMedia: boolean; readOnlyReason: string | null }
 
 type Props = {
   meta: TypeMeta
@@ -42,7 +42,7 @@ export function Editor({ meta, entry, refs, perms, previewPath }: Props) {
   const dataRef = useRef(data)
   dataRef.current = data
   const readOnly = !perms.canEdit || Boolean(perms.readOnlyReason) || loaded?.state === "hidden"
-  const ctx: FormCtx = { showUr, canPrices: perms.canPrices, readOnly, refs }
+  const ctx: FormCtx = { showUr, canPrices: perms.canPrices, canMedia: perms.canMedia, readOnly, refs }
 
   const apply = useCallback((r: Result<Loaded | null>) => {
     if (r.ok) {

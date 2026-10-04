@@ -24,7 +24,8 @@ export type IconField = Common & { kind: "icon" }
 export type ColorField = Common & { kind: "color" }
 export type SlugField = Common & { kind: "slug" }
 export type DateField = Common & { kind: "date" }
-export type ImageField = Common & { kind: "image" }
+/** A media-library item: an image (default), a video or a 3D model, by `accept`. */
+export type ImageField = Common & { kind: "image"; accept?: "image" | "video" | "model" }
 export type RefField = Common & { kind: "ref"; to: string }
 export type ListField = Common & { kind: "list"; of: Field; itemLabel?: string; min?: number; max?: number }
 export type GroupField = Common & { kind: "group"; fields: Fields }
@@ -70,6 +71,8 @@ export const f = {
   slug: (label = "Slug", o: Opt<SlugField> = {}): SlugField => ({ kind: "slug", label, ...o }),
   date: (label: string, o: Opt<DateField> = {}): DateField => ({ kind: "date", label, ...o }),
   image: (label: string, o: Opt<ImageField> = {}): ImageField => ({ kind: "image", label, ...o }),
+  video: (label: string, o: Omit<Opt<ImageField>, "accept"> = {}): ImageField => ({ kind: "image", label, accept: "video", ...o }),
+  model: (label: string, o: Omit<Opt<ImageField>, "accept"> = {}): ImageField => ({ kind: "image", label, accept: "model", ...o }),
   ref: (label: string, to: string, o: Omit<Opt<RefField>, "to"> = {}): RefField => ({ kind: "ref", label, to, ...o }),
   list: (label: string, of: Field, o: Omit<Opt<ListField>, "of"> = {}): ListField => ({ kind: "list", label, of, ...o }),
   group: (label: string, fields: Fields, o: Omit<Opt<GroupField>, "fields"> = {}): GroupField => ({ kind: "group", label, fields, ...o }),
@@ -260,6 +263,46 @@ export function resolveValue(fd: Field, v: unknown, locale: Locale, ctx?: TokenC
 export function resolveObject(fields: Fields, v: Record<string, unknown>, locale: Locale, ctx?: TokenContext): Record<string, unknown> {
   const out: Record<string, unknown> = { ...v }
   for (const [k, fd] of Object.entries(fields)) if (k in out) out[k] = resolveValue(fd, out[k], locale, ctx)
+  return out
+}
+
+// ---------------------------------------------------------------------------
+// Media: stored references -> the current file, for the site
+// ---------------------------------------------------------------------------
+
+/** How an image field is stored: the media id (plus the URL as a fallback) and an optional alt override. */
+export type MediaRef = { id: string; url: string; alt?: Localized; w?: number; h?: number; focal?: [number, number] }
+/** What the site receives for an image field. */
+export type Img = { id: string; url: string; alt: string; w?: number; h?: number; focal?: [number, number]; color?: string; mime?: string } | null
+/** A media-library row, as much of it as the site needs. */
+export type MediaInfo = { url: string; mime: string; width: number | null; height: number | null; alt: Localized | null; focal: [number, number] | null; color: string | null }
+
+export const hasMediaFields = (fields: Fields): boolean =>
+  Object.values(fields).some((fd) => fd.kind === "image" || (fd.kind === "group" && hasMediaFields(fd.fields)) || (fd.kind === "list" && (fd.of.kind === "image" || (fd.of.kind === "group" && hasMediaFields(fd.of.fields)))))
+
+/**
+ * Replaces resolved image values with the media library's current file, size, focal point and alt
+ * text (a field's own alt text wins). Items missing from the library are dropped; when the library
+ * couldn't be read at all (media = null) the stored URL is kept.
+ */
+export function hydrateMedia(fields: Fields, v: Record<string, unknown>, media: Record<string, MediaInfo> | null, locale: Locale): Record<string, unknown> {
+  const one = (fd: Field, x: unknown): unknown => {
+    if (x === undefined || x === null) return x
+    if (fd.kind === "image") {
+      const ref = x as { id?: string; url?: string; alt?: string }
+      if (!ref.id) return null
+      if (!media) return { ...ref, alt: ref.alt ?? "" }
+      const m = media[ref.id]
+      if (!m) return null
+      const alt = ref.alt || (m.alt ? pick(m.alt, locale) : "") || ""
+      return { id: ref.id, url: m.url, alt, mime: m.mime, ...(m.width ? { w: m.width } : {}), ...(m.height ? { h: m.height } : {}), ...(m.focal ? { focal: m.focal } : {}), ...(m.color ? { color: m.color } : {}) }
+    }
+    if (fd.kind === "list") return Array.isArray(x) ? x.map((y) => one(fd.of, y)).filter((y) => !(fd.of.kind === "image" && y === null)) : x
+    if (fd.kind === "group") return hydrateMedia(fd.fields, x as Record<string, unknown>, media, locale)
+    return x
+  }
+  const out: Record<string, unknown> = { ...v }
+  for (const [k, fd] of Object.entries(fields)) if (k in out) out[k] = one(fd, out[k])
   return out
 }
 

@@ -23,6 +23,7 @@ export default async function ReferPage() {
   return (
     <>
       <PageHero
+        image={c.heroImage}
         crumbs={[{ label: "Refer & earn" }]}
         eyebrow={c.hero.eyebrow}
         title={c.hero.title}

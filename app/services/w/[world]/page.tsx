@@ -62,7 +62,7 @@ export default async function WorldPage({ params }: { params: Promise<{ world: s
             </div>
           )
         }
-        visual={<ObjectCanvas kind={world.object} tint={world.tint} icon={world.icon} className="h-[320px] sm:h-[420px]" scale={1.8} />}
+        visual={<ObjectCanvas kind={world.object} tint={world.tint} icon={world.icon} modelUrl={world.model?.url} className="h-[320px] sm:h-[420px]" scale={1.8} />}
         bgWord={world.bgWord}
         style={{ background: `linear-gradient(180deg, ${world.tint} 0%, color-mix(in oklch, ${world.tint} 45%, white) 100%)` }}
       />

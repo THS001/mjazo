@@ -54,7 +54,7 @@ export function Hero({ content }: { content: HomeContent["hero"] }) {
     const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData
     if (saveData) return
     v.muted = true
-    v.src = HERO_VIDEO
+    v.src = content.video?.url || HERO_VIDEO
     const start = () => {
       setVideoReady(true)
       v.play().catch(() => {})

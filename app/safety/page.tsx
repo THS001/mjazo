@@ -25,6 +25,7 @@ export default async function SafetyPage() {
     <>
       <div style={{ background: FOREST }} className="text-white">
         <PageHero
+          image={c.heroImage}
           dark
           crumbs={[{ label: c.hero.eyebrow || "Safety & trust" }]}
           eyebrow={c.hero.eyebrow}

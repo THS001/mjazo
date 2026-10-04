@@ -28,6 +28,7 @@ export default async function GiftCardsPage() {
   return (
     <>
       <PageHero
+        image={c.heroImage}
         crumbs={[{ label: "Gift cards" }]}
         eyebrow={c.hero.eyebrow}
         title={c.hero.title}

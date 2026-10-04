@@ -2,8 +2,9 @@
 
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { authMode, CmsAuthError, DEV_COOKIE, requireCms, supabaseAuth, type CmsUser } from "@/lib/cms/auth"
-import type { Perm, Role } from "@/lib/cms/roles"
+import { authMode, DEV_COOKIE, supabaseAuth } from "@/lib/cms/auth"
+import { run, type Result } from "@/lib/cms/action"
+import type { Role } from "@/lib/cms/roles"
 import type { Data } from "@/lib/cms/store"
 import { getVersion, listVersions } from "@/lib/cms/store"
 import { inviteUser, updateUser } from "@/lib/cms/users"
@@ -12,20 +13,7 @@ import * as w from "@/lib/cms/write"
 // Server actions for /admin. Each checks the signed-in person's permission and returns a result
 // object (errors in server actions are hidden in production, so we never rely on throwing).
 
-export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string; issues?: string[]; conflict?: boolean }
-
-async function run<T>(perm: Perm, fn: (user: CmsUser) => Promise<T>): Promise<Result<T>> {
-  try {
-    const user = await requireCms(perm)
-    return { ok: true, data: await fn(user) }
-  } catch (e) {
-    if (e instanceof w.ValidationError) return { ok: false, error: "Please fix the highlighted problems.", issues: e.issues }
-    if (e instanceof w.ConflictError) return { ok: false, conflict: true, error: `Someone else changed this${e.current?.updated_by ? ` (${e.current.updated_by})` : ""} since you opened it. Reload to see their version.` }
-    if (e instanceof CmsAuthError) return { ok: false, error: e.message }
-    console.error("[cms action]", e)
-    return { ok: false, error: e instanceof Error && /Supabase|needs/.test(e.message) ? e.message : "Something went wrong. Please try again." }
-  }
-}
+export type { Result }
 
 const reload = async (type: string, id: string) => (await w.loadEntry(type, id))!
 

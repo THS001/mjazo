@@ -1,9 +1,9 @@
-import { f } from "../../fields"
+import { f, type Img } from "../../fields"
 import { HOME_FAQ } from "@/lib/content"
 import { cta, faqs, head, lines, page, type Cta, type Faq, type Head } from "./blocks"
 
 export type HomeContent = {
-  hero: { badge: string; title: string; search: string; find: string }
+  hero: { badge: string; title: string; search: string; find: string; video?: Img }
   stats: { areas: string; categories: string; services: string; verified: string }
   worlds: Head & { live: string; soon: string }
   mostBooked: Head & { cta: Cta }
@@ -75,7 +75,7 @@ page<HomeContent>("home", {
   label: "Home page",
   path: "/",
   fields: {
-    hero: f.group("Hero", { badge: f.text("Badge line"), title: f.text("Headline", { required: true, max: 40 }), search: f.text("Search box placeholder"), find: f.text("Search button") }),
+    hero: f.group("Hero", { badge: f.text("Badge line"), title: f.text("Headline", { required: true, max: 40 }), search: f.text("Search box placeholder"), find: f.text("Search button"), video: f.video("Background video", { help: "MP4 or WebM, muted and looping. Keep it under 10 MB. Leave empty for the built-in coastal video." }) }),
     stats: f.group("Counters", { areas: f.text("Areas label", { width: "half" }), categories: f.text("Categories label", { width: "half" }), services: f.text("Services label", { width: "half" }), verified: f.text("Verified label", { width: "half" }) }, { help: "The numbers come from the catalogue; only the labels are editable." }),
     worlds: f.group("Service worlds", { ...head("x").fields, live: f.text("“Live” badge", { width: "half" }), soon: f.text("“Coming soon” badge", { width: "half" }) }),
     mostBooked: f.group("Most booked", { ...head("x").fields, cta: cta() }),

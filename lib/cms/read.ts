@@ -4,7 +4,8 @@ import { unstable_cache } from "next/cache"
 import { draftMode } from "next/headers"
 import { buildCatalog, type Area, type Bundle, type Category, type World } from "@/lib/catalog"
 import { DEFAULT_SETTINGS, SITE_URL, waLink, type Settings } from "@/lib/site"
-import { localizeObject, resolveObject, tokensDeep, zodObject, type Locale, type TokenContext } from "./fields"
+import { hasMediaFields, hydrateMedia, localizeObject, resolveObject, tokensDeep, zodObject, type Img, type Locale, type MediaInfo, type TokenContext } from "./fields"
+import { listMedia } from "./media"
 import { getType, type ContentType } from "./registry"
 import { listRows, type Data, type EntryRow } from "./store"
 import type { ServiceCms } from "./types/catalog"
@@ -46,8 +47,22 @@ async function rowsFor(type: string, preview: boolean): Promise<(Slim & { data: 
   }
 }
 
+/** The media library by id (url, size, alt, focal point), cached until media changes. Null if it can't be read. */
+const mediaMap = cache(async (): Promise<Record<string, MediaInfo> | null> => {
+  try {
+    return await unstable_cache(
+      async () => Object.fromEntries((await listMedia()).map((m) => [m.id, { url: m.url, mime: m.mime, width: m.width, height: m.height, alt: m.alt, focal: m.focal, color: m.color } satisfies MediaInfo])),
+      ["cms-media"],
+      { tags: ["cms", "cms:media"] },
+    )()
+  } catch (e) {
+    console.error("[cms] reading the media library failed; keeping stored image URLs", e)
+    return null
+  }
+})
+
 /** One stored entry -> the site's shape for a locale (or null if it is invalid). */
-function toSite<S>(t: ContentType<S, unknown>, data: Data, base: S | undefined, locale: Locale, ctx?: TokenContext): S | null {
+function toSite<S>(t: ContentType<S, unknown>, data: Data, base: S | undefined, locale: Locale, ctx?: TokenContext, media?: Record<string, MediaInfo> | null): S | null {
   // Fields added to a type after an entry was saved take their default value.
   const merged = base !== undefined ? { ...localizeObject(t.fields, (t.toCms ? t.toCms(base) : base) as Data), ...data } : data
   const parsed = zodObject(t.fields).safeParse(merged)
@@ -55,7 +70,8 @@ function toSite<S>(t: ContentType<S, unknown>, data: Data, base: S | undefined, 
     console.error(`[cms] invalid ${t.type} entry; using built-in content`, parsed.error.issues.slice(0, 3))
     return null
   }
-  const cms = resolveObject(t.fields, merged, locale, ctx)
+  const resolved = resolveObject(t.fields, merged, locale, ctx)
+  const cms = media !== undefined ? hydrateMedia(t.fields, resolved, media, locale) : resolved
   return (t.toSite ? t.toSite(cms) : cms) as S
 }
 
@@ -67,6 +83,7 @@ export async function getCollection<S>(type: string, locale: Locale = "en", ctx?
   const items = new Map<string, { pos: number; value: S }>()
   defaults.forEach((d, i) => items.set(t.idOf!(d), { pos: i, value: tokensDeep(d, ctx) }))
   const preview = await isPreview()
+  const media = hasMediaFields(t.fields) ? await mediaMap() : undefined
   for (const row of await rowsFor(type, preview)) {
     if (row.status === "archived") {
       items.delete(row.id)
@@ -78,7 +95,7 @@ export async function getCollection<S>(type: string, locale: Locale = "en", ctx?
       if (base && row.position !== null) base.pos = row.position
       continue
     }
-    const value = toSite(t, row.data, base?.value, locale, ctx)
+    const value = toSite(t, row.data, base?.value, locale, ctx, media)
     if (value === null) continue
     items.set(row.id, { pos: row.position ?? base?.pos ?? 100_000, value })
   }
@@ -92,7 +109,8 @@ export async function getSingleton<S>(type: string, locale: Locale = "en", ctx?:
   const base = t.defaults() as S
   const row = (await rowsFor(type, await isPreview())).find((r) => r.id === SINGLETON)
   if (!row?.data || row.status === "archived") return tokensDeep(base, ctx)
-  return toSite(t, row.data, base, locale, ctx) ?? tokensDeep(base, ctx)
+  const media = hasMediaFields(t.fields) ? await mediaMap() : undefined
+  return toSite(t, row.data, base, locale, ctx, media) ?? tokensDeep(base, ctx)
 }
 
 // ---------------------------------------------------------------------------
@@ -144,9 +162,12 @@ export const getTokens = cache(async (locale: Locale = "en"): Promise<TokenConte
   }
 })
 
+/** Fields every page may have on top of its own (added by page() in types/pages/blocks.ts). */
+export type PageExtras = { heroImage?: Img }
+
 /** A page's editable content (a `page-<id>` singleton), with {{tokens}} filled in. */
-export async function getPage<S>(id: string, locale: Locale = "en"): Promise<S> {
-  return getSingleton<S>(`page-${id}`, locale, await getTokens(locale))
+export async function getPage<S>(id: string, locale: Locale = "en"): Promise<S & PageExtras> {
+  return getSingleton<S & PageExtras>(`page-${id}`, locale, await getTokens(locale))
 }
 
 /** Header, mobile tab bar and footer (the `nav` singleton), with {{tokens}} filled in. */

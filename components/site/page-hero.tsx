@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils"
 import { SplitText } from "./primitives"
 import { HeroReveal } from "./reveal-client"
 import { SITE_URL } from "@/lib/site"
+import { CmsImage, isImage } from "@/components/cms/image"
+import type { Img } from "@/lib/cms/fields"
 
 export type Crumb = { label: string; href?: string }
 
@@ -51,6 +53,7 @@ export function PageHero({
   bgWord,
   center,
   children,
+  image,
 }: {
   crumbs?: Crumb[]
   eyebrow?: ReactNode
@@ -64,7 +67,15 @@ export function PageHero({
   bgWord?: string
   center?: boolean
   children?: ReactNode
+  /** A photo from the CMS; replaces `visual` when set. */
+  image?: Img
 }) {
+  if (isImage(image))
+    visual = (
+      <div className="relative aspect-[4/3] overflow-hidden rounded-[2rem] sm:rounded-[2.5rem]">
+        <CmsImage img={image} priority sizes="(min-width: 1024px) 45vw, 100vw" />
+      </div>
+    )
   return (
     <section className={cn("relative overflow-hidden pt-28 sm:pt-36 pb-14 sm:pb-20", dark && "text-white", className)} style={style}>
       {bgWord && (

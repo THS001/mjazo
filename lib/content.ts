@@ -197,6 +197,7 @@ export interface Post {
   minutes: number
   tag: string
   tint: string
+  cover?: import("@/lib/cms/fields").Img
   body: { h?: string; p: string }[]
 }
 

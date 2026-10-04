@@ -6,6 +6,7 @@ import { Container, Reveal } from "@/components/site/primitives"
 import { getContent, getPage } from "@/lib/cms/read"
 import type { PostSite } from "@/lib/cms/types/content"
 import type { BlogContent } from "@/lib/cms/types/pages/editorial"
+import { CmsImage, isImage } from "@/components/cms/image"
 
 export const metadata: Metadata = {
   alternates: { canonical: "/blog" },
@@ -21,13 +22,19 @@ export default async function BlogPage() {
   const [lead, ...rest] = sorted
   return (
     <>
-      <PageHero crumbs={[{ label: "Journal" }]} eyebrow={c.hero.eyebrow} title={c.hero.title} sub={c.hero.sub || undefined} bgWord="JOURNAL" className="bg-white" />
+      <PageHero image={c.heroImage} crumbs={[{ label: "Journal" }]} eyebrow={c.hero.eyebrow} title={c.hero.title} sub={c.hero.sub || undefined} bgWord="JOURNAL" className="bg-white" />
       <Container className="pb-24">
         {lead && (
           <Reveal>
             <Link href={`/blog/${lead.slug}`} className="group grid lg:grid-cols-2 rounded-[2.5rem] overflow-hidden border border-zinc-200">
-              <div className="aspect-[4/3] lg:aspect-auto flex items-center justify-center p-12" style={{ background: lead.tint }}>
-                <p className="font-serif text-5xl sm:text-6xl text-center text-balance">{lead.title}</p>
+              <div className="relative aspect-[4/3] lg:aspect-auto lg:min-h-[420px] flex items-center justify-center p-12 overflow-hidden" style={{ background: lead.tint }}>
+                {isImage(lead.cover) && (
+                  <>
+                    <CmsImage img={lead.cover} priority sizes="(min-width: 1024px) 50vw, 100vw" className="transition-transform duration-700 group-hover:scale-105" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                  </>
+                )}
+                <p className={`relative font-serif text-5xl sm:text-6xl text-center text-balance ${isImage(lead.cover) ? "text-white" : ""}`}>{lead.title}</p>
               </div>
               <div className="p-8 sm:p-12 flex flex-col justify-between">
                 <div>
@@ -47,8 +54,14 @@ export default async function BlogPage() {
           {rest.map((p, i) => (
             <Reveal key={p.slug} delay={i * 0.08}>
               <Link href={`/blog/${p.slug}`} className="group block rounded-[2rem] overflow-hidden border border-zinc-200 h-full">
-                <div className="aspect-[16/9] flex items-end p-8" style={{ background: p.tint }}>
-                  <p className="font-serif text-4xl text-balance">{p.title}</p>
+                <div className="relative aspect-[16/9] flex items-end p-8 overflow-hidden" style={{ background: p.tint }}>
+                  {isImage(p.cover) && (
+                    <>
+                      <CmsImage img={p.cover} sizes="(min-width: 768px) 50vw, 100vw" className="transition-transform duration-700 group-hover:scale-105" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                    </>
+                  )}
+                  <p className={`relative font-serif text-4xl text-balance ${isImage(p.cover) ? "text-white" : ""}`}>{p.title}</p>
                 </div>
                 <div className="p-8">
                   <p className="text-sm text-zinc-500">

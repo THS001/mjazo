@@ -8,6 +8,7 @@ import { RichText } from "@/components/cms/rich-text"
 import { getContent, getPage, getSettings } from "@/lib/cms/read"
 import type { PostSite } from "@/lib/cms/types/content"
 import type { BlogContent } from "@/lib/cms/types/pages/editorial"
+import { CmsImage, isImage } from "@/components/cms/image"
 
 export async function generateStaticParams() {
   return (await getContent<PostSite>("post")).map((p) => ({ slug: p.slug }))
@@ -39,6 +40,13 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           </p>
         </Container>
       </header>
+      {isImage(post.cover) && (
+        <Container className="max-w-5xl -mt-8">
+          <div className="relative aspect-[16/9] overflow-hidden rounded-[2rem]">
+            <CmsImage img={post.cover} priority sizes="(min-width: 1024px) 1024px, 100vw" />
+          </div>
+        </Container>
+      )}
       <Container className="max-w-3xl py-16">
         <p className="text-2xl leading-relaxed text-zinc-700 font-serif">{post.excerpt}</p>
         <Reveal className="mt-12">

@@ -10,5 +10,5 @@ export function permsFor(role: Role, group: string, perm: "settings" | null): Ed
   else if (perm === "settings" && !can(role, "settings")) readOnlyReason = "Only Owners and Admins can change site settings."
   else if (role === "author" && !AUTHOR_GROUPS.includes(group)) readOnlyReason = "Authors can edit blog posts and help articles. Ask an Editor to change this."
   else if (!can(role, "edit")) readOnlyReason = "Your role can view content but not change it."
-  return { canEdit: can(role, "edit") && !readOnlyReason, canPublish: can(role, "publish"), canPrices: can(role, "prices"), readOnlyReason }
+  return { canEdit: can(role, "edit") && !readOnlyReason, canPublish: can(role, "publish"), canPrices: can(role, "prices"), canMedia: can(role, "media") && writable(), readOnlyReason }
 }

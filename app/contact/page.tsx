@@ -23,6 +23,7 @@ export default async function ContactPage() {
   return (
     <>
       <PageHero
+        image={c.heroImage}
         crumbs={[{ label: "Contact" }]}
         eyebrow={c.hero.eyebrow || site.hours}
         title={c.hero.title}

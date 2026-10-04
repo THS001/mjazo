@@ -8,6 +8,8 @@ const rows: Record<string, Partial<EntryRow>[]> = {}
 let failing = false
 vi.mock("next/cache", () => ({ unstable_cache: (fn: () => unknown) => fn }))
 vi.mock("next/headers", () => ({ draftMode: async () => ({ isEnabled: false }) }))
+const media: { id: string; url: string; mime: string; width: number | null; height: number | null; alt: { en: string } | null; focal: [number, number] | null; color: string | null }[] = []
+vi.mock("./media", () => ({ listMedia: async () => media }))
 vi.mock("./store", () => ({
   listRows: async (type: string) => {
     if (failing) throw new Error("database down")
@@ -70,6 +72,22 @@ describe("getCollection / getCatalog", () => {
     const s = await getSettings()
     expect(s.site.whatsapp).toBe("923000000000")
     err.mockRestore()
+  })
+
+  it("shows a service photo from the media library's current file, and drops deleted ones", async () => {
+    const { getCollection } = await import("./read")
+    media.length = 0
+    media.push({ id: "m1", url: "https://cdn.example/new.jpg", mime: "image/jpeg", width: 1200, height: 800, alt: { en: "A pro waxing an arm" }, focal: [0.3, 0.4], color: "#aa8877" })
+    const svc = (slug: string, image: unknown) => row(slug, { name: { en: slug }, slug, category: "womens-salon", short: { en: "x" }, price: 1000, duration: 30, image })
+    rows.service = [svc("full-body-wax", { id: "m1", url: "https://cdn.example/old.jpg" }), svc("underarm-wax", { id: "gone", url: "https://cdn.example/gone.jpg" })]
+    const services = await getCollection<{ slug: string; image?: { url: string; alt: string; w?: number; focal?: number[] } | null }>("service")
+    const wax = services.find((s) => s.slug === "full-body-wax")?.image
+    expect(wax?.url).toBe("https://cdn.example/new.jpg")
+    expect(wax?.alt).toBe("A pro waxing an arm")
+    expect(wax?.w).toBe(1200)
+    expect(wax?.focal).toEqual([0.3, 0.4])
+    expect(services.find((s) => s.slug === "underarm-wax")?.image).toBeNull()
+    media.length = 0
   })
 
   it("fills {{tokens}} from settings in catalogue text", async () => {

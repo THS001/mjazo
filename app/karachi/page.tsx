@@ -30,6 +30,7 @@ export default async function KarachiPage() {
   return (
     <>
       <PageHero
+        image={c.heroImage}
         crumbs={[{ label: "Areas" }]}
         eyebrow={c.hero.eyebrow}
         title={c.hero.title}

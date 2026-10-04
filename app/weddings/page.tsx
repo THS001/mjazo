@@ -34,6 +34,7 @@ export default async function WeddingsPage() {
       <div className="relative overflow-hidden" style={{ background: BLUSH }}>
         <Petals />
         <PageHero
+          image={c.heroImage}
           crumbs={[{ label: "Weddings & events" }]}
           eyebrow={c.hero.eyebrow}
           title={c.hero.title}

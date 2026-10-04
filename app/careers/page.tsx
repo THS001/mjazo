@@ -15,6 +15,7 @@ export default async function CareersPage() {
   return (
     <>
       <PageHero
+        image={c.heroImage}
         crumbs={[{ label: "Careers" }]}
         eyebrow={c.hero.eyebrow}
         title={c.hero.title}

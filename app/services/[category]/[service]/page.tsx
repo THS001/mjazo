@@ -11,6 +11,7 @@ import { FAQ } from "@/components/site/faq"
 import { ServicePurchase } from "@/components/services/service-purchase"
 import { getCatalog, getPage, getSettings } from "@/lib/cms/read"
 import type { ServiceContent } from "@/lib/cms/types/pages/catalogue"
+import { CmsImage, isImage } from "@/components/cms/image"
 
 export async function generateStaticParams() {
   const { allServices } = await getCatalog()
@@ -64,9 +65,15 @@ export default async function ServicePage({ params }: { params: Promise<{ catego
               {/* Visual */}
               <HeroReveal>
                 <div className="relative aspect-[4/3] sm:aspect-[16/10] rounded-[2rem] sm:rounded-[2.5rem] overflow-hidden flex items-center justify-center" style={{ background: world.tint }}>
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.7),transparent_55%)]" />
-                  <div className="absolute w-[46%] aspect-square rounded-full bg-white/40" />
-                  <Icon name={category.icon} className="relative w-28 h-28 sm:w-36 sm:h-36 text-black/75" strokeWidth={0.8} />
+                  {isImage(service.image) ? (
+                    <CmsImage img={service.image} priority sizes="(min-width: 1024px) 60vw, 100vw" />
+                  ) : (
+                    <>
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.7),transparent_55%)]" />
+                      <div className="absolute w-[46%] aspect-square rounded-full bg-white/40" />
+                      <Icon name={category.icon} className="relative w-28 h-28 sm:w-36 sm:h-36 text-black/75" strokeWidth={0.8} />
+                    </>
+                  )}
                   <div className="absolute top-5 left-5 flex flex-wrap gap-2">
                     <StatusChip status={category.status} liveLabel={c.chips.available} className="bg-white/85" />
                     {service.popular && <span className="rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-medium">{c.chips.popular}</span>}

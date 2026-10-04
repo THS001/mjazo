@@ -25,6 +25,7 @@ export default async function OffersPage() {
   return (
     <div className="bg-[#0f0e0c] text-white">
       <PageHero
+        image={c.heroImage}
         dark
         crumbs={[{ label: "Offers" }]}
         eyebrow={c.hero.eyebrow}

@@ -4,6 +4,7 @@ import { localizeObject, resolveObject, zodObject, type Field, type Fields } fro
 import { allTypes, getType, type ContentType } from "./registry"
 import { AUTHOR_GROUPS, can } from "./roles"
 import { CmsAuthError, type CmsUser } from "./auth"
+import { ValidationError } from "./action"
 import { SINGLETON } from "./read"
 import {
   addAudit,
@@ -44,11 +45,7 @@ export type ListItem = {
 
 export type Loaded = { type: string; id: string; data: Data; version: number; state: State; review: boolean; isDefault: boolean; publishAt: string | null; updatedAt: string | null; updatedBy: string | null; publishedAt: string | null; publishedBy: string | null; live: Data | null }
 
-export class ValidationError extends Error {
-  constructor(public issues: string[]) {
-    super(issues.join("\n"))
-  }
-}
+export { ValidationError }
 
 const mustType = (type: string) => {
   const t = getType(type)

@@ -12,6 +12,7 @@ import { getCatalog, getPage, getSettings } from "@/lib/cms/read"
 import { tokensDeep } from "@/lib/cms/fields"
 import type { CategoryContent } from "@/lib/cms/types/pages/catalogue"
 import { waLink } from "@/lib/site"
+import { CmsImage, isImage } from "@/components/cms/image"
 
 /** Category page body, shared by /services/[category] and /karachi/[area]/[category]. */
 export async function CategoryView({ category, area, crumbs }: { category: Category; area?: Area; crumbs: Crumb[] }) {
@@ -30,6 +31,13 @@ export async function CategoryView({ category, area, crumbs }: { category: Categ
       <section className="pt-28 sm:pt-32 pb-10">
         <Container>
           <div className="relative rounded-[2rem] sm:rounded-[2.5rem] overflow-hidden px-5 sm:px-12 pt-8 sm:pt-10 pb-8 sm:pb-16" style={{ background: world.tint }}>
+            {isImage(category.image) && (
+              <div aria-hidden className="absolute inset-0 lg:left-[30%]">
+                <CmsImage img={category.image} priority sizes="(min-width: 1024px) 65vw, 100vw" />
+                <div className="absolute inset-0 lg:hidden" style={{ background: `color-mix(in oklab, ${world.tint} 82%, transparent)` }} />
+                <div className="absolute inset-0 hidden lg:block" style={{ background: `linear-gradient(90deg, ${world.tint} 0%, color-mix(in oklab, ${world.tint} 75%, transparent) 35%, transparent 75%)` }} />
+              </div>
+            )}
             <BgWord word={world.bgWord} className="bottom-0 [&>span]:text-white/40 [&>span]:translate-y-[20%]" />
             <div className="relative grid lg:grid-cols-[1.3fr_0.7fr] gap-10 items-end">
               <div>

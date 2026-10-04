@@ -17,7 +17,7 @@ export default async function HowItWorksPage() {
   const c = await getPage<HowContent>("how-it-works")
   return (
     <>
-      <PageHero crumbs={[{ label: c.hero.eyebrow || "How it works" }]} eyebrow={c.hero.eyebrow} title={c.hero.title} sub={c.hero.sub} center bgWord="EASY" className="bg-cream" />
+      <PageHero image={c.heroImage} crumbs={[{ label: c.hero.eyebrow || "How it works" }]} eyebrow={c.hero.eyebrow} title={c.hero.title} sub={c.hero.sub} center bgWord="EASY" className="bg-cream" />
       <section className="py-20">
         <Container>
           <HowTabs tabs={{ customers: c.tabCustomers, pros: c.tabPros }} customers={c.customers} pros={c.pros} customersCta={c.customersCta} prosCta={c.prosCta} />

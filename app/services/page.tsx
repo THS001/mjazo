@@ -24,6 +24,7 @@ export default async function ServicesPage() {
   return (
     <div className="bg-cream">
       <PageHero
+        image={c.heroImage}
         crumbs={[{ label: "Services" }]}
         eyebrow={c.hero.eyebrow}
         title={c.hero.title}

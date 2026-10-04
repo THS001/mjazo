@@ -25,6 +25,7 @@ export const postType = register<PostSite, PostSite>({
     date: f.date("Date", { width: "third" }),
     minutes: f.number("Reading time", { unit: "min", min: 1, width: "third" }),
     tint: f.color("Card colour"),
+    cover: f.image("Cover image", { help: "Shown on the blog index and at the top of the article. Without one, the card colour shows." }),
     body: f.richText("Article"),
   },
   defaults: () => posts.map((p) => ({ ...p, body: docFrom(p.body) })),

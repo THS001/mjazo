@@ -8,7 +8,8 @@ import { Lazy3D } from "./studio"
 const ObjectScene = dynamic(() => import("./object-scene"), { ssr: false })
 const MapScene = dynamic(() => import("./map-scene"), { ssr: false })
 
-export function ObjectCanvas({ kind, tint, icon, className, scale }: { kind: ThreeObject; tint: string; icon: string; className?: string; scale?: number }) {
+/** A GLB from the media library (modelUrl) replaces the built-in object for `kind`. */
+export function ObjectCanvas({ kind, tint, icon, className, scale, modelUrl }: { kind: ThreeObject; tint: string; icon: string; className?: string; scale?: number; modelUrl?: string }) {
   return (
     <Lazy3D
       className={className}
@@ -20,7 +21,7 @@ export function ObjectCanvas({ kind, tint, icon, className, scale }: { kind: Thr
         </div>
       }
     >
-      {(active) => <ObjectScene kind={kind} tint={tint} active={active} scale={scale} />}
+      {(active) => <ObjectScene kind={kind} tint={tint} active={active} scale={scale} modelUrl={modelUrl} />}
     </Lazy3D>
   )
 }

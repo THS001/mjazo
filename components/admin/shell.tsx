@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Activity, ExternalLink, LayoutDashboard, LogOut, Menu, UserRound, Users, X } from "lucide-react"
+import { Activity, ExternalLink, ImageIcon, LayoutDashboard, LogOut, Menu, UserRound, Users, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ROLE_INFO, type Role } from "@/lib/cms/roles"
 import type { TypeMeta } from "@/lib/cms/meta"
@@ -40,7 +40,10 @@ export function AdminShell({ nav, user, backend, children }: { nav: Nav; user: S
         </svg>
         <span className="font-medium tracking-tight">Mjazo CMS</span>
       </Link>
-      <div className="space-y-0.5">{item("/admin", "Dashboard", <LayoutDashboard className="w-4 h-4" strokeWidth={1.75} />, true)}</div>
+      <div className="space-y-0.5">
+        {item("/admin", "Dashboard", <LayoutDashboard className="w-4 h-4" strokeWidth={1.75} />, true)}
+        {item("/admin/media", "Media", <ImageIcon className="w-4 h-4" strokeWidth={1.75} />)}
+      </div>
       {nav.map((g) => (
         <div key={g.group} className="space-y-0.5">
           <p className="px-3 pb-1 text-[10px] uppercase tracking-[0.18em] text-white/35">{g.group}</p>

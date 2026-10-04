@@ -12,6 +12,7 @@ import { MapCanvas } from "@/components/three"
 import { cn } from "@/lib/utils"
 import { useCatalog } from "@/components/cms/provider"
 import type { HomeContent } from "@/lib/cms/types/pages/home"
+import { CmsImage, isImage } from "@/components/cms/image"
 
 // ---------------------------------------------------------------------------
 // Stats: count-up, true numbers only
@@ -79,9 +80,15 @@ export function WorldsGrid({ content: c }: { content: HomeContent["worlds"] }) {
             return (
               <Reveal key={w.slug} delay={i * 0.06}>
                 <Link href={`/services/w/${w.slug}`} className={cn("group relative block rounded-3xl p-5 sm:p-6 overflow-hidden h-full min-h-44 sm:min-h-56 transition-all duration-500 hover:-translate-y-1")} style={{ background: w.tint }}>
-                  <div className="absolute -right-6 -bottom-6 w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-white/40 flex items-center justify-center transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
-                    <Icon name={w.icon} className="w-14 h-14 sm:w-16 sm:h-16 text-black/70" strokeWidth={1} />
-                  </div>
+                  {isImage(w.image) ? (
+                    <div className="absolute -right-6 -bottom-6 w-32 h-32 sm:w-40 sm:h-40 rounded-full overflow-hidden transition-transform duration-700 group-hover:scale-110">
+                      <CmsImage img={w.image} sizes="160px" />
+                    </div>
+                  ) : (
+                    <div className="absolute -right-6 -bottom-6 w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-white/40 flex items-center justify-center transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
+                      <Icon name={w.icon} className="w-14 h-14 sm:w-16 sm:h-16 text-black/70" strokeWidth={1} />
+                    </div>
+                  )}
                   <div className="relative">
                     {live ? <StatusChip status="live" liveLabel={c.live} className="mb-3 bg-white/80" /> : <span className="inline-block mb-3 text-[11px] rounded-full bg-white/60 px-2.5 py-1 text-zinc-600">{c.soon}</span>}
                     <h3 className="text-lg sm:text-xl font-medium leading-tight">{w.name}</h3>

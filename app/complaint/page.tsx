@@ -20,6 +20,7 @@ export default async function ComplaintPage() {
   return (
     <>
       <PageHero
+        image={c.heroImage}
         crumbs={[{ label: "Help", href: "/help" }, { label: "Report a problem" }]}
         eyebrow={c.hero.eyebrow}
         title={c.hero.title}

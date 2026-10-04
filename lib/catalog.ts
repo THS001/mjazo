@@ -2,6 +2,8 @@
 // Live content comes from the CMS (lib/cms/read.ts → getCatalog / useCatalog); the data below seeds
 // it and is the fallback when the CMS is unreachable. Prices are PLACEHOLDERS until the founder confirms them.
 
+import type { Img } from "@/lib/cms/fields"
+
 export type Status = "live" | "waitlist" | "hidden"
 export type ProType = "women" | "technician" | "care"
 
@@ -26,6 +28,7 @@ export interface Service {
   variants?: Variant[]
   addOns?: AddOn[]
   includes?: string[]
+  image?: Img // photo from the media library; the icon on its tint shows without one
 }
 
 export interface Category {
@@ -41,6 +44,7 @@ export interface Category {
   excludes: string[]
   faqs: [string, string][]
   services: Service[]
+  image?: Img
 }
 
 export interface World {
@@ -51,6 +55,8 @@ export interface World {
   icon: string
   object: ThreeObject
   tint: string
+  image?: Img
+  model?: Img // a GLB from the media library replaces the built-in 3D object
 }
 
 export type ThreeObject =

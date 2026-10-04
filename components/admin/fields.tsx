@@ -7,8 +7,9 @@ import { CSS } from "@dnd-kit/utilities"
 import { ChevronDown, Copy, GripVertical, Lock, Plus, Search, Sparkles, Trash2, Wand2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ICONS } from "@/components/site/primitives"
-import type { Field, Fields, Localized, RichDoc } from "@/lib/cms/fields"
+import type { Field, Fields, Localized, MediaRef, RichDoc } from "@/lib/cms/fields"
 import { RichTextEditor } from "./rich-text-editor"
+import { MediaInput } from "./media"
 
 // Form controls generated from a content type's fields. Localised fields show English and Urdu
 // side by side; price fields lock for people without the "prices" permission.
@@ -16,6 +17,7 @@ import { RichTextEditor } from "./rich-text-editor"
 export type FormCtx = {
   showUr: boolean
   canPrices: boolean
+  canMedia: boolean
   readOnly: boolean
   refs: Record<string, { id: string; title: string }[]>
 }
@@ -284,7 +286,7 @@ export function FieldInput({ name, field: fd, value, onChange, ctx, siblings }: 
       return (
         <div>
           <Label field={fd} />
-          <p className="rounded-xl border border-dashed border-zinc-300 bg-white px-3 py-4 text-sm text-zinc-500">Images arrive with the media library.</p>
+          <MediaInput value={value as MediaRef | null} onChange={onChange} accept={fd.accept ?? "image"} disabled={ro} canUpload={ctx.canMedia} showUr={ctx.showUr} />
         </div>
       )
   }
