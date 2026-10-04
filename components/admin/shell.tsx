@@ -3,11 +3,11 @@
 import { useState, type ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Activity, ExternalLink, ImageIcon, LayoutDashboard, LogOut, Menu, UserRound, Users, X } from "lucide-react"
+import { Activity, ExternalLink, ImageIcon, Languages, LayoutDashboard, LogOut, Menu, UserRound, Users, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ROLE_INFO, type Role } from "@/lib/cms/roles"
 import type { TypeMeta } from "@/lib/cms/meta"
-import { signOutAction } from "@/app/admin/actions"
+import { signOutAction } from "@/app/(staff)/admin/actions"
 import { AdminIcon } from "./ui"
 
 type Nav = { group: string; types: Pick<TypeMeta, "type" | "label" | "plural" | "kind" | "icon">[] }[]
@@ -50,6 +50,10 @@ export function AdminShell({ nav, user, backend, children }: { nav: Nav; user: S
           {g.types.map((t) => item(`/admin/c/${t.type}`, t.kind === "collection" ? t.plural : t.label, <AdminIcon name={t.icon} className="w-4 h-4" />))}
         </div>
       ))}
+      <div className="space-y-0.5">
+        <p className="px-3 pb-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Tools</p>
+        {item("/admin/translate", "Urdu translation", <Languages className="w-4 h-4" strokeWidth={1.75} />)}
+      </div>
       <div className="space-y-0.5">
         <p className="px-3 pb-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Team</p>
         {item("/admin/people", "People & roles", <Users className="w-4 h-4" strokeWidth={1.75} />)}

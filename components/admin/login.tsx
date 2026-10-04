@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
-import { devLoginAction } from "@/app/admin/actions"
+import { devLoginAction } from "@/app/(staff)/admin/actions"
 import { browserSupabase } from "./supabase-browser"
 import { Btn, Notice } from "./ui"
 

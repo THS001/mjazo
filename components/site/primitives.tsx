@@ -1,11 +1,12 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { motion, useReducedMotion } from "framer-motion"
 import { ArrowRight, ArrowUpRight, type LucideIcon, Sparkles, Scissors, Palette, Hand, Flower2, User, SprayCan, Sofa, Droplets, Sun, Car, Bug, AirVent, WashingMachine, BatteryCharging, Zap, ShowerHead, Hammer, PaintRoller, Stethoscope, Baby, Truck, Wrench, CalendarCheck, Wallet, ShieldCheck, RefreshCw, BadgeCheck, UserCheck, PackageCheck, MapPin, PhoneCall, Users, GraduationCap, Clock, Star, Heart, Gift, Building2, Crown, MessageCircle } from "lucide-react"
 import type { ComponentProps, ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import type { Status } from "@/lib/catalog"
+import { useT } from "@/components/cms/provider"
 
 export const EASE = [0.25, 0.46, 0.45, 0.94] as const
 
@@ -43,16 +44,16 @@ export function Pill({ href, children, variant = "solid", className, onClick, ty
   const inner = (
     <>
       <span className={cn("absolute inset-0 rounded-full scale-x-0 origin-right group-hover:scale-x-100 transition-transform duration-300", styles.fill)} />
-      <span className={cn("relative z-10 pr-3 transition-colors duration-300 whitespace-nowrap", size === "lg" ? "text-base" : "text-sm", styles.text)}>{children}</span>
+      <span className={cn("relative z-10 pe-3 transition-colors duration-300 whitespace-nowrap", size === "lg" ? "text-base" : "text-sm", styles.text)}>{children}</span>
       <span className={cn("relative z-10 rounded-full flex items-center justify-center transition-colors duration-300", size === "lg" ? "w-10 h-10" : "w-8 h-8", variant === "solid" || variant === "brand" ? styles.knob : "", variant !== "solid" && variant !== "brand" ? styles.knob : "")}>
-        <ArrowRight className="w-4 h-4 absolute group-hover:opacity-0 transition-opacity duration-300" />
-        <ArrowUpRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <ArrowRight className="w-4 h-4 absolute group-hover:opacity-0 transition-opacity duration-300 rtl:-scale-x-100" />
+        <ArrowUpRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rtl:-scale-x-100" />
       </span>
     </>
   )
   const cls = cn(
-    "relative inline-flex items-center border rounded-full pl-5 pr-1 py-1 group overflow-hidden transition-all duration-300 disabled:opacity-50 disabled:pointer-events-none",
-    size === "lg" && "pl-6 pr-1.5 py-1.5",
+    "relative inline-flex items-center border rounded-full ps-5 pe-1 py-1 group overflow-hidden transition-all duration-300 disabled:opacity-50 disabled:pointer-events-none",
+    size === "lg" && "ps-6 pe-1.5 py-1.5",
     styles.wrap,
     className,
   )
@@ -93,8 +94,24 @@ export function SplitText({ text, delay = 0, className, inView = false }: { text
   const reduce = useReducedMotion()
   let i = 0
   const anim = inView ? { whileInView: "visible", viewport: { once: true } } : { animate: "visible" }
+  const variants = (idx: number, step = 0.04) => ({
+    hidden: reduce ? { opacity: 0 } : { opacity: 0, y: 30, filter: "blur(12px)", rotateX: -45 },
+    visible: { opacity: 1, y: 0, filter: "blur(0px)", rotateX: 0, transition: { duration: 0.6, delay: delay + idx * step, ease: EASE } },
+  })
+  // Urdu letters join, so they can't be split: animate word by word instead.
+  if (/[\u0600-\u06FF]/.test(text))
+    return (
+      <motion.span dir="auto" className={cn("inline-block", className)} initial="hidden" {...anim} style={{ perspective: 400 }} aria-label={text}>
+        {text.split(" ").map((word, wi, arr) => (
+          <motion.span key={wi} aria-hidden className="inline-block" style={{ transformStyle: "preserve-3d", transformOrigin: "center bottom" }} variants={variants(wi, 0.12)}>
+            {word}
+            {wi < arr.length - 1 && "\u00a0"}
+          </motion.span>
+        ))}
+      </motion.span>
+    )
   return (
-    <motion.span className={cn("inline-block", className)} initial="hidden" {...anim} style={{ perspective: 400 }} aria-label={text}>
+    <motion.span dir="auto" className={cn("inline-block", className)} initial="hidden" {...anim} style={{ perspective: 400 }} aria-label={text}>
       {text.split(" ").flatMap((word, wi, arr) =>
         // Long hyphenated words ("Gulistan-e-Jauhar") may wrap after each hyphen on small screens.
         word.split(/(?<=-)/).map((seg, si, segs) => (
@@ -127,7 +144,7 @@ export function SplitText({ text, delay = 0, className, inView = false }: { text
 // ---------------------------------------------------------------------------
 export function BgWord({ word, className }: { word: string; className?: string }) {
   return (
-    <div aria-hidden className={cn("absolute left-0 right-0 flex justify-center z-0 overflow-hidden", className)}>
+    <div aria-hidden className={cn("absolute start-0 end-0 flex justify-center z-0 overflow-hidden", className)}>
       <span className="bg-word text-[20vw] sm:text-[18vw] md:text-[16vw] lg:text-[14vw]">{word}</span>
     </div>
   )
@@ -136,18 +153,19 @@ export function BgWord({ word, className }: { word: string; className?: string }
 // ---------------------------------------------------------------------------
 // Status chip
 // ---------------------------------------------------------------------------
-export function StatusChip({ status, className, liveLabel = "Available now" }: { status: Status; className?: string; liveLabel?: string }) {
+export function StatusChip({ status, className, liveLabel }: { status: Status; className?: string; liveLabel?: string }) {
+  const t = useT()
   if (status === "live")
     return (
       <span className={cn("inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-medium text-brand-ink", className)}>
         <span className="live-dot h-1.5 w-1.5 rounded-full bg-brand" />
-        {liveLabel}
+        {liveLabel ?? t.common.available}
       </span>
     )
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-medium text-zinc-500", className)}>
       <span className="h-1.5 w-1.5 rounded-full bg-zinc-400" />
-      Coming soon
+      {t.common.comingSoon}
     </span>
   )
 }
@@ -156,7 +174,7 @@ export function Eyebrow({ children, className }: { children: ReactNode; classNam
   return <p className={cn("text-xs uppercase tracking-[0.2em] text-muted-foreground font-medium mb-4", className)}>{children}</p>
 }
 
-export function SectionTitle({ eyebrow, title, sub, center, className }: { eyebrow?: string; title: string; sub?: string; center?: boolean; className?: string }) {
+export function SectionTitle({ eyebrow, title, sub, center, className }: { eyebrow?: string; title: ReactNode; sub?: string; center?: boolean; className?: string }) {
   return (
     <Reveal className={cn("mb-10 md:mb-16", center && "text-center", className)}>
       {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}

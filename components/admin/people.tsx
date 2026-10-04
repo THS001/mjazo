@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { UserPlus } from "lucide-react"
 import { ROLE_INFO, ROLES, type Role } from "@/lib/cms/roles"
 import type { CmsUserRow } from "@/lib/cms/users"
-import { inviteAction, updateUserAction } from "@/app/admin/actions"
+import { inviteAction, updateUserAction } from "@/app/(staff)/admin/actions"
 import { Btn, Card, Notice, ago } from "./ui"
 import { Switch } from "./fields"
 

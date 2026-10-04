@@ -5,9 +5,9 @@
 // and sets the visitor's area. Rendered at iPhone size (390×844) and
 // scaled into the device frame, so everything stays crisp and inside the screen.
 
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from "@/components/site/locale-link"
 import { AnimatePresence, motion } from "framer-motion"
 import { Check, ChevronLeft, ChevronRight, Clock, Home, Loader2, MapPin, Minus, Plus, Search, ShoppingBag, User } from "lucide-react"
 import { formatDuration, formatPKR, proLabel, type Category, type Service } from "@/lib/catalog"

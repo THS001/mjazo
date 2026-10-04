@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 import { formatPKR } from "@/lib/catalog"
 import type { TypeMeta } from "@/lib/cms/meta"
 import type { ListItem, State } from "@/lib/cms/write"
-import { reorderAction } from "@/app/admin/actions"
+import { reorderAction } from "@/app/(staff)/admin/actions"
 import { AdminIcon, Btn, Card, Notice, StateBadge, ago } from "./ui"
 
 const FILTERS: { id: "all" | State | "review"; label: string }[] = [

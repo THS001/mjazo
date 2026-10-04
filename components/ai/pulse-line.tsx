@@ -7,7 +7,7 @@ export function PulseLine() {
   const reduce = useReducedMotion()
   const d = "M0 60 H260 L285 60 L300 20 L318 100 L336 40 L350 60 H620 L640 60 L652 35 L666 85 L678 60 H1000 L1022 60 L1036 10 L1054 110 L1072 30 L1086 60 H1440"
   return (
-    <svg aria-hidden viewBox="0 0 1440 120" preserveAspectRatio="none" className="absolute left-0 right-0 top-24 sm:top-28 w-full h-24 sm:h-28 opacity-70">
+    <svg aria-hidden viewBox="0 0 1440 120" preserveAspectRatio="none" className="absolute start-0 end-0 top-24 sm:top-28 w-full h-24 sm:h-28 opacity-70">
       <path d={d} fill="none" stroke="#cfe6dc" strokeWidth="2" />
       <motion.path
         d={d}

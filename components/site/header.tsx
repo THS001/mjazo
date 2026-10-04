@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
@@ -10,7 +10,10 @@ import { cn } from "@/lib/utils"
 import { EASE, Icon, Pill } from "./primitives"
 import { LocationDialog } from "./location-dialog"
 import { SearchDialog } from "./search-dialog"
-import { useCatalog, useNav } from "@/components/cms/provider"
+import NextLink from "next/link"
+import { localePath } from "@/lib/i18n"
+import { useCatalog, useLocale, useNav, useSite, useT } from "@/components/cms/provider"
+import { stripLocale } from "@/lib/i18n"
 
 export function Logo({ className, light }: { className?: string; light?: boolean }) {
   return (
@@ -28,7 +31,13 @@ export function Logo({ className, light }: { className?: string; light?: boolean
 export function Header() {
   const { categoriesOf, getArea, worlds, worldStatus } = useCatalog()
   const { header: nav } = useNav()
-  const pathname = usePathname()
+  const t = useT()
+  const locale = useLocale()
+  const { flags } = useSite()
+  const showLang = flags.URDU_SITE || locale === "ur"
+  // Plain next/link: the switch must not be kept in the current locale like other links.
+  const langHref = (p: string) => (locale === "en" ? localePath(p, "ur") : p)
+  const pathname = stripLocale(usePathname())
   const [menu, setMenu] = useState(false)
   const [mobile, setMobile] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -66,7 +75,7 @@ export function Header() {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-50 px-3 sm:px-4 pt-[max(0.75rem,env(safe-area-inset-top))] sm:pt-[max(1rem,env(safe-area-inset-top))] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]" onMouseLeave={() => setMenu(false)}>
+      <header className="fixed top-0 start-0 end-0 z-50 px-3 sm:px-4 pt-[max(0.75rem,env(safe-area-inset-top))] sm:pt-[max(1rem,env(safe-area-inset-top))] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]" onMouseLeave={() => setMenu(false)}>
         <div className="max-w-7xl 2xl:max-w-[1400px] mx-auto rounded-2xl bg-white/75 backdrop-blur-xl border border-zinc-200 px-4 sm:px-6 py-2.5 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.08)]">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
@@ -98,12 +107,17 @@ export function Header() {
             </nav>
 
             <div className="flex items-center gap-1">
+              {showLang && (
+                <NextLink href={langHref(pathname)} hrefLang={locale === "en" ? "ur" : "en"} lang={locale === "en" ? "ur" : "en"} className={cn("hidden sm:flex h-10 items-center rounded-full px-3 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-black", locale === "en" && "font-urdu")}>
+                  {t.common.language}
+                </NextLink>
+              )}
               <button onClick={() => setSearchOpen(true)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-zinc-100 transition-colors" aria-label="Search services">
                 <Search className="w-4 h-4" />
               </button>
               <button onClick={() => setCartOpen(true)} className="relative w-10 h-10 rounded-full flex items-center justify-center hover:bg-zinc-100 transition-colors" aria-label={`Cart, ${count} items`}>
                 <ShoppingBag className="w-4 h-4" />
-                {count > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-brand text-[10px] font-semibold flex items-center justify-center">{count}</span>}
+                {count > 0 && <span className="absolute -top-0.5 -end-0.5 min-w-4 h-4 px-1 rounded-full bg-brand text-[10px] font-semibold flex items-center justify-center">{count}</span>}
               </button>
               <Link href="/login" className="hidden lg:flex xl:hidden w-10 h-10 rounded-full items-center justify-center hover:bg-zinc-100 transition-colors" aria-label={nav.login}><User className="w-4 h-4" /></Link>
               <Link href="/login" className="hidden md:block lg:hidden xl:block text-sm text-zinc-600 hover:text-black px-3 whitespace-nowrap">{nav.login}</Link>
@@ -134,12 +148,12 @@ export function Header() {
                         <span className="text-sm font-medium group-hover:underline underline-offset-4">{w.name}</span>
                         {worldStatus(w.slug) === "live" && <span className="live-dot w-1.5 h-1.5 rounded-full bg-brand" />}
                       </Link>
-                      <ul className="space-y-1 pl-10">
+                      <ul className="space-y-1 ps-10">
                         {categoriesOf(w.slug).map((c) => (
                           <li key={c.slug}>
                             <Link href={`/services/${c.slug}`} className="text-[13px] text-zinc-500 hover:text-black transition-colors">
                               {c.name}
-                              {c.status !== "live" && <span className="ml-1.5 text-[10px] text-zinc-400">{nav.soon}</span>}
+                              {c.status !== "live" && <span className="ms-1.5 text-[10px] text-zinc-400">{nav.soon}</span>}
                             </Link>
                           </li>
                         ))}
@@ -148,7 +162,7 @@ export function Header() {
                   ))}
                 </div>
                 <div className="flex justify-between items-center border-t border-zinc-200 pt-3 pb-1 text-xs text-zinc-500">
-                  <span><span className="inline-block w-1.5 h-1.5 rounded-full bg-brand mr-1.5 align-middle" />{nav.megaNote}</span>
+                  <span><span className="inline-block w-1.5 h-1.5 rounded-full bg-brand me-1.5 align-middle" />{nav.megaNote}</span>
                   <Link href="/services" className="text-black underline underline-offset-4">{nav.allServices}</Link>
                 </div>
               </motion.div>
@@ -168,6 +182,11 @@ export function Header() {
                     <Link key={n.href} href={n.href} className="py-2 text-base text-zinc-700">{n.label}</Link>
                   ))}
                   <Link href="/login" className="py-2 text-base text-zinc-700">{nav.login}</Link>
+                  {showLang && (
+                    <NextLink href={langHref(pathname)} hrefLang={locale === "en" ? "ur" : "en"} lang={locale === "en" ? "ur" : "en"} className={cn("py-2 text-base text-zinc-700", locale === "en" && "font-urdu")}>
+                      {t.common.language}
+                    </NextLink>
+                  )}
                 </div>
               </motion.nav>
             )}

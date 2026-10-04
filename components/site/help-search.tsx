@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { useMemo, useState } from "react"
 import { ArrowUpRight, Search } from "lucide-react"
 import type { HelpTopic } from "@/lib/content"
@@ -39,7 +39,7 @@ export function HelpSearch({ topics: helpTopics, labels }: { topics: HelpTopic[]
             <Link key={t.slug} href={`/help/${t.slug}`} className="group rounded-3xl bg-white border border-zinc-200 p-7 hover:border-zinc-400 transition-colors">
               <div className="flex justify-between items-start mb-8">
                 <span className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center group-hover:bg-brand transition-colors"><Icon name={t.icon} className="w-6 h-6" /></span>
-                <ArrowUpRight className="w-5 h-5 text-zinc-400 group-hover:text-black" />
+                <ArrowUpRight className="w-5 h-5 text-zinc-400 group-hover:text-black rtl:-scale-x-100" />
               </div>
               <p className="text-xl font-medium">{t.title}</p>
               <p className="text-sm text-zinc-500 mt-1">{t.blurb}</p>

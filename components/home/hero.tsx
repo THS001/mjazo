@@ -214,7 +214,7 @@ export function Hero({ content }: { content: HomeContent["hero"] }) {
           onAnimationComplete={() => setLanded(true)}
           style={{ perspective: 1400 }}
         >
-          <motion.div style={{ rotateX: rx, rotateY: ry, transformStyle: "preserve-3d" }}>
+          <motion.div dir="ltr" style={{ rotateX: rx, rotateY: ry, transformStyle: "preserve-3d" }}>
             <PhoneDevice width={width} />
           </motion.div>
           <motion.p

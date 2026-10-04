@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
+import { useRouter } from "@/components/site/locale-link"
 import { Search } from "lucide-react"
 import { track } from "@/lib/site"
 import { ServiceCard } from "@/components/site/service-card"

@@ -4,7 +4,7 @@
 // Auto-rotates (one turn per 48s), drag or swipe to spin with inertia (0.92 friction),
 // the card facing you scales up; click any card to open that world.
 
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { useEffect, useRef, useState } from "react"
 import { useReducedMotion } from "framer-motion"
 import { ChevronLeft, ChevronRight } from "lucide-react"
@@ -103,7 +103,7 @@ export function WorldRing() {
                 key={w.slug}
                 href={`/services/w/${w.slug}`}
                 draggable={false}
-                className="absolute -left-[110px] -top-[150px] sm:-left-[130px] sm:-top-[170px] w-[220px] h-[300px] sm:w-[260px] sm:h-[340px] rounded-[2rem] p-6 flex flex-col justify-between overflow-hidden shadow-[0_30px_60px_-30px_rgba(0,0,0,0.35)] transition-[box-shadow] duration-300"
+                className="absolute -start-[110px] -top-[150px] sm:-start-[130px] sm:-top-[170px] w-[220px] h-[300px] sm:w-[260px] sm:h-[340px] rounded-[2rem] p-6 flex flex-col justify-between overflow-hidden shadow-[0_30px_60px_-30px_rgba(0,0,0,0.35)] transition-[box-shadow] duration-300"
                 style={{ background: w.tint, transform: `rotateY(${i * STEP}deg) translateZ(${radius}px) scale(${isFront ? 1.06 : 0.94})`, backfaceVisibility: "hidden", transition: "transform 0.4s cubic-bezier(0.25,0.46,0.45,0.94)" }}
                 aria-label={w.name}
                 tabIndex={isFront ? 0 : -1}
@@ -125,11 +125,11 @@ export function WorldRing() {
         </div>
       </div>
       <div className="flex items-center justify-center gap-4 mt-4">
-        <button onClick={() => nudge(-1)} className="w-11 h-11 rounded-full border border-zinc-300 flex items-center justify-center hover:bg-foreground hover:text-background transition-colors" aria-label="Previous world"><ChevronLeft className="w-4 h-4" /></button>
+        <button onClick={() => nudge(-1)} className="w-11 h-11 rounded-full border border-zinc-300 flex items-center justify-center hover:bg-foreground hover:text-background transition-colors" aria-label="Previous world"><ChevronLeft className="w-4 h-4 rtl:-scale-x-100" /></button>
         <Link href={`/services/w/${worlds[front].slug}`} className="min-w-48 text-center text-sm py-3">
           <span className="text-zinc-500">Open </span><span className="font-medium underline underline-offset-4">{worlds[front].name}</span>
         </Link>
-        <button onClick={() => nudge(1)} className="w-11 h-11 rounded-full border border-zinc-300 flex items-center justify-center hover:bg-foreground hover:text-background transition-colors" aria-label="Next world"><ChevronRight className="w-4 h-4" /></button>
+        <button onClick={() => nudge(1)} className="w-11 h-11 rounded-full border border-zinc-300 flex items-center justify-center hover:bg-foreground hover:text-background transition-colors" aria-label="Next world"><ChevronRight className="w-4 h-4 rtl:-scale-x-100" /></button>
       </div>
     </div>
   )

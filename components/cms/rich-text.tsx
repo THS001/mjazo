@@ -1,4 +1,4 @@
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import type { ReactNode } from "react"
 import type { RichDoc, RichMark, RichNode } from "@/lib/cms/fields"
 
@@ -88,9 +88,9 @@ const DEFAULT: Classes = {
   p: "text-lg leading-relaxed text-zinc-700 mt-5",
   h2: "font-serif text-2xl sm:text-3xl mt-10 mb-1",
   h3: "font-semibold text-lg mt-8",
-  ul: "mt-5 list-disc space-y-1.5 pl-6 text-lg leading-relaxed text-zinc-700",
-  ol: "mt-5 list-decimal space-y-1.5 pl-6 text-lg leading-relaxed text-zinc-700",
-  quote: "mt-6 border-l-2 border-brand pl-5 font-serif text-xl italic text-zinc-800",
+  ul: "mt-5 list-disc space-y-1.5 ps-6 text-lg leading-relaxed text-zinc-700",
+  ol: "mt-5 list-decimal space-y-1.5 ps-6 text-lg leading-relaxed text-zinc-700",
+  quote: "mt-6 border-s-2 border-brand ps-5 font-serif text-xl italic text-zinc-800",
 }
 
 export function RichText({ doc, classes }: { doc: RichDoc | undefined; classes?: Partial<Classes> }) {

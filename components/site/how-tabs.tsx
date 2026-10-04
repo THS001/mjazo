@@ -35,8 +35,8 @@ export function HowTabs({ tabs, customers, pros, customersCta, prosCta }: Props)
             const StepIcon = ICONS[tab][i] ?? Sparkles
             return (
             <li key={i} className="relative rounded-3xl border border-zinc-200 p-6 pt-20 overflow-hidden">
-              <span className="absolute top-3 right-4 font-serif text-7xl text-black/[0.06] leading-none">{i + 1}</span>
-              <span className="absolute top-6 left-6 w-11 h-11 rounded-2xl bg-brand-soft flex items-center justify-center"><StepIcon className="w-5 h-5" strokeWidth={1.5} /></span>
+              <span className="absolute top-3 end-4 font-serif text-7xl text-black/[0.06] leading-none">{i + 1}</span>
+              <span className="absolute top-6 start-6 w-11 h-11 rounded-2xl bg-brand-soft flex items-center justify-center"><StepIcon className="w-5 h-5" strokeWidth={1.5} /></span>
               <p className="font-medium text-lg">{s.title}</p>
               <p className="text-sm text-zinc-500 mt-2">{s.body}</p>
             </li>

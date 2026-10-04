@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import Lenis from "lenis"
@@ -9,11 +9,12 @@ import { formatPKR } from "@/lib/catalog"
 import { captureAttribution, track } from "@/lib/site"
 import { cartCount, cartTotal, useCart } from "@/lib/store"
 import { cn } from "@/lib/utils"
-import { useNav, useSite } from "@/components/cms/provider"
+import { fill, useNav, useSite, useT } from "@/components/cms/provider"
+import { stripLocale } from "@/lib/i18n"
 
 /** Lenis smooth scroll (lerp 0.1, matching the template) + first-touch attribution capture. */
 export function SmoothScroll() {
-  const pathname = usePathname()
+  const pathname = stripLocale(usePathname())
   useEffect(() => {
     captureAttribution()
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
@@ -45,7 +46,7 @@ export const isServiceDetail = (p: string) => /^\/services\/(?!w\/)[^/]+\/[^/]+$
 
 export function WhatsAppFab() {
   const { whatsappLink } = useSite()
-  const pathname = usePathname()
+  const pathname = stripLocale(usePathname())
   if (pathname.startsWith("/checkout")) return null
   return (
     <a
@@ -53,7 +54,7 @@ export function WhatsAppFab() {
       target="_blank"
       rel="noopener noreferrer"
       onClick={() => track("whatsapp_click", { placement: "fab", page: pathname })}
-      className={cn("fixed z-40 right-4 lg:bottom-6 w-14 h-14 rounded-full bg-[#25D366] text-foreground shadow-lg flex items-center justify-center hover:scale-105 transition-transform", isServiceDetail(pathname) ? "bottom-[calc(8.5rem+env(safe-area-inset-bottom))]" : "bottom-[calc(5rem+env(safe-area-inset-bottom))]")}
+      className={cn("fixed z-40 end-4 lg:bottom-6 w-14 h-14 rounded-full bg-[#25D366] text-foreground shadow-lg flex items-center justify-center hover:scale-105 transition-transform", isServiceDetail(pathname) ? "bottom-[calc(8.5rem+env(safe-area-inset-bottom))]" : "bottom-[calc(5rem+env(safe-area-inset-bottom))]")}
       aria-label="Chat on WhatsApp"
     >
       <svg viewBox="0 0 24 24" className="w-7 h-7" fill="currentColor" aria-hidden>
@@ -73,8 +74,9 @@ const TABS = [
 
 /** Mobile bottom tab bar + sticky "View cart" bar. */
 export function MobileBar() {
-  const pathname = usePathname()
+  const pathname = stripLocale(usePathname())
   const { tabs } = useNav()
+  const t = useT()
   const { items, setOpen } = useCart()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -86,8 +88,8 @@ export function MobileBar() {
       {count > 0 && !hideCartBar && (
         <div className="px-3 pb-2">
           <button onClick={() => setOpen(true)} className="w-full h-12 rounded-full bg-foreground text-background flex items-center justify-between px-5 text-sm shadow-lg">
-            <span>{count} item{count > 1 ? "s" : ""} · {formatPKR(cartTotal(items))}</span>
-            <span className="font-medium">View cart →</span>
+            <span>{fill(count > 1 ? t.cart.items : t.cart.item, { count })} · {formatPKR(cartTotal(items))}</span>
+            <span className="font-medium">{t.cart.viewCartArrow}</span>
           </button>
         </div>
       )}

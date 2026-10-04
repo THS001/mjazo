@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { motion } from "framer-motion"
 import { Check, Loader2, Star } from "lucide-react"
 import { RATING_TAGS } from "@/lib/ops/types"
@@ -90,7 +90,7 @@ export function RateVisit({ bookingId, phone, beauty, onDone }: { bookingId: str
             <Star className={cn("w-8 h-8 transition-all", (hover || stars) >= n ? "fill-brand text-brand scale-110" : "text-zinc-300")} strokeWidth={1.5} />
           </button>
         ))}
-        <span className="ml-2 text-sm text-zinc-500">{LABEL[hover || stars]}</span>
+        <span className="ms-2 text-sm text-zinc-500">{LABEL[hover || stars]}</span>
       </div>
       {stars > 0 && (
         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="overflow-hidden">

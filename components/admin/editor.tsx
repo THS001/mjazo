@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, CalendarClock, Check, ChevronRight, Eye, EyeOff, History, Languages, Loader2, RotateCcw, Send, X } from "lucide-react"
+import { AlertTriangle, CalendarClock, Check, ChevronRight, Eye, EyeOff, History, Languages, Loader2, RotateCcw, Send, Sparkles, X } from "lucide-react"
+import { approveAll, coverage } from "@/lib/cms/fields"
+import { translateEntryAction } from "@/app/(staff)/admin/translate-actions"
 import { cn } from "@/lib/utils"
 import type { TypeMeta } from "@/lib/cms/meta"
 import type { Loaded } from "@/lib/cms/write"
 import type { Data, VersionRow } from "@/lib/cms/store"
-import { archiveAction, createAction, discardAction, publishAction, restoreAction, saveDraftAction, scheduleAction, submitForReviewAction, unarchiveAction, unscheduleAction, versionsAction, type Result } from "@/app/admin/actions"
+import { archiveAction, createAction, discardAction, publishAction, restoreAction, saveDraftAction, scheduleAction, submitForReviewAction, unarchiveAction, unscheduleAction, versionsAction, type Result } from "@/app/(staff)/admin/actions"
 import { FieldsForm, emptyObject, type FormCtx } from "./fields"
 import { Btn, Card, Notice, StateBadge, ago, when } from "./ui"
 
@@ -127,6 +129,16 @@ export function Editor({ meta, entry, refs, perms, previewPath }: Props) {
       setIssues(r.issues ?? [])
       setSave({ kind: "error", message: r.error })
     }
+  }
+
+  const cov = coverage(meta.fields, data)
+  const translate = async (mode: "missing" | "all") => {
+    setBusy("translate")
+    const r = await translateEntryAction(meta.type, data, mode)
+    setBusy(null)
+    if (!r.ok) return setSave({ kind: "error", message: r.error })
+    if (!r.data.count) return setSave({ kind: "saved", at: new Date().toISOString(), message: "Nothing to translate." })
+    change(r.data.data as Data)
   }
 
   const preview = async () => {
@@ -296,6 +308,39 @@ export function Editor({ meta, entry, refs, perms, previewPath }: Props) {
                 </div>
               )}
             </Card>
+            {cov.total > 0 && (
+              <Card className="p-4 text-sm">
+                <p className="flex items-center gap-1.5 font-medium">
+                  <Languages className="w-4 h-4" /> Urdu
+                </p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {cov.done} of {cov.total} texts translated{cov.ai ? `, ${cov.ai} by AI and not reviewed yet` : ""}
+                </p>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-100">
+                  <div className="h-full rounded-full bg-brand" style={{ width: `${Math.round((cov.done / cov.total) * 100)}%` }} />
+                </div>
+                {perms.canEdit && !readOnly && (
+                  <div className="mt-3 space-y-2">
+                    <Btn size="sm" className="w-full" busy={busy === "translate"} disabled={cov.done === cov.total} onClick={() => translate("missing")}>
+                      <Sparkles className="w-3.5 h-3.5" /> Translate the rest with AI
+                    </Btn>
+                    {cov.ai > 0 && (
+                      <Btn size="sm" className="w-full" onClick={() => change(approveAll(data) as Data)} title="After reading the Urdu: clears the 'needs review' flags">
+                        <Check className="w-3.5 h-3.5" /> Mark AI Urdu as reviewed
+                      </Btn>
+                    )}
+                    <button
+                      type="button"
+                      disabled={busy === "translate"}
+                      onClick={() => confirm("Translate every text again, replacing the current Urdu?") && void translate("all")}
+                      className="w-full text-center text-[11px] text-zinc-500 underline-offset-2 hover:underline"
+                    >
+                      Retranslate everything
+                    </button>
+                  </div>
+                )}
+              </Card>
+            )}
             <Card className="p-4 text-xs text-zinc-500">
               <p className="mb-1 font-medium text-foreground">How saving works</p>
               Changes save as a draft automatically. The site only changes when you press <b>Publish</b>
@@ -335,7 +380,7 @@ function SaveIndicator({ save }: { save: SaveState }) {
   if (save.kind === "saved")
     return (
       <span className="inline-flex items-center gap-1 text-emerald-700">
-        <Check className="w-3 h-3" /> Draft saved {ago(save.at)}
+        <Check className="w-3 h-3" /> {save.message ?? `Draft saved ${ago(save.at)}`}
       </span>
     )
   if (save.kind === "error") return <span className="text-red-700">{save.message}</span>

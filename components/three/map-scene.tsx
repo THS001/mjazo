@@ -4,7 +4,7 @@
 // glow saffron; hovering lifts a zone +6% and shows its name; clicking opens its page.
 
 import { useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from "@/components/site/locale-link"
 import { Canvas, useFrame } from "@react-three/fiber"
 import { Html, RoundedBox } from "@react-three/drei"
 import * as THREE from "three"

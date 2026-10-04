@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { motion } from "framer-motion"
 import { ArrowRight, Mic } from "lucide-react"
 import { PARTNER } from "@/lib/content"
@@ -76,7 +76,7 @@ export function PartnerLanding() {
               <Reveal as="li" key={s.en} delay={i * 0.08} className="relative">
                 <span className="font-serif text-7xl text-brand leading-none" dir="ltr">0{i + 1}</span>
                 <p className={cn("text-xl mt-4", urduCls(lang))}>{t(s)}</p>
-                {i < PARTNER.steps.length - 1 && <span className={cn("hidden md:block absolute top-8 h-px bg-white/20 w-[40%]", rtl ? "left-0" : "right-0")} />}
+                {i < PARTNER.steps.length - 1 && <span className={cn("hidden md:block absolute top-8 h-px bg-white/20 w-[40%]", rtl ? "start-0" : "end-0")} />}
               </Reveal>
             ))}
           </ol>

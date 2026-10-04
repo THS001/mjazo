@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { AlertTriangle, Camera, Check, ClipboardCheck, ImagePlus, Loader2, MessageCircle, RotateCcw, Send, Sparkles, Video, Wrench, X } from "lucide-react"
@@ -178,7 +178,7 @@ export function GharScan() {
             pick(e.dataTransfer.files)
           }}
         >
-          {["top-4 left-4 border-l-2 border-t-2 rounded-tl-xl", "top-4 right-4 border-r-2 border-t-2 rounded-tr-xl", "bottom-4 left-4 border-l-2 border-b-2 rounded-bl-xl", "bottom-4 right-4 border-r-2 border-b-2 rounded-br-xl"].map((c) => (
+          {["top-4 start-4 border-s-2 border-t-2 rounded-ss-xl", "top-4 end-4 border-e-2 border-t-2 rounded-se-xl", "bottom-4 start-4 border-s-2 border-b-2 rounded-es-xl", "bottom-4 end-4 border-e-2 border-b-2 rounded-ee-xl"].map((c) => (
             <span key={c} aria-hidden className={cn("absolute w-8 h-8 border-brand z-10 pointer-events-none", c)} />
           ))}
           {photos.length ? (
@@ -206,7 +206,7 @@ export function GharScan() {
                       </motion.button>
                     ))}
                   {!busy && (
-                    <button onClick={() => setPhotos((ph) => ph.filter((_, j) => j !== i))} className="absolute top-3 right-3 z-20 w-8 h-8 rounded-full bg-black/70 text-white flex items-center justify-center" aria-label="Remove photo">
+                    <button onClick={() => setPhotos((ph) => ph.filter((_, j) => j !== i))} className="absolute top-3 end-3 z-20 w-8 h-8 rounded-full bg-black/70 text-white flex items-center justify-center" aria-label="Remove photo">
                       <X className="w-4 h-4" />
                     </button>
                   )}
@@ -335,7 +335,7 @@ export function GharScan() {
                 {result.causes.length > 0 && (
                   <div className="mt-5">
                     <p className="text-xs uppercase tracking-[0.15em] text-zinc-500 mb-2">Likely causes</p>
-                    <ol className="space-y-1.5 text-sm list-decimal pl-5" dir="auto">
+                    <ol className="space-y-1.5 text-sm list-decimal ps-5" dir="auto">
                       {result.causes.map((c) => (
                         <li key={c}>{c}</li>
                       ))}

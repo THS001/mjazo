@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Check, Clock, Plus } from "lucide-react"
@@ -8,17 +8,19 @@ import { formatDuration, formatPKR, type Category } from "@/lib/catalog"
 import { useCart } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { addServiceToCart } from "@/components/site/service-card"
+import { fillNodes, useT } from "@/components/cms/provider"
 
 type Sort = "popular" | "price-asc" | "price-desc" | "duration"
 const FILTERS = [
-  { id: "under2k", label: "Under PKR 2,000", test: (p: number) => p > 0 && p < 2000 },
-  { id: "under1h", label: "Under 1 hour", test: (_: number, d: number) => d > 0 && d < 60 },
-  { id: "options", label: "Has options", test: (_: number, __: number, o: boolean) => o },
+  { id: "under2k", label: "under2k", test: (p: number) => p > 0 && p < 2000 },
+  { id: "under1h", label: "under1h", test: (_: number, d: number) => d > 0 && d < 60 },
+  { id: "options", label: "hasOptions", test: (_: number, __: number, o: boolean) => o },
 ] as const
 
 /** The service menu on a category page: sort, filter, quick-add with "added" feedback. */
 export function CategoryServices({ category }: { category: Category }) {
   const add = useCart((s) => s.add)
+  const t = useT()
   const [sort, setSort] = useState<Sort>("popular")
   const [filters, setFilters] = useState<string[]>([])
   const [justAdded, setJustAdded] = useState<string | null>(null)
@@ -42,17 +44,17 @@ export function CategoryServices({ category }: { category: Category }) {
           const on = filters.includes(f.id)
           return (
             <button key={f.id} onClick={() => setFilters((s) => (on ? s.filter((x) => x !== f.id) : [...s, f.id]))} aria-pressed={on} className={cn("rounded-full border h-10 px-4 text-sm transition-colors", on ? "bg-foreground text-background border-foreground" : "border-zinc-300 hover:border-zinc-500")}>
-              {f.label}
+              {t.menu[f.label]}
             </button>
           )
         })}
-        <label className="ml-auto flex items-center gap-2 text-sm text-zinc-500">
-          Sort
+        <label className="ms-auto flex items-center gap-2 text-sm text-zinc-500">
+          {t.menu.sort}
           <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="h-10 rounded-full border border-zinc-300 bg-white px-3 text-[16px] sm:text-sm text-black outline-none">
-            <option value="popular">Most booked</option>
-            <option value="price-asc">Price: low to high</option>
-            <option value="price-desc">Price: high to low</option>
-            <option value="duration">Quickest first</option>
+            <option value="popular">{t.menu.sortPopular}</option>
+            <option value="price-asc">{t.menu.sortPriceAsc}</option>
+            <option value="price-desc">{t.menu.sortPriceDesc}</option>
+            <option value="duration">{t.menu.sortQuickest}</option>
           </select>
         </label>
       </div>
@@ -67,13 +69,13 @@ export function CategoryServices({ category }: { category: Category }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <Link href={href} className="text-lg font-medium hover:underline underline-offset-4">{s.name}</Link>
-                    {s.popular && <span className="text-[11px] rounded-full bg-brand-soft text-brand-ink px-2 py-0.5">Most booked</span>}
+                    {s.popular && <span className="text-[11px] rounded-full bg-brand-soft text-brand-ink px-2 py-0.5">{t.common.mostBooked}</span>}
                   </div>
                   <p className="text-sm text-zinc-500 mt-1 max-w-xl">{s.short}</p>
                   <p className="text-sm mt-3 flex items-center gap-4">
-                    <span className="font-medium">{s.price > 0 ? <><span className="text-zinc-400 font-normal">from </span>{formatPKR(s.price)}</> : "Price on request"}</span>
-                    <span className="text-zinc-500 flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{formatDuration(s.duration)}</span>
-                    {(s.variants?.length || s.addOns?.length) ? <span className="text-zinc-400 text-xs">Options available</span> : null}
+                    <span className="font-medium">{s.price > 0 ? fillNodes(t.common.fromPrice, { price: formatPKR(s.price) }, (x) => <span className="text-zinc-400 font-normal">{x}</span>) : t.common.priceOnRequest}</span>
+                    <span className="text-zinc-500 flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{formatDuration(s.duration, t.duration)}</span>
+                    {(s.variants?.length || s.addOns?.length) ? <span className="text-zinc-400 text-xs">{t.menu.optionsAvailable}</span> : null}
                   </p>
                 </div>
                 {quick ? (
@@ -85,11 +87,11 @@ export function CategoryServices({ category }: { category: Category }) {
                     }}
                     className={cn("shrink-0 h-10 rounded-full border px-4 text-sm flex items-center gap-1.5 transition-colors", justAdded === s.slug ? "bg-brand border-brand" : "border-zinc-300 hover:bg-foreground hover:text-background hover:border-foreground")}
                   >
-                    {justAdded === s.slug ? <><Check className="w-4 h-4" /> Added</> : <><Plus className="w-4 h-4" /> Add</>}
+                    {justAdded === s.slug ? <><Check className="w-4 h-4" /> {t.common.added}</> : <><Plus className="w-4 h-4" /> {t.common.add}</>}
                   </button>
                 ) : (
                   <Link href={href} className="shrink-0 h-10 rounded-full border border-zinc-300 px-4 text-sm flex items-center hover:bg-foreground hover:text-background hover:border-foreground transition-colors">
-                    {live ? "Choose options" : "View"}
+                    {live ? t.common.chooseOptions : t.common.view}
                   </Link>
                 )}
               </motion.li>
@@ -99,7 +101,7 @@ export function CategoryServices({ category }: { category: Category }) {
       </ul>
       {list.length === 0 && (
         <p className="text-sm text-zinc-500 py-10 text-center">
-          Nothing matches those filters. <button className="underline" onClick={() => setFilters([])}>Clear filters</button>
+          {t.menu.none} <button className="underline" onClick={() => setFilters([])}>{t.menu.clear}</button>
         </p>
       )}
     </div>

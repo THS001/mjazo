@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { useEffect, useRef, useState } from "react"
 import { motion, useScroll, useTransform, useMotionValueEvent } from "framer-motion"
 import { ArrowUpRight, BadgeCheck, CalendarClock, Check, Clock, Lock, MapPin, ShieldCheck, Sparkles, Star, UserCheck } from "lucide-react"
@@ -81,11 +81,11 @@ export function WorldsGrid({ content: c }: { content: HomeContent["worlds"] }) {
               <Reveal key={w.slug} delay={i * 0.06}>
                 <Link href={`/services/w/${w.slug}`} className={cn("group relative block rounded-3xl p-5 sm:p-6 overflow-hidden h-full min-h-44 sm:min-h-56 transition-all duration-500 hover:-translate-y-1")} style={{ background: w.tint }}>
                   {isImage(w.image) ? (
-                    <div className="absolute -right-6 -bottom-6 w-32 h-32 sm:w-40 sm:h-40 rounded-full overflow-hidden transition-transform duration-700 group-hover:scale-110">
+                    <div className="absolute -end-6 -bottom-6 w-32 h-32 sm:w-40 sm:h-40 rounded-full overflow-hidden transition-transform duration-700 group-hover:scale-110">
                       <CmsImage img={w.image} sizes="160px" />
                     </div>
                   ) : (
-                    <div className="absolute -right-6 -bottom-6 w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-white/40 flex items-center justify-center transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
+                    <div className="absolute -end-6 -bottom-6 w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-white/40 flex items-center justify-center transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
                       <Icon name={w.icon} className="w-14 h-14 sm:w-16 sm:h-16 text-black/70" strokeWidth={1} />
                     </div>
                   )}
@@ -95,7 +95,7 @@ export function WorldsGrid({ content: c }: { content: HomeContent["worlds"] }) {
                     <p className="text-xs sm:text-sm text-black/60 mt-1 max-w-[70%]">{w.short}</p>
                     <p className="text-[11px] text-black/50 mt-3">{categoriesOf(w.slug).length} categories</p>
                   </div>
-                  <ArrowUpRight className="absolute top-5 right-5 w-5 h-5 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                  <ArrowUpRight className="absolute top-5 end-5 w-5 h-5 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all rtl:-scale-x-100" />
                 </Link>
               </Reveal>
             )
@@ -155,7 +155,7 @@ export function MostBooked({ content: c }: { content: HomeContent["mostBooked"] 
         </div>
       ) : (
         <div className="relative z-10" onMouseEnter={() => (paused.current = true)} onMouseLeave={() => (paused.current = false)}>
-          <div ref={track} className="flex gap-4 w-max will-change-transform px-4">
+          <div dir="ltr" ref={track} className="flex gap-4 w-max will-change-transform px-4">
             {[...items, ...items].map(({ category, service }, i) => (
               <ServiceCard key={`${service.slug}-${i}`} category={category} service={service} className="w-[260px] sm:w-[290px] shrink-0" />
             ))}
@@ -278,7 +278,7 @@ function TrackerCard({ t }: { t: HomeContent["trust"]["tracker"] }) {
           <p className="text-sm font-medium">{t.pro}</p>
           <p className="text-xs text-zinc-500">{t.proLine}</p>
         </div>
-        <div className="text-right">
+        <div className="text-end">
           <motion.p key={eta} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="text-2xl font-light">{eta}</motion.p>
           <p className="text-[11px] text-zinc-500 uppercase">min away</p>
         </div>
@@ -350,7 +350,7 @@ export function BundlesBento({ content: c }: { content: HomeContent["bundles"] }
                       {full > b.price && <p className={cn("text-xs line-through", hero ? "text-white/50" : "text-zinc-400")}>{formatPKR(full)}</p>}
                       <p className={cn(hero ? "text-2xl" : "text-lg", "font-medium")}>{formatPKR(b.price)}</p>
                     </div>
-                    <ArrowUpRight className="w-5 h-5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                    <ArrowUpRight className="w-5 h-5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 rtl:-scale-x-100" />
                   </div>
                 </Link>
               </Reveal>
@@ -394,8 +394,8 @@ export function AreasTeaser({ content: c }: { content: HomeContent["areas"] }) {
 // ---------------------------------------------------------------------------
 function Row({ items, reverse }: { items: string[]; reverse?: boolean }) {
   return (
-    <div className="flex overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_10%,#000_90%,transparent)]">
-      <motion.div className="flex gap-3 pr-3 shrink-0" animate={{ x: reverse ? ["-50%", "0%"] : ["0%", "-50%"] }} transition={{ duration: 40, ease: "linear", repeat: Infinity }}>
+    <div dir="ltr" className="flex overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_10%,#000_90%,transparent)]">
+      <motion.div className="flex gap-3 pe-3 shrink-0" animate={{ x: reverse ? ["-50%", "0%"] : ["0%", "-50%"] }} transition={{ duration: 40, ease: "linear", repeat: Infinity }}>
         {[...items, ...items].map((t, i) => (
           <span key={i} className="whitespace-nowrap rounded-full border border-zinc-200 bg-white px-5 py-3 text-sm flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-brand-ink" strokeWidth={1.5} />{t}</span>
         ))}

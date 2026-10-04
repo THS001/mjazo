@@ -90,6 +90,26 @@ describe("getCollection / getCatalog", () => {
     media.length = 0
   })
 
+  it("serves every type's built-in content unchanged in English when nothing is published", async () => {
+    const { getCollection, getSingleton } = await import("./read")
+    const { allTypes } = await import("./registry")
+    for (const t of allTypes()) {
+      const got = t.kind === "collection" ? await getCollection(t.type, "en") : await getSingleton(t.type, "en")
+      // Categories are stored without their services (the services collection holds them; the
+      // catalogue nests them back), so compare without that list.
+      const drop = (list: unknown) => (list as Record<string, unknown>[]).map(({ services, ...c }) => c)
+      if (t.type === "category") expect(drop(got), t.type).toEqual(drop(t.defaults()))
+      else expect(got, t.type).toEqual(t.defaults())
+    }
+  })
+
+  it("shows shipped Urdu for Urdu pages and English where there is none", async () => {
+    const { getSingleton } = await import("./read")
+    const nav = await getSingleton<{ header: { services: string; login: string }; footer: { tagline: string } }>("nav", "ur")
+    expect(nav.header.services).not.toBe("Services")
+    expect(nav.header.services).toMatch(/[؀-ۿ]/)
+  })
+
   it("fills {{tokens}} from settings in catalogue text", async () => {
     const { getCollection, getTokens } = await import("./read")
     rows["settings-policy"] = [row("main", { freeChangeHours: 6, lateFee: { en: "a fee" }, redoHours: 24, leadHours: 2 })]

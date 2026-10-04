@@ -1,4 +1,4 @@
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import type { CSSProperties, ReactNode } from "react"
 import { ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -7,6 +7,7 @@ import { HeroReveal } from "./reveal-client"
 import { SITE_URL } from "@/lib/site"
 import { CmsImage, isImage } from "@/components/cms/image"
 import type { Img } from "@/lib/cms/fields"
+import { CrumbLabel } from "@/components/cms/provider"
 
 export type Crumb = { label: string; href?: string }
 
@@ -23,11 +24,11 @@ export function Breadcrumbs({ items, light }: { items: Crumb[]; light?: boolean 
       <ol className="flex flex-wrap items-center gap-1">
         {all.map((c, i) => (
           <li key={i} className="flex items-center gap-1">
-            {i > 0 && <ChevronRight className="w-3 h-3 opacity-60" />}
+            {i > 0 && <ChevronRight className="w-3 h-3 opacity-60 rtl:-scale-x-100" />}
             {c.href && i < all.length - 1 ? (
-              <Link href={c.href} className={cn("inline-block py-1.5 hover:underline underline-offset-4", light ? "hover:text-white" : "hover:text-black")}>{c.label}</Link>
+              <Link href={c.href} className={cn("inline-block py-1.5 hover:underline underline-offset-4", light ? "hover:text-white" : "hover:text-black")}><CrumbLabel label={c.label} /></Link>
             ) : (
-              <span className={light ? "text-white" : "text-black"} aria-current={i === all.length - 1 ? "page" : undefined}>{c.label}</span>
+              <span className={light ? "text-white" : "text-black"} aria-current={i === all.length - 1 ? "page" : undefined}><CrumbLabel label={c.label} /></span>
             )}
           </li>
         ))}

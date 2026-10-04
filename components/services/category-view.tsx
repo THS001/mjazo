@@ -1,6 +1,6 @@
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { ArrowUpRight, MessageCircle, ShieldCheck, X } from "lucide-react"
-import { formatDuration, formatPKR, proLabel, type Area, type Category } from "@/lib/catalog"
+import { formatDuration, formatPKR, type Area, type Category } from "@/lib/catalog"
 import { Breadcrumbs, type Crumb } from "@/components/site/page-hero"
 import { BgWord, Container, Icon, Pill, Reveal, SplitText, StatusChip } from "@/components/site/primitives"
 import { HeroReveal } from "@/components/site/reveal-client"
@@ -8,7 +8,7 @@ import { CheckList } from "@/components/site/forms"
 import { NotifyForm } from "@/components/site/notify-form"
 import { FAQ } from "@/components/site/faq"
 import { CategoryServices } from "./category-services"
-import { getCatalog, getPage, getSettings } from "@/lib/cms/read"
+import { getCatalog, getPage, getSettings, getUi } from "@/lib/cms/read"
 import { tokensDeep } from "@/lib/cms/fields"
 import type { CategoryContent } from "@/lib/cms/types/pages/catalogue"
 import { waLink } from "@/lib/site"
@@ -16,7 +16,7 @@ import { CmsImage, isImage } from "@/components/cms/image"
 
 /** Category page body, shared by /services/[category] and /karachi/[area]/[category]. */
 export async function CategoryView({ category, area, crumbs }: { category: Category; area?: Area; crumbs: Crumb[] }) {
-  const [{ categoriesOf, getWorld }, { site }, page] = await Promise.all([getCatalog(), getSettings(), getPage<CategoryContent>("category")])
+  const [{ categoriesOf, getWorld }, { site }, page, ui] = await Promise.all([getCatalog(), getSettings(), getPage<CategoryContent>("category"), getUi()])
   const whatsappLink = (message: string) => waLink(site.whatsapp, message)
   const world = getWorld(category.world)!
   const live = category.status === "live" && (!area || area.status === "live")
@@ -32,7 +32,7 @@ export async function CategoryView({ category, area, crumbs }: { category: Categ
         <Container>
           <div className="relative rounded-[2rem] sm:rounded-[2.5rem] overflow-hidden px-5 sm:px-12 pt-8 sm:pt-10 pb-8 sm:pb-16" style={{ background: world.tint }}>
             {isImage(category.image) && (
-              <div aria-hidden className="absolute inset-0 lg:left-[30%]">
+              <div aria-hidden className="absolute inset-0 lg:start-[30%]">
                 <CmsImage img={category.image} priority sizes="(min-width: 1024px) 65vw, 100vw" />
                 <div className="absolute inset-0 lg:hidden" style={{ background: `color-mix(in oklab, ${world.tint} 82%, transparent)` }} />
                 <div className="absolute inset-0 hidden lg:block" style={{ background: `linear-gradient(90deg, ${world.tint} 0%, color-mix(in oklab, ${world.tint} 75%, transparent) 35%, transparent 75%)` }} />
@@ -45,7 +45,7 @@ export async function CategoryView({ category, area, crumbs }: { category: Categ
                 <HeroReveal>
                   <div className="flex flex-wrap gap-2 mb-6">
                     <StatusChip status={live ? "live" : "waitlist"} liveLabel={area ? c.hero.availableIn : c.hero.availableAcross} className="bg-white/80" />
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1 text-[11px]"><ShieldCheck className="w-3 h-3" />{proLabel[category.proType]}</span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1 text-[11px]"><ShieldCheck className="w-3 h-3" />{ui.pro[category.proType]}</span>
                   </div>
                 </HeroReveal>
                 <p className="text-sm uppercase tracking-[0.2em] text-black/50 mb-3">{area ? c.hero.eyebrowArea : category.name}</p>
@@ -67,7 +67,7 @@ export async function CategoryView({ category, area, crumbs }: { category: Categ
                   </div>
                   <dl className="grid grid-cols-2 gap-4 text-sm">
                     <div><dt className="text-zinc-500 text-xs">{c.card.from}</dt><dd className="font-medium">{prices.length ? formatPKR(Math.min(...prices)) : c.card.quote}</dd></div>
-                    <div><dt className="text-zinc-500 text-xs">{c.card.takes}</dt><dd className="font-medium">{durations.length ? `${formatDuration(Math.min(...durations))}+` : c.card.varies}</dd></div>
+                    <div><dt className="text-zinc-500 text-xs">{c.card.takes}</dt><dd className="font-medium">{durations.length ? `${formatDuration(Math.min(...durations), ui.duration)}+` : c.card.varies}</dd></div>
                   </dl>
                   {live ? (
                     <Pill href="#menu" className="mt-6 w-full justify-between">{c.card.menu}</Pill>
@@ -133,7 +133,7 @@ export async function CategoryView({ category, area, crumbs }: { category: Categ
                       <span className="block font-medium truncate">{r.name}</span>
                       <span className="block text-xs text-zinc-500">{r.status === "live" ? c.related.live : c.related.soon}</span>
                     </span>
-                    <ArrowUpRight className="w-4 h-4 text-zinc-400 group-hover:text-black" />
+                    <ArrowUpRight className="w-4 h-4 text-zinc-400 group-hover:text-black rtl:-scale-x-100" />
                   </Link>
                 </Reveal>
               ))}

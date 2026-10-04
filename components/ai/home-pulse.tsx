@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { CalendarPlus, Check, Loader2, Minus, MessageCircle, Plus, Sparkles, X } from "lucide-react"
@@ -14,7 +14,8 @@ import { cn } from "@/lib/utils"
 import { PK_PHONE, normalisePhone } from "@/components/site/notify-form"
 import { inputCls } from "@/components/site/forms"
 import { EASE } from "@/components/site/primitives"
-import { useCatalog } from "@/components/cms/provider"
+import { useCatalog, useLocale } from "@/components/cms/provider"
+import { localePath } from "@/lib/i18n"
 
 type Lang = "en" | "ur" | "ro"
 const KIND: Record<PulseItem["kind"], string> = { beauty: "Routine", home: "Home", season: "Season", weather: "Weather", event: "Event", eid: "Eid" }
@@ -35,7 +36,7 @@ function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange:
     <button type="button" role="switch" aria-checked={on} onClick={() => onChange(!on)} className="flex items-center justify-between gap-3 w-full py-2.5 text-sm">
       <span>{label}</span>
       <span className={cn("relative w-11 h-6 rounded-full transition-colors", on ? "bg-[#2f6f5e]" : "bg-zinc-300")}>
-        <span className={cn("absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all", on ? "left-[22px]" : "left-0.5")} />
+        <span className={cn("absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all", on ? "start-[22px]" : "start-0.5")} />
       </span>
     </button>
   )
@@ -58,6 +59,7 @@ function Rhythm({ label, value, options, onChange }: { label: string; value: num
 
 export function HomePulse() {
   const { getService } = useCatalog()
+  const locale = useLocale()
   const [ready, setReady] = useState(false)
   const [profile, setProfile] = useState<PulseProfile>(DEFAULT_PROFILE)
   const [done, setDone] = useState<string[]>([])
@@ -130,7 +132,7 @@ export function HomePulse() {
     if (f.service.price > 0 && !f.service.variants?.length) {
       add({ category: f.category.slug, categoryName: f.category.name, service: f.service.slug, name: f.service.name, options: [], addOns: [], unitPrice: f.service.price, duration: f.service.duration })
       setAdded((a) => [...a, it.id])
-    } else window.location.href = `/services/${f.category.slug}/${f.service.slug}`
+    } else window.location.href = localePath(`/services/${f.category.slug}/${f.service.slug}`, locale)
     track("pulse_book", { service: it.service, kind: it.kind })
   }
 

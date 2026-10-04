@@ -83,6 +83,7 @@ export const flagsType = register<Settings["flags"], Settings["flags"]>({
     OTP_LOGIN: f.boolean("OTP login", { help: "Needs an SMS provider." }),
     PLUS_PURCHASE: f.boolean("Buy Plus online"),
     GIFT_CARDS: f.boolean("Buy gift cards online"),
+    URDU_SITE: f.boolean("Urdu site (/ur) public", { help: "Shows the language switch, lists Urdu pages for search engines (hreflang, sitemap) and lets Google index them. Leave off until the Urdu text has been reviewed; editors can preview /ur either way." }),
   },
   defaults: () => DEFAULT_SETTINGS.flags,
 })

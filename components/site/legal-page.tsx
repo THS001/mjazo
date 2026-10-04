@@ -1,4 +1,4 @@
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import type { LegalDoc } from "@/lib/content"
@@ -61,7 +61,7 @@ export function LegalPage({ doc, docs, labels }: { doc: LegalDoc; docs: LegalDoc
               {doc.sections.map((s, i) => (
                 <section key={i} id={slugify(s.h)} className="scroll-mt-28">
                   <h2 className="text-xl font-medium">
-                    <span className="text-zinc-300 mr-3">{String(i + 1).padStart(2, "0")}</span>
+                    <span className="text-zinc-300 me-3">{String(i + 1).padStart(2, "0")}</span>
                     {s.h}
                   </h2>
                   {s.p.split(/\n{2,}/).map((para, j) => (

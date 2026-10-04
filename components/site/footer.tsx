@@ -1,4 +1,4 @@
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { Instagram, Mail, MessageCircle } from "lucide-react"
 import { Logo } from "./header"
 import { Pill } from "./primitives"
@@ -21,7 +21,7 @@ const footerCols = (columns: FooterColumn[], areaLink: string, worlds: World[], 
 /** Karachi sunset over the sea, with a skyline silhouette: replaces the template's footer photo. */
 function Skyline() {
   return (
-    <svg viewBox="0 0 1440 200" preserveAspectRatio="none" className="absolute bottom-0 left-0 w-full h-[40%] text-background" aria-hidden>
+    <svg viewBox="0 0 1440 200" preserveAspectRatio="none" className="absolute bottom-0 start-0 w-full h-[40%] text-background" aria-hidden>
       <path
         fill="currentColor"
         d="M0 200V150h40v-20h30v20h25v-45h20v45h40v-30h18v-25h12v25h20v55h35v-70h14v-18h10v18h16v70h30v-40h45v-25h20v25h15v40h40v-60l18-12 18 12v60h30v-35h24v-30h8v30h20v35h40v-85h30v85h25v-50h20v-20h20v20h12v50h35v-30h45v30h20V95h10V80h6v15h10v65h30v-40h25v40h40v-55h35v55h20v-25h30v-20h14v45h40v-70h22v70h25v-35h40v35h35v-48h25v-20h12v68h40v-30h40v30h30v-58h20v58h40v-25h30V200z"
@@ -30,17 +30,17 @@ function Skyline() {
   )
 }
 
-export function Footer({ worlds, liveAreas, site, nav }: { worlds: World[]; liveAreas: Area[]; site: Settings["site"]; nav: NavContent["footer"] }) {
+export function Footer({ worlds, liveAreas, site, nav, locale = "en" }: { worlds: World[]; liveAreas: Area[]; site: Settings["site"]; nav: NavContent["footer"]; locale?: "en" | "ur" }) {
   const whatsappLink = (message: string) => waLink(site.whatsapp, message)
   const cols = footerCols(nav.columns, nav.areaLink, worlds, liveAreas)
   return (
     <div className="relative mt-[22vw] md:mt-[18vw]">
-      <div className="absolute -top-[22vw] md:-top-[18vw] left-0 right-0 h-[40vw] md:h-[32vw] overflow-hidden" aria-hidden>
+      <div className="absolute -top-[22vw] md:-top-[18vw] start-0 end-0 h-[40vw] md:h-[32vw] overflow-hidden" aria-hidden>
         <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, oklch(0.93 0.05 75) 0%, oklch(0.84 0.12 65) 38%, oklch(0.74 0.12 40) 62%, oklch(0.55 0.06 230) 100%)" }} />
         <div className="absolute left-1/2 top-[34%] -translate-x-1/2 w-[18vw] h-[18vw] rounded-full" style={{ background: "radial-gradient(circle, oklch(0.97 0.08 85), oklch(0.88 0.14 70) 60%, transparent 70%)" }} />
         <Skyline />
       </div>
-      <div className="absolute -top-[17vw] md:-top-[14vw] left-0 right-0 flex justify-center pointer-events-none z-10" aria-hidden>
+      <div className="absolute -top-[17vw] md:-top-[14vw] start-0 end-0 flex justify-center pointer-events-none z-10" aria-hidden>
         <span className="font-bold text-[28vw] sm:text-[25vw] md:text-[22vw] lg:text-[20vw] leading-[0.85] tracking-tighter text-white/95 whitespace-nowrap">MJAZO</span>
       </div>
 
@@ -49,7 +49,7 @@ export function Footer({ worlds, liveAreas, site, nav }: { worlds: World[]; live
           <div className="rounded-3xl bg-foreground text-background p-8 md:p-10 mb-14 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
               <p className="font-serif text-3xl md:text-4xl">{nav.banner.title}</p>
-              <p className="text-white/70 mt-2" dir="auto">{nav.banner.line}{nav.banner.urdu && <> · <span className="font-urdu">{nav.banner.urdu}</span></>}</p>
+              <p className="text-white/70 mt-2" dir="auto">{nav.banner.line}{nav.banner.urdu && locale === "en" && <> · <span className="font-urdu">{nav.banner.urdu}</span></>}</p>
             </div>
             <Pill href={nav.banner.cta.href} variant="brand">{nav.banner.cta.label}</Pill>
           </div>

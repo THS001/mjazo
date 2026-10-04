@@ -1,18 +1,17 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from "@/components/site/locale-link"
 import { ArrowUpRight, Search } from "lucide-react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { track } from "@/lib/site"
 import { cn } from "@/lib/utils"
 import { StatusChip } from "./primitives"
-import { useCatalog } from "@/components/cms/provider"
-
-const POPULAR = ["Full body waxing", "Brightening facial", "Party makeup", "Mani-pedi", "AC service", "Deep cleaning", "Mehndi"]
+import { fill, useCatalog, useT } from "@/components/cms/provider"
 
 export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { searchServices } = useCatalog()
+  const t = useT()
   const router = useRouter()
   const [q, setQ] = useState("")
   const [active, setActive] = useState(0)
@@ -35,7 +34,7 @@ export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="p-0 gap-0 sm:max-w-xl overflow-hidden rounded-3xl top-[20%] translate-y-0" showCloseButton={false}>
-        <DialogTitle className="sr-only">Search services</DialogTitle>
+        <DialogTitle className="sr-only">{t.search.title}</DialogTitle>
         <div className="flex items-center gap-3 px-5 border-b border-zinc-200">
           <Search className="w-4 h-4 text-zinc-400" />
           <input
@@ -50,7 +49,7 @@ export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                 else if (q) go(`/search?q=${encodeURIComponent(q)}`)
               }
             }}
-            placeholder="Search waxing, facial, AC service…"
+            placeholder={t.search.placeholder}
             className="flex-1 h-14 bg-transparent outline-none text-base"
           />
           <kbd className="hidden sm:block text-[10px] text-zinc-400 border border-zinc-200 rounded px-1.5 py-0.5">ESC</kbd>
@@ -58,9 +57,9 @@ export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         <div className="max-h-[50svh] overflow-y-auto overscroll-contain p-2" data-lenis-prevent>
           {!q && (
             <div className="p-3">
-              <p className="text-xs uppercase tracking-wider text-zinc-400 mb-3">Popular</p>
+              <p className="text-xs uppercase tracking-wider text-zinc-400 mb-3">{t.search.popular}</p>
               <div className="flex flex-wrap gap-2">
-                {POPULAR.map((p) => (
+                {t.search.popularTerms.map((p) => (
                   <button key={p} onClick={() => setQ(p)} className="rounded-full border border-zinc-200 px-3 py-1.5 text-sm hover:border-zinc-400 transition-colors">{p}</button>
                 ))}
               </div>
@@ -68,7 +67,7 @@ export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           )}
           {q && results.length === 0 && (
             <div className="p-6 text-center text-sm text-zinc-500">
-              No match for “{q}”.{" "}
+              {fill(t.search.noMatch, { q })}{" "}
               <button
                 className="underline"
                 onClick={() => {
@@ -76,9 +75,9 @@ export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                   window.dispatchEvent(new CustomEvent("mjazo:concierge", { detail: { prompt: q } }))
                 }}
               >
-                Ask Mjazo AI
+                {t.search.askAi}
               </button>{" "}
-              or <button className="underline" onClick={() => go("/services")}>browse all services</button>
+              {t.search.or} <button className="underline" onClick={() => go("/services")}>{t.search.browseAll}</button>
             </div>
           )}
           {results.map((r, i) => (
@@ -86,15 +85,15 @@ export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               key={r.href}
               onMouseEnter={() => setActive(i)}
               onClick={() => go(r.href)}
-              className={cn("w-full flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left transition-colors", i === active && "bg-zinc-100")}
+              className={cn("w-full flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-start transition-colors", i === active && "bg-zinc-100")}
             >
               <span>
                 <span className="block text-sm font-medium">{r.title}</span>
                 <span className="block text-xs text-zinc-500">{r.subtitle}</span>
               </span>
               <span className="flex items-center gap-2">
-                <StatusChip status={r.status} liveLabel="Live" />
-                <ArrowUpRight className="w-4 h-4 text-zinc-400" />
+                <StatusChip status={r.status} liveLabel={t.common.live} />
+                <ArrowUpRight className="w-4 h-4 text-zinc-400 rtl:-scale-x-100" />
               </span>
             </button>
           ))}

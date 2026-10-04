@@ -12,7 +12,7 @@ export type Settings = {
   policy: { freeChangeHours: number; lateFee: string; redoHours: number; leadHours: number }
   plus: { price: number; period: string; discount: number }
   referral: { friendOff: number; youGet: number }
-  flags: { ONLINE_PAYMENTS: boolean; OTP_LOGIN: boolean; PLUS_PURCHASE: boolean; GIFT_CARDS: boolean }
+  flags: { ONLINE_PAYMENTS: boolean; OTP_LOGIN: boolean; PLUS_PURCHASE: boolean; GIFT_CARDS: boolean; URDU_SITE: boolean }
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -38,7 +38,7 @@ export const DEFAULT_SETTINGS: Settings = {
   plus: { price: 2500, period: "year", discount: 0.1 },
   referral: { friendOff: 500, youGet: 500 },
   // Flip to true when the backing service is ready.
-  flags: { ONLINE_PAYMENTS: false, OTP_LOGIN: false, PLUS_PURCHASE: false, GIFT_CARDS: false },
+  flags: { ONLINE_PAYMENTS: false, OTP_LOGIN: false, PLUS_PURCHASE: false, GIFT_CARDS: false, URDU_SITE: false },
 }
 
 /** A wa.me link to Mjazo's WhatsApp with a prefilled message. */

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { AnimatePresence, motion } from "framer-motion"
 import { Camera, Check, Download, Eye, Hand, ImagePlus, Loader2, RotateCw, ShoppingBag, Sparkles, Video, VideoOff } from "lucide-react"
 import { formatPKR } from "@/lib/catalog"
@@ -203,7 +203,7 @@ function MehndiStudio({
               </motion.div>
             )}
           </AnimatePresence>
-          {status === "sample" && <span className="absolute top-4 left-4 rounded-full bg-black/70 text-white text-xs px-3 py-1.5">Sample hand: add yours</span>}
+          {status === "sample" && <span className="absolute top-4 start-4 rounded-full bg-black/70 text-white text-xs px-3 py-1.5">Sample hand: add yours</span>}
         </Mirror>
         <div className="flex flex-wrap gap-2 mt-4">
           <input
@@ -261,7 +261,7 @@ function MehndiStudio({
                   track("glam_design", { design: d.id })
                 }}
                 aria-pressed={design === d.id}
-                className={cn("rounded-2xl bg-white p-1.5 border-2 transition-all text-left", design === d.id ? "border-[#a86c58] shadow-lg -translate-y-0.5" : "border-transparent hover:border-black/10")}
+                className={cn("rounded-2xl bg-white p-1.5 border-2 transition-all text-start", design === d.id ? "border-[#a86c58] shadow-lg -translate-y-0.5" : "border-transparent hover:border-black/10")}
               >
                 <DesignThumb id={d.id} color={HENNA[stain]} />
                 <p className="text-[12px] font-medium mt-1 px-1 leading-tight">{d.name}</p>
@@ -481,7 +481,7 @@ function MakeupStudio({ makeup, setMakeup, onUse }: { makeup: MakeupChoice & { h
               )}
             </div>
           )}
-          {state === "live" && noFace && <span className="absolute top-4 left-4 rounded-full bg-black/70 text-white text-xs px-3 py-1.5">Looking for your face…</span>}
+          {state === "live" && noFace && <span className="absolute top-4 start-4 rounded-full bg-black/70 text-white text-xs px-3 py-1.5">Looking for your face…</span>}
         </Mirror>
         <div className="flex flex-wrap gap-2 mt-4">
           {state === "live" ? (
@@ -583,7 +583,7 @@ function LookCardPanel({ mehndi, makeup, previewRef, onClear }: { mehndi?: { des
 
   return (
     <section className="mt-12 rounded-[32px] bg-[#1d1513] text-white p-6 sm:p-10 relative overflow-hidden">
-      <div aria-hidden className="absolute -top-24 -right-24 w-80 h-80 rounded-full opacity-25 blur-[90px]" style={{ background: ROSE }} />
+      <div aria-hidden className="absolute -top-24 -end-24 w-80 h-80 rounded-full opacity-25 blur-[90px]" style={{ background: ROSE }} />
       <div className="relative grid lg:grid-cols-[0.8fr_1.2fr] gap-8">
         <div>
           <p className="text-sm tracking-[0.2em] uppercase text-[#f3c6b3]">Look Card</p>
@@ -695,7 +695,7 @@ function Swatches({ label, items, value, onChange }: { label: string; items: { i
 }
 function Chip({ children, onClear }: { children: React.ReactNode; onClear: () => void }) {
   return (
-    <span className="h-9 pl-4 pr-1 rounded-full bg-white/10 text-sm inline-flex items-center gap-2">
+    <span className="h-9 ps-4 pe-1 rounded-full bg-white/10 text-sm inline-flex items-center gap-2">
       {children}
       <button onClick={onClear} aria-label="Remove" className="w-7 h-7 rounded-full hover:bg-white/15 flex items-center justify-center">
         ×

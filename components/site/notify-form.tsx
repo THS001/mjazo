@@ -1,13 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from "@/components/site/locale-link"
 import { Check, Loader2 } from "lucide-react"
 import { useLocation } from "@/lib/store"
 import { submit, track } from "@/lib/site"
 import { cn } from "@/lib/utils"
 import { Pill } from "./primitives"
-import { useCatalog } from "@/components/cms/provider"
+import { useCatalog, useT } from "@/components/cms/provider"
 
 export const PK_PHONE = /^(\+92|0092|0)?3\d{9}$/
 export const normalisePhone = (p: string) => p.replace(/[\s-]/g, "")
@@ -29,6 +29,7 @@ export function NotifyForm({
   redirect?: boolean
 }) {
   const { areas } = useCatalog()
+  const t = useT()
   const router = useRouter()
   const loc = useLocation()
   const [phone, setPhone] = useState("")
@@ -39,8 +40,8 @@ export function NotifyForm({
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!PK_PHONE.test(normalisePhone(phone))) return setError("Enter a Pakistani mobile number, e.g. 0300 1234567")
-    if (!area) return setError("Pick your area")
+    if (!PK_PHONE.test(normalisePhone(phone))) return setError(t.notify.errPhone)
+    if (!area) return setError(t.notify.errArea)
     setError("")
     setState("loading")
     try {
@@ -58,33 +59,33 @@ export function NotifyForm({
   if (state === "done" && !redirect)
     return (
       <p className="flex items-center gap-2 text-sm text-brand-ink">
-        <Check className="w-4 h-4" /> You're on the list. We'll WhatsApp you when we open.
+        <Check className="w-4 h-4" /> {t.notify.done}
       </p>
     )
 
   return (
     <form onSubmit={onSubmit} className={cn("flex flex-col gap-2", !compact && "sm:flex-row sm:items-start")}>
       {!compact && (
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="h-11 rounded-full border border-zinc-300 bg-white px-4 text-[16px] sm:text-sm outline-none focus:border-foreground" />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t.notify.name} className="h-11 rounded-full border border-zinc-300 bg-white px-4 text-[16px] sm:text-sm outline-none focus:border-foreground" />
       )}
       <input
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         inputMode="tel"
-        placeholder="WhatsApp number"
-        aria-label="WhatsApp number"
+        placeholder={t.notify.phone}
+        aria-label={t.notify.phone}
         className="h-11 rounded-full border border-zinc-300 bg-white px-4 text-[16px] sm:text-sm outline-none focus:border-foreground"
       />
       {!fixedArea && (
-        <select value={area} onChange={(e) => setArea(e.target.value)} aria-label="Area" className="h-11 rounded-full border border-zinc-300 bg-white px-4 text-[16px] sm:text-sm outline-none focus:border-foreground">
-          <option value="">Your area</option>
+        <select value={area} onChange={(e) => setArea(e.target.value)} aria-label={t.notify.area} className="h-11 rounded-full border border-zinc-300 bg-white px-4 text-[16px] sm:text-sm outline-none focus:border-foreground">
+          <option value="">{t.notify.area}</option>
           {areas.map((a) => (
             <option key={a.slug} value={a.slug}>{a.name}</option>
           ))}
         </select>
       )}
       <Pill type="submit" variant="solid" disabled={state === "loading"}>
-        {state === "loading" ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Notify me"}
+        {state === "loading" ? <Loader2 className="w-4 h-4 animate-spin inline" /> : t.common.notifyMe}
       </Pill>
       {error && <p className="text-xs text-destructive sm:basis-full">{error}</p>}
     </form>

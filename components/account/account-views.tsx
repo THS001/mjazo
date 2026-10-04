@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { useEffect, useState } from "react"
 import { ArrowUpRight, CalendarCheck, Crown, Gift, LifeBuoy, MapPin, RotateCcw } from "lucide-react"
 import { formatPKR } from "@/lib/catalog"
@@ -60,7 +60,7 @@ export function AccountOverview() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {tiles.map((t) => (
           <Link key={t.href} href={t.href} className="group rounded-3xl bg-white border border-zinc-200 p-6 hover:border-zinc-400 transition-colors">
-            <div className="flex justify-between"><t.icon className="w-6 h-6" strokeWidth={1.5} /><ArrowUpRight className="w-4 h-4 text-zinc-400 group-hover:text-black" /></div>
+            <div className="flex justify-between"><t.icon className="w-6 h-6" strokeWidth={1.5} /><ArrowUpRight className="w-4 h-4 text-zinc-400 group-hover:text-black rtl:-scale-x-100" /></div>
             <p className="font-medium mt-8">{t.t}</p>
             <p className="text-sm text-zinc-500 truncate">{t.d}</p>
           </Link>

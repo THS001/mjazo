@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
@@ -12,6 +12,7 @@ import { saveBooking } from "@/lib/bookings"
 import { cn } from "@/lib/utils"
 import { isServiceDetail } from "@/components/site/chrome"
 import { useCatalog, useSite } from "@/components/cms/provider"
+import { stripLocale } from "@/lib/i18n"
 
 type Card = { category: string; service: string; name: string; categoryName: string; price: number; duration: number; short: string; hasOptions: boolean; url: string }
 type Msg = {
@@ -79,7 +80,7 @@ function Rich({ text }: { text: string }) {
 export function ConciergeWidget() {
   const { getArea } = useCatalog()
   const { whatsappLink } = useSite()
-  const pathname = usePathname()
+  const pathname = stripLocale(usePathname())
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState<Msg[]>([WELCOME])
   const [input, setInput] = useState("")
@@ -279,14 +280,14 @@ export function ConciergeWidget() {
               track("concierge_open", { page: pathname })
             }}
             className={cn(
-              "fixed z-40 right-4 lg:bottom-6 flex items-center gap-2 h-14 pl-3 pr-3 min-[400px]:pl-4 min-[400px]:pr-5 rounded-full bg-foreground text-background shadow-[0_12px_30px_-8px_rgba(0,0,0,0.45)] hover:bg-black transition-[bottom,background-color] duration-300",
+              "fixed z-40 end-4 lg:bottom-6 flex items-center gap-2 h-14 ps-3 pe-3 min-[400px]:ps-4 min-[400px]:pe-5 rounded-full bg-foreground text-background shadow-[0_12px_30px_-8px_rgba(0,0,0,0.45)] hover:bg-black transition-[bottom,background-color] duration-300",
               isServiceDetail(pathname) || cartBar ? "bottom-[calc(8.75rem+env(safe-area-inset-bottom))]" : "bottom-[calc(5rem+env(safe-area-inset-bottom))]",
             )}
             aria-label="Ask Mjazo, the AI assistant"
           >
             <span className="relative w-8 h-8 rounded-full bg-brand flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-black" />
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#25D366] ring-2 ring-foreground" />
+              <span className="absolute -top-0.5 -end-0.5 w-2.5 h-2.5 rounded-full bg-[#25D366] ring-2 ring-foreground" />
             </span>
             <span className="text-sm font-medium hidden min-[400px]:inline">Ask Mjazo</span>
           </motion.button>
@@ -303,7 +304,7 @@ export function ConciergeWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.98 }}
             transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="fixed z-[60] inset-0 sm:inset-auto sm:right-5 sm:bottom-5 sm:w-[410px] sm:h-[min(660px,calc(100svh-2.5rem))] flex flex-col bg-background sm:rounded-[1.75rem] sm:border sm:border-zinc-200 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.45)] overflow-hidden pt-[env(safe-area-inset-top)] sm:pt-0"
+            className="fixed z-[60] inset-0 sm:inset-auto sm:end-5 sm:bottom-5 sm:w-[410px] sm:h-[min(660px,calc(100svh-2.5rem))] flex flex-col bg-background sm:rounded-[1.75rem] sm:border sm:border-zinc-200 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.45)] overflow-hidden pt-[env(safe-area-inset-top)] sm:pt-0"
           >
             {/* Header */}
             <div className="flex items-center gap-3 px-4 h-16 border-b border-zinc-200 shrink-0">
@@ -326,7 +327,7 @@ export function ConciergeWidget() {
                   {m.images?.length ? (
                     <div className="flex gap-1.5">{m.images.map((src, i) => <img key={i} src={src} alt="" className="w-20 h-20 rounded-2xl object-cover border border-zinc-200" />)}</div>
                   ) : null}
-                  <div className={cn("max-w-[88%] rounded-3xl px-4 py-3 text-[15px] leading-relaxed", m.role === "user" ? "bg-foreground text-background rounded-br-lg" : "bg-zinc-100 text-foreground rounded-bl-lg")}>
+                  <div className={cn("max-w-[88%] rounded-3xl px-4 py-3 text-[15px] leading-relaxed", m.role === "user" ? "bg-foreground text-background rounded-ee-lg" : "bg-zinc-100 text-foreground rounded-es-lg")}>
                     {m.role === "assistant" ? <Rich text={m.text} /> : <p dir="auto" className="whitespace-pre-wrap">{m.text}</p>}
                   </div>
                   {m.role === "assistant" && m.id !== "welcome" && !m.offline && (
@@ -395,7 +396,7 @@ export function ConciergeWidget() {
                   {images.map((src, i) => (
                     <div key={i} className="relative">
                       <img src={src} alt="" className="w-14 h-14 rounded-xl object-cover border border-zinc-200" />
-                      <button onClick={() => setImages((im) => im.filter((_, j) => j !== i))} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black text-white flex items-center justify-center" aria-label="Remove photo"><X className="w-3 h-3" /></button>
+                      <button onClick={() => setImages((im) => im.filter((_, j) => j !== i))} className="absolute -top-1.5 -end-1.5 w-5 h-5 rounded-full bg-black text-white flex items-center justify-center" aria-label="Remove photo"><X className="w-3 h-3" /></button>
                     </div>
                   ))}
                 </div>

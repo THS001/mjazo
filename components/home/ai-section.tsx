@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { ArrowUpRight, CalendarHeart, Camera, Heart, MessageCircle, Sparkles } from "lucide-react"
 import { BgWord, Container, Reveal, SectionTitle } from "@/components/site/primitives"
 import { track } from "@/lib/site"
@@ -21,7 +21,7 @@ export function AiSection({ content: c }: { content: HomeContent["ai"] }) {
               <>
                 <div className="flex items-start justify-between">
                   <span className="w-12 h-12 rounded-2xl bg-brand flex items-center justify-center"><f.icon className="w-6 h-6 text-black" strokeWidth={1.6} /></span>
-                  <ArrowUpRight className="w-5 h-5 text-white/40 transition-all group-hover:text-white group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                  <ArrowUpRight className="w-5 h-5 text-white/40 transition-all group-hover:text-white group-hover:-translate-y-0.5 group-hover:translate-x-0.5 rtl:-scale-x-100" />
                 </div>
                 <div className="mt-10">
                   <p className="font-serif text-3xl">{f.name}</p>
@@ -31,7 +31,7 @@ export function AiSection({ content: c }: { content: HomeContent["ai"] }) {
                 </div>
               </>
             )
-            const cls = "group block h-full rounded-[2rem] bg-[#141210] text-white p-7 text-left transition-transform duration-500 hover:-translate-y-1"
+            const cls = "group block h-full rounded-[2rem] bg-[#141210] text-white p-7 text-start transition-transform duration-500 hover:-translate-y-1"
             return (
               <Reveal key={i} delay={(i % 3) * 0.08} className={i < 3 ? "h-full lg:col-span-2" : "h-full lg:col-span-3"}>
                 {f.open ? (

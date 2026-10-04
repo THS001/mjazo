@@ -162,3 +162,20 @@ html.lenis, html.lenis body { height: auto; }
 .prose-cms blockquote { border-inline-start: 2px solid var(--brand); padding-inline-start: 0.9em; font-style: italic; }
 .prose-cms a { text-decoration: underline; text-underline-offset: 3px; color: var(--brand-ink); }
 .prose-cms p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: #a1a1aa; float: inline-start; height: 0; pointer-events: none; }
+
+/* Urdu (right-to-left) pages: Nastaliq for everything (the Latin display fonts have no Urdu
+   glyphs), taller lines so the script's ascenders and descenders aren't clipped, and no negative
+   letter-spacing, which breaks joined letters. */
+html[lang="ur"] body,
+html[lang="ur"] .font-sans,
+html[lang="ur"] .font-serif {
+  font-family: var(--font-urdu-nastaliq), var(--font-inter), system-ui, sans-serif;
+}
+html[lang="ur"] body { line-height: 2; }
+html[lang="ur"] :is(h1, h2, h3, h4) { line-height: 1.75; letter-spacing: 0; }
+html[lang="ur"] :is(p, li, dd, label, button, a, span) { letter-spacing: 0; }
+html[lang="ur"] .tracking-tight,
+html[lang="ur"] .tracking-tighter { letter-spacing: 0; }
+html[lang="ur"] input,
+html[lang="ur"] textarea,
+html[lang="ur"] select { font-family: var(--font-urdu-nastaliq), var(--font-inter), system-ui, sans-serif; }

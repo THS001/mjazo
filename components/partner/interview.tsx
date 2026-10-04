@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import Link from "next/link"
+import Link from "@/components/site/locale-link"
 import { AnimatePresence, motion } from "framer-motion"
 import { CalendarCheck, Loader2, Mic, Send } from "lucide-react"
 import type { Lang } from "@/lib/content"

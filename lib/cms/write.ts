@@ -1,11 +1,11 @@
 import "server-only"
 import { revalidateTag, updateTag } from "next/cache"
-import { localizeObject, resolveObject, zodObject, type Field, type Fields } from "./fields"
+import { resolveObject, zodObject, type Field, type Fields } from "./fields"
 import { allTypes, getType, type ContentType } from "./registry"
 import { AUTHOR_GROUPS, can } from "./roles"
 import { CmsAuthError, type CmsUser } from "./auth"
 import { ValidationError } from "./action"
-import { SINGLETON } from "./read"
+import { storedDefaults, withDefaultUrdu } from "./defaults"
 import {
   addAudit,
   addVersion,
@@ -54,11 +54,7 @@ const mustType = (type: string) => {
 }
 
 /** Built-in content for a type, in the stored (localised) shape, keyed by entry id. */
-export function defaultsOf(t: ContentType<unknown, unknown>): Map<string, Data> {
-  const toStored = (d: unknown) => localizeObject(t.fields, (t.toCms ? t.toCms(d) : d) as Data)
-  if (t.kind === "singleton") return new Map([[SINGLETON, toStored(t.defaults())]])
-  return new Map((t.defaults() as unknown[]).map((d) => [t.idOf!(d), toStored(d)]))
-}
+export const defaultsOf = (t: ContentType<unknown, unknown>): Map<string, Data> => storedDefaults(t)
 
 function stateOf(row: EntryRow | null, isDefault: boolean): State {
   if (!row) return "default"
@@ -114,7 +110,7 @@ export async function loadEntry(type: string, id: string): Promise<Loaded | null
     type,
     id,
     // Fields added to the type since this entry was saved start from their default.
-    data: def ? { ...def, ...data } : data,
+    data: def ? withDefaultUrdu(t.fields, { ...def, ...data }, def) : data,
     version: row?.version ?? 0,
     state: stateOf(row, Boolean(def)),
     review: Boolean(row?.review),

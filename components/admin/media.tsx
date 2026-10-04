@@ -6,7 +6,7 @@ import { Box, Check, Copy, FileText, Film, ImageIcon, Loader2, Replace, Search, 
 import { cn } from "@/lib/utils"
 import type { MediaKind, MediaRow } from "@/lib/cms/media"
 import type { Localized, MediaRef } from "@/lib/cms/fields"
-import { deleteMediaAction, finishUploadAction, listMediaAction, mediaUsageAction, prepareUploadAction, replaceMediaAction, suggestAltAction, updateMediaAction } from "@/app/admin/media-actions"
+import { deleteMediaAction, finishUploadAction, listMediaAction, mediaUsageAction, prepareUploadAction, replaceMediaAction, suggestAltAction, updateMediaAction } from "@/app/(staff)/admin/media-actions"
 import { browserSupabase } from "./supabase-browser"
 import { Btn, Notice } from "./ui"
 

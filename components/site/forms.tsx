@@ -6,7 +6,7 @@ import { submit, track } from "@/lib/site"
 import { cn } from "@/lib/utils"
 import { PK_PHONE, normalisePhone } from "./notify-form"
 import { Pill } from "./primitives"
-import { useCatalog, useSite } from "@/components/cms/provider"
+import { useSite, useT } from "@/components/cms/provider"
 
 export const inputCls =
   "w-full h-12 rounded-2xl border border-zinc-300 bg-white px-4 text-[16px] sm:text-sm outline-none transition-colors focus:border-foreground placeholder:text-zinc-400 aria-[invalid=true]:border-destructive"
@@ -63,9 +63,9 @@ type Extra = { name: string; label: string; type: "text" | "date" | "number" | "
 export function EnquiryForm({
   kind,
   extras = [],
-  submitLabel = "Send enquiry",
+  submitLabel,
   whatsappText,
-  success = "We'll WhatsApp you within working hours.",
+  success,
   dark,
 }: {
   kind: "wedding" | "business" | "contact" | "gift" | "plus"
@@ -76,6 +76,7 @@ export function EnquiryForm({
   dark?: boolean
 }) {
   const { whatsappLink } = useSite()
+  const t = useT()
   const [values, setValues] = useState<Record<string, string | string[]>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [state, setState] = useState<"idle" | "loading" | "done">("idle")
@@ -86,12 +87,12 @@ export function EnquiryForm({
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const errs: Record<string, string> = {}
-    if (str("name").trim().length < 2) errs.name = "Please enter your name"
-    if (!PK_PHONE.test(normalisePhone(str("phone")))) errs.phone = "Enter a Pakistani mobile number, e.g. 0300 1234567"
-    if (str("email") && !/^\S+@\S+\.\S+$/.test(str("email"))) errs.email = "Check your email address"
+    if (str("name").trim().length < 2) errs.name = t.form.errName
+    if (!PK_PHONE.test(normalisePhone(str("phone")))) errs.phone = t.notify.errPhone
+    if (str("email") && !/^\S+@\S+\.\S+$/.test(str("email"))) errs.email = t.form.errEmail
     for (const x of extras) {
       const v = values[x.name]
-      if (x.required && (!v || (Array.isArray(v) && v.length === 0))) errs[x.name] = "Required"
+      if (x.required && (!v || (Array.isArray(v) && v.length === 0))) errs[x.name] = t.form.required
     }
     setErrors(errs)
     if (Object.keys(errs).length) return
@@ -108,25 +109,25 @@ export function EnquiryForm({
     }
   }
 
-  if (state === "done") return <SuccessCard title="Got it, thank you." body={success} />
+  if (state === "done") return <SuccessCard title={t.form.successTitle} body={success ?? t.form.successBody} />
 
   const box = dark ? "bg-white/5 backdrop-blur-md border-white/15 text-white" : "bg-white border-zinc-200"
   return (
     <form onSubmit={onSubmit} noValidate className={cn("rounded-3xl border p-6 sm:p-8 grid sm:grid-cols-2 gap-5", box)}>
-      <Field label="Your name" error={errors.name}>
+      <Field label={t.form.name} error={errors.name}>
         <input className={inputCls} value={str("name")} onChange={(e) => set("name", e.target.value)} aria-invalid={!!errors.name} autoComplete="name" />
       </Field>
-      <Field label="WhatsApp number" error={errors.phone}>
+      <Field label={t.form.phone} error={errors.phone}>
         <input className={inputCls} value={str("phone")} onChange={(e) => set("phone", e.target.value)} aria-invalid={!!errors.phone} inputMode="tel" autoComplete="tel" placeholder="0300 1234567" />
       </Field>
-      <Field label="Email (optional)" error={errors.email} className="sm:col-span-2">
+      <Field label={t.form.email} error={errors.email} className="sm:col-span-2">
         <input className={inputCls} value={str("email")} onChange={(e) => set("email", e.target.value)} aria-invalid={!!errors.email} inputMode="email" autoComplete="email" />
       </Field>
       {extras.map((x) => (
         <Field key={x.name} label={x.label} error={errors[x.name]} className={x.type === "chips" || x.type === "textarea" ? "sm:col-span-2" : ""}>
           {x.type === "select" ? (
             <select className={cn(inputCls, "text-black")} value={str(x.name)} onChange={(e) => set(x.name, e.target.value)} aria-invalid={!!errors[x.name]}>
-              <option value="">Choose…</option>
+              <option value="">{t.form.choose}</option>
               {x.options?.map((o) => <option key={o}>{o}</option>)}
             </select>
           ) : x.type === "chips" ? (
@@ -138,16 +139,16 @@ export function EnquiryForm({
           )}
         </Field>
       ))}
-      <Field label="Anything else? (optional)" className="sm:col-span-2">
+      <Field label={t.form.message} className="sm:col-span-2">
         <textarea className={cn(inputCls, "h-28 py-3 text-black")} value={str("message")} onChange={(e) => set("message", e.target.value)} />
       </Field>
       <div className="sm:col-span-2 flex flex-wrap items-center gap-4">
         <Pill type="submit" variant={dark ? "brand" : "solid"} disabled={state === "loading"}>
-          {state === "loading" ? <Loader2 className="w-4 h-4 animate-spin inline" /> : submitLabel}
+          {state === "loading" ? <Loader2 className="w-4 h-4 animate-spin inline" /> : (submitLabel ?? t.form.send)}
         </Pill>
         {whatsappText && (
           <a href={whatsappLink(whatsappText)} target="_blank" rel="noopener noreferrer" onClick={() => track("whatsapp_click", { placement: `${kind}_form` })} className={cn("inline-block py-2 text-sm underline underline-offset-4", dark ? "text-white/80" : "text-zinc-600")}>
-            Prefer WhatsApp?
+            {t.form.preferWhatsapp}
           </a>
         )}
         {serverError && <p className="text-sm text-destructive basis-full">{serverError}</p>}

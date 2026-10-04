@@ -8,17 +8,20 @@ export function karachiNow() {
   return { date: `${get("year")}-${get("month")}-${get("day")}`, hour: Number(get("hour")) % 24 + Number(get("minute")) / 60 }
 }
 
-export function nextDays(n = 7) {
+const intlLocale = (l?: string) => (l === "ur" ? "ur-PK" : "en-GB")
+
+export function nextDays(n = 7, o: { locale?: string; today?: string; tomorrow?: string } = {}) {
   const { date } = karachiNow()
   const base = new Date(`${date}T00:00:00Z`)
+  const loc = intlLocale(o.locale)
   return Array.from({ length: n }, (_, i) => {
     const d = new Date(base.getTime() + i * 86400000)
     const iso = d.toISOString().slice(0, 10)
     return {
       iso,
-      label: i === 0 ? "Today" : i === 1 ? "Tomorrow" : d.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" }),
+      label: i === 0 ? (o.today ?? "Today") : i === 1 ? (o.tomorrow ?? "Tomorrow") : d.toLocaleDateString(loc, { weekday: o.locale === "ur" ? "long" : "short", timeZone: "UTC" }),
       day: d.toLocaleDateString("en-GB", { day: "numeric", timeZone: "UTC" }),
-      month: d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }),
+      month: d.toLocaleDateString(loc, { month: o.locale === "ur" ? "long" : "short", timeZone: "UTC" }),
     }
   })
 }
@@ -34,6 +37,9 @@ export const WINDOWS = [
   { label: "7–9 pm", start: 19 },
 ] as const
 export const WINDOW_LABELS: string[] = WINDOWS.map((w) => w.label)
+const WINDOW_LABELS_UR = ["صبح 9 سے 11", "صبح 11 سے دوپہر 1", "دوپہر 1 سے 3", "سہ پہر 3 سے 5", "شام 5 سے 7", "شام 7 سے رات 9"]
+/** How a window reads on the page; the stored label stays English. */
+export const windowLabel = (label: string, locale?: string) => (locale === "ur" ? (WINDOW_LABELS_UR[WINDOW_LABELS.indexOf(label)] ?? label) : label)
 export const WINDOW_HOURS: number[] = WINDOWS.map((w) => w.start)
 
 /** Whether a window can still be reached today, given the policy lead time (hours). */
@@ -43,7 +49,7 @@ export function windowAvailable(dateIso: string, index: number, leadHours: numbe
   return WINDOW_HOURS[index] >= hour + leadHours
 }
 
-export function formatBookingDate(iso: string) {
-  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
+export function formatBookingDate(iso: string, locale?: string) {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString(intlLocale(locale), { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
 }
 

@@ -42,14 +42,14 @@ export function Journey({ steps, dark, label }: { steps: { title: string; body: 
                 {steps[active].body}
               </motion.p>
             </div>
-            <div className="relative pl-10">
-              <div className={cn("absolute left-3 top-2 bottom-2 w-px", dark ? "bg-white/15" : "bg-zinc-200")}>
+            <div className="relative ps-10">
+              <div className={cn("absolute start-3 top-2 bottom-2 w-px", dark ? "bg-white/15" : "bg-zinc-200")}>
                 <motion.div className="w-full bg-brand origin-top" style={{ height: fill }} />
               </div>
               <ol className="space-y-6">
                 {steps.map((s, i) => (
                   <li key={s.title} className="relative">
-                    <span className={cn("absolute -left-[34px] top-1.5 w-4 h-4 rounded-full border-2 transition-colors duration-300", i <= active ? "bg-brand border-brand" : dark ? "bg-transparent border-white/30" : "bg-white border-zinc-300")} />
+                    <span className={cn("absolute -start-[34px] top-1.5 w-4 h-4 rounded-full border-2 transition-colors duration-300", i <= active ? "bg-brand border-brand" : dark ? "bg-transparent border-white/30" : "bg-white border-zinc-300")} />
                     <p className={cn("text-2xl transition-colors duration-300", i === active ? (dark ? "text-white" : "text-black") : dark ? "text-white/30" : "text-zinc-300")}>{s.title}</p>
                   </li>
                 ))}

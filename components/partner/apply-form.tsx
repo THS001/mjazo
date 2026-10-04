@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from "@/components/site/locale-link"
 import { AnimatePresence, motion } from "framer-motion"
 import { ArrowLeft, ArrowRight, Loader2, Lock } from "lucide-react"
 import { APPLY_LABELS, DAYS, EXPERIENCE, SKILLS, TRANSPORT, type Lang } from "@/lib/content"

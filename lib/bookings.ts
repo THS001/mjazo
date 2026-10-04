@@ -41,7 +41,7 @@ export function saveBooking(b: LocalBooking) {
 
 export const getBooking = (id: string) => getBookings().find((b) => b.id === id)
 
-export { karachiNow, nextDays, WINDOW_HOURS, WINDOW_LABELS, windowAvailable, formatBookingDate } from "./time"
+export { karachiNow, nextDays, WINDOW_HOURS, WINDOW_LABELS, windowAvailable, windowLabel, formatBookingDate } from "./time"
 import { WINDOW_HOURS, WINDOW_LABELS } from "./time"
 
 /** .ics calendar file for a booking (window is 2 hours, Karachi = UTC+5). */

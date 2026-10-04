@@ -34,6 +34,11 @@ export type ContentType<S = unknown, C = S> = {
   path?: (item: C) => string | null
   /** Adjust stored data as it is published (e.g. stamp a "last updated" date). */
   beforePublish?: (data: Record<string, unknown>) => Record<string, unknown>
+  /**
+   * Urdu shipped with the built-in content, in the CMS shape with plain strings: one object for a
+   * singleton, or { [id]: object } for a collection. Fills the Urdu side of localised fields.
+   */
+  translations?: { ur?: () => unknown }
 }
 
 const types = new Map<string, ContentType<any, any>>()

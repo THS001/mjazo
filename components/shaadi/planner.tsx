@@ -96,7 +96,7 @@ export function ShaadiPlanner({ hero }: { hero: ToolHero }) {
     <>
       {/* Hero + AI composer */}
       <section className="relative overflow-hidden text-white" style={{ background: `radial-gradient(120% 90% at 80% 0%, #5a2a2e 0%, ${INK} 55%)` }}>
-        <div aria-hidden className="absolute -right-24 top-24 w-[28rem] h-[28rem] rounded-full blur-[110px] opacity-30" style={{ background: GOLD }} />
+        <div aria-hidden className="absolute -end-24 top-24 w-[28rem] h-[28rem] rounded-full blur-[110px] opacity-30" style={{ background: GOLD }} />
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-32 sm:pt-40 pb-14">
           <p className="text-sm tracking-[0.2em] uppercase" style={{ color: GOLD }}>
             {hero.eyebrow}
@@ -111,7 +111,7 @@ export function ShaadiPlanner({ hero }: { hero: ToolHero }) {
               <div className="max-h-72 overflow-y-auto space-y-2 p-2 mb-2" data-lenis-prevent>
                 {msgs.map((m, i) => (
                   <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
-                    <p dir="auto" className={cn("max-w-[85%] rounded-3xl px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap", m.role === "user" ? "text-black rounded-br-lg" : "bg-white/10 rounded-bl-lg")} style={m.role === "user" ? { background: GOLD } : undefined}>
+                    <p dir="auto" className={cn("max-w-[85%] rounded-3xl px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap", m.role === "user" ? "text-black rounded-ee-lg" : "bg-white/10 rounded-es-lg")} style={m.role === "user" ? { background: GOLD } : undefined}>
                       {m.text}
                     </p>
                   </div>
@@ -157,7 +157,7 @@ export function ShaadiPlanner({ hero }: { hero: ToolHero }) {
           {!msgs.length && (
             <div className="flex flex-wrap gap-2 mt-4 max-w-3xl">
               {EXAMPLES.map((x) => (
-                <button key={x} onClick={() => ask(x)} className="text-left text-sm rounded-2xl border border-white/20 px-4 py-2 text-white/80 hover:border-white/60" dir="auto">
+                <button key={x} onClick={() => ask(x)} className="text-start text-sm rounded-2xl border border-white/20 px-4 py-2 text-white/80 hover:border-white/60" dir="auto">
                   {x}
                 </button>
               ))}

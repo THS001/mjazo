@@ -8,8 +8,9 @@ import { z } from "zod"
 //   has not been reviewed yet). The site always receives plain strings for one locale.
 // - Text may contain {{tokens}} (e.g. {{policy.freeChangeHours}}) that are filled in on read.
 
-export const LOCALES = ["en", "ur"] as const
-export type Locale = (typeof LOCALES)[number]
+import { LOCALES, type Locale } from "@/lib/i18n"
+
+export { LOCALES, type Locale }
 export type Localized<T = string> = { en: T; ur?: T; ai?: boolean }
 
 type Common = { label: string; help?: string; required?: boolean; width?: "full" | "half" | "third"; perm?: "prices" | "settings" }
@@ -328,4 +329,18 @@ export function coverage(fields: Fields, v: Record<string, unknown> | undefined)
   }
   Object.entries(fields).forEach(([k, fd]) => visit(fd, v?.[k]))
   return acc
+}
+
+/** Marks every AI translation in an entry as reviewed (the flag on localised { en, ur, ai } values only). */
+export function approveAll(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(approveAll)
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>
+    if ("en" in o && "ai" in o) {
+      const { ai, ...rest } = o
+      return rest
+    }
+    return Object.fromEntries(Object.entries(o).map(([k, x]) => [k, approveAll(x)]))
+  }
+  return v
 }

@@ -521,12 +521,16 @@ export type CatalogData = {
 export const DEFAULT_CATALOG: CatalogData = { worlds, categories, areas, bundles, minOrder: 2500, coverage: "across Karachi", synonyms: SYNONYMS, stopWords: STOP_WORDS }
 
 export const formatPKR = (n: number) => (n <= 0 ? "On request" : `PKR ${n.toLocaleString("en-PK")}`)
-export const formatDuration = (min: number) => {
-  if (!min) return "Flexible"
-  if (min < 60) return `${min} min`
+type DurationWords = { flexible: string; min: string; hr: string; hrs: string; hrMin: string }
+const EN_DURATION: DurationWords = { flexible: "Flexible", min: "{{m}} min", hr: "{{h}} hr", hrs: "{{h}} hrs", hrMin: "{{h}} hr {{m}} min" }
+/** "1 hr 30 min"; pass the UI strings' duration words for other languages. */
+export const formatDuration = (min: number, w: DurationWords = EN_DURATION) => {
+  const put = (s: string, h: number, m: number) => s.replace("{{h}}", String(h)).replace("{{m}}", String(m))
+  if (!min) return w.flexible
+  if (min < 60) return put(w.min, 0, min)
   const h = Math.floor(min / 60)
   const m = min % 60
-  return m ? `${h} hr ${m} min` : `${h} hr${h > 1 ? "s" : ""}`
+  return put(m ? w.hrMin : h > 1 ? w.hrs : w.hr, h, m)
 }
 
 export const proLabel: Record<ProType, string> = {

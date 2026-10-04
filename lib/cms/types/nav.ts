@@ -91,6 +91,55 @@ export const NAV_DEFAULTS: NavContent = {
   },
 }
 
+/** Shipped Urdu for the menus (edit in Navigation → Header & footer). */
+const NAV_UR = {
+  header: {
+    services: "سروسز",
+    links: [{ label: "آفرز" }, { label: "پلس" }, { label: "حفاظت" }, { label: "پرو بنیں" }],
+    megaNote: "ہر سروس، کراچی کے {{catalog.areaCount}} علاقوں میں بُک کریں۔ قیمت میں سب کچھ شامل، ادائیگی بعد میں۔",
+    allServices: "تمام سروسز",
+    soon: "جلد",
+    selectArea: "علاقہ چنیں",
+    login: "لاگ اِن",
+    book: { label: "ابھی بُک کریں" },
+    mobileLinks: [{ label: "علاقے" }, { label: "مدد" }],
+  },
+  tabs: { home: "ہوم", services: "سروسز", search: "تلاش", bookings: "بُکنگز", account: "اکاؤنٹ" },
+  footer: {
+    banner: { title: "کیا آپ بیوٹیشن ہیں؟", line: "آپ کا ہنر۔ آپ کا وقت۔ بہتر کمائی۔", cta: { label: "مجازو میں شامل ہوں" } },
+    tagline: "آپ کے گھر کی ہر ضرورت، ایک ٹیپ پر۔ کراچی میں، کراچی کے لیے۔",
+    columns: [
+      { title: "سروسز", links: [{ label: "تمام سروسز" }] },
+      {
+        title: "کمپنی",
+        links: [{ label: "ہمارے بارے میں" }, { label: "حفاظت اور اعتماد" }, { label: "یہ کیسے کام کرتا ہے" }, { label: "کیریئرز" }, { label: "مجازو فار بزنس" }, { label: "شادیاں اور تقریبات" }, { label: "جرنل" }],
+      },
+      {
+        title: "مزید دیکھیں",
+        links: [
+          { label: "گھر اسکین (اے آئی)" },
+          { label: "ہوم پلس (اے آئی)" },
+          { label: "گلیم مرر (اے آئی)" },
+          { label: "شادی آرکیسٹریٹر (اے آئی)" },
+          { label: "آفرز اور بنڈلز" },
+          { label: "مجازو پلس" },
+          { label: "گفٹ کارڈز" },
+          { label: "ریفر کریں اور کمائیں" },
+          { label: "ایپ حاصل کریں" },
+          { label: "ہمارے علاقے" },
+        ],
+      },
+      {
+        title: "مدد",
+        links: [{ label: "مدد مرکز" }, { label: "مسئلہ رپورٹ کریں" }, { label: "رابطہ" }, { label: "منسوخی اور ریفنڈ" }, { label: "شرائط" }, { label: "پرائیویسی" }, { label: "پرو ضابطۂ اخلاق" }],
+      },
+    ],
+    areaLink: "مجازو {{area}} میں",
+    copyright: "© {{year}} مجازو۔ کراچی، پاکستان۔",
+    note: "دکھائی گئی قیمتوں میں سب کچھ شامل ہے۔ ادائیگی سروس کے بعد۔",
+  },
+}
+
 register<NavContent, NavContent>({
   type: "nav",
   label: "Header & footer",
@@ -135,5 +184,6 @@ register<NavContent, NavContent>({
     }),
   },
   defaults: () => NAV_DEFAULTS,
+  translations: { ur: () => NAV_UR },
   path: () => "/",
 })
