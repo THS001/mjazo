@@ -106,7 +106,8 @@ export function AdminShell({ nav, user, backend, children }: { nav: Nav; user: S
               : "Supabase isn't connected, so changes can't be saved. The site is showing its built-in content."}
           </div>
         )}
-        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8">{children}</main>
+        {/* An editor with its live preview open (data-wide) uses the full width. */}
+        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8 has-[[data-wide]]:max-w-none">{children}</main>
       </div>
     </div>
   )

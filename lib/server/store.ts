@@ -63,7 +63,7 @@ export const schemas = {
     lang: z.string(),
   }),
   enquiry: z.object({
-    kind: z.enum(["wedding", "business", "contact", "gift", "plus", "pulse", "handoff"]),
+    kind: z.enum(["wedding", "business", "contact", "gift", "plus", "pulse", "handoff", "page"]),
     name: z.string().min(2),
     phone,
     email: z.string().email().optional().or(z.literal("")),

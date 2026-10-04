@@ -8,6 +8,7 @@ import { MobileBar, SmoothScroll } from "@/components/site/chrome"
 import { ConciergeWidget } from "@/components/ai/concierge-widget"
 import { SiteOnly } from "@/components/site/site-only"
 import { PreviewBar } from "@/components/cms/preview-bar"
+import { PreviewBridge } from "@/components/cms/preview-bridge"
 import { SITE_URL } from "@/lib/site"
 import { dirOf, LOCALES, OG_LOCALE } from "@/lib/i18n"
 import { getCatalogData, getNav, getSeoSettings, getSettings, getUi, isPreview } from "@/lib/cms/read"
@@ -17,8 +18,9 @@ import { fontVars } from "../fonts"
 import "../globals.css"
 
 // The public site's root layout, once per locale (/ and /ur). Staff apps have their own in (staff).
+// No `dynamicParams = false` here: it would apply to every page below, so services, posts and block
+// pages published after a deploy would 404 until the next one. proxy.ts only ever sends en or ur.
 
-export const dynamicParams = false
 export function generateStaticParams() {
   return LOCALES.map((locale) => ({ locale }))
 }
@@ -94,6 +96,7 @@ export default async function RootLayout({ children, params }: Readonly<{ childr
             <MobileBar />
           </SiteOnly>
           {preview && <PreviewBar />}
+          {preview && <PreviewBridge />}
         </CmsProvider>
         <Analytics />
       </body>

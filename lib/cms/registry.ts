@@ -34,6 +34,12 @@ export type ContentType<S = unknown, C = S> = {
   path?: (item: C) => string | null
   /** Adjust stored data as it is published (e.g. stamp a "last updated" date). */
   beforePublish?: (data: Record<string, unknown>) => Record<string, unknown>
+  /** Collections without a slug: the id of a new item, from its data ("" if it can't be made yet). */
+  newId?: (data: Record<string, unknown>) => string
+  /** Checks beyond the field types (run on every save): problems to show, or none. */
+  check?: (data: Record<string, unknown>) => string[]
+  /** A value that must be unique across the collection (checked on create and publish), and how to name it. */
+  unique?: { key: string; label: string }
   /**
    * Urdu shipped with the built-in content, in the CMS shape with plain strings: one object for a
    * singleton, or { [id]: object } for a collection. Fills the Urdu side of localised fields.

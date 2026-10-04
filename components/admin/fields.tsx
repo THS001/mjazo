@@ -4,10 +4,10 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "rea
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ChevronDown, Copy, GripVertical, Lock, Plus, Search, Sparkles, Trash2, Wand2 } from "lucide-react"
+import { ChartColumn, ChevronDown, Columns2, Copy, Film, GripVertical, HelpCircle, Images, LayoutGrid, LayoutTemplate, Lock, Megaphone, MessageSquareText, Plus, Search, SeparatorHorizontal, ShieldCheck, Sparkles, Tag, Trash2, Type, Wand2, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ICONS } from "@/components/site/primitives"
-import type { Field, Fields, Localized, MediaRef, RichDoc } from "@/lib/cms/fields"
+import { emptyObject, emptyOf, localizeObject, type BlockDef, type BlocksField, type Field, type Fields, type Localized, type MediaRef, type RichDoc } from "@/lib/cms/fields"
 import { RichTextEditor } from "./rich-text-editor"
 import { MediaInput } from "./media"
 import { SeoGroup } from "./seo-group"
@@ -36,36 +36,7 @@ const isLoc = (fd: Field) => fd.kind === "richText" || ((fd.kind === "text" || f
 const inputCls = "w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-foreground disabled:bg-zinc-50 disabled:text-zinc-500"
 const slugify = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60)
 
-/** An empty value of the right shape for a new item or list entry. */
-export function emptyOf(fd: Field): V {
-  switch (fd.kind) {
-    case "text":
-    case "textarea":
-      return fd.localized === false ? "" : { en: "" }
-    case "richText":
-      return { en: { type: "doc", content: [] } }
-    case "number":
-    case "price":
-      return 0
-    case "boolean":
-      return false
-    case "select":
-      return fd.options[0]?.value ?? ""
-    case "color":
-      return "#f6d9cf"
-    case "list":
-      return []
-    case "group":
-      return emptyObject(fd.fields)
-    case "image":
-      return null
-    case "date":
-      return new Date().toISOString().slice(0, 10)
-    default:
-      return ""
-  }
-}
-export const emptyObject = (fields: Fields) => Object.fromEntries(Object.entries(fields).map(([k, fd]) => [k, emptyOf(fd)]))
+export { emptyOf, emptyObject }
 
 /** A short label for a list item, from its `itemLabel` field (English). */
 function itemTitle(fd: Field, v: V, i: number, refs: FormCtx["refs"]): string {
@@ -87,17 +58,63 @@ function itemTitle(fd: Field, v: V, i: number, refs: FormCtx["refs"]): string {
 // Layout
 // ---------------------------------------------------------------------------
 
-export function FieldsForm({ fields, value, onChange, ctx, itemLabelKey }: { fields: Fields; value: Record<string, V>; onChange: (v: Record<string, V>) => void; ctx: FormCtx; itemLabelKey?: string }) {
-  void itemLabelKey
+/**
+ * The fields of a type, group or list item. `path` is where they sit in the entry ("blocks.2"), so
+ * every field's wrapper carries its full path in data-field (click-to-edit finds fields by it).
+ */
+export function FieldsForm({ fields, value, onChange, ctx, path }: { fields: Fields; value: Record<string, V>; onChange: (v: Record<string, V>) => void; ctx: FormCtx; path?: string }) {
   return (
     <div className="grid grid-cols-6 gap-x-4 gap-y-5">
-      {Object.entries(fields).map(([k, fd]) => (
-        <div key={k} className={cn("col-span-6", !(ctx.showUr && isLoc(fd)) && fd.width === "half" && "sm:col-span-3", !(ctx.showUr && isLoc(fd)) && fd.width === "third" && "sm:col-span-2")}>
-          <FieldInput name={k} field={fd} value={value?.[k]} onChange={(x) => onChange({ ...value, [k]: x })} ctx={ctx} siblings={value} />
-        </div>
-      ))}
+      {Object.entries(fields).map(([k, fd]) => {
+        const full = path ? `${path}.${k}` : k
+        return (
+          <div key={k} data-field={full} className={cn("col-span-6 rounded-xl", !(ctx.showUr && isLoc(fd)) && fd.width === "half" && "sm:col-span-3", !(ctx.showUr && isLoc(fd)) && fd.width === "third" && "sm:col-span-2")}>
+            <FieldInput name={full} field={fd} value={value?.[k]} onChange={(x) => onChange({ ...value, [k]: x })} ctx={ctx} siblings={value} />
+          </div>
+        )
+      })}
     </div>
   )
+}
+
+/**
+ * Asks the form to show a field: lists and blocks open the item it's in, then the field is scrolled
+ * into view, focused and flashed. Used by click-to-edit in the live preview.
+ */
+export function revealField(path: string, lang: "en" | "ur" = "en") {
+  window.dispatchEvent(new CustomEvent("cms:reveal", { detail: path }))
+  // Wait for opened items to render.
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      const parts = path.split(".")
+      let el: HTMLElement | null = null
+      // The field itself, else the nearest parent that exists (a block, a list item).
+      for (let n = parts.length; n > 0 && !el; n--) el = document.querySelector<HTMLElement>(`[data-field="${parts.slice(0, n).join(".")}"]`)
+      if (!el) return
+      el.scrollIntoView({ behavior: "smooth", block: "center" })
+      const inputs = [...el.querySelectorAll<HTMLElement>("input:not([type=hidden]):not([disabled]), textarea:not([disabled]), [contenteditable=true]")]
+      const target = inputs.find((i) => (lang === "ur" ? i.getAttribute("lang") === "ur" || i.getAttribute("dir") === "rtl" : i.getAttribute("lang") !== "ur" && i.getAttribute("dir") !== "rtl")) ?? inputs[0]
+      target?.focus({ preventScroll: true })
+      el.classList.add("cms-flash")
+      setTimeout(() => el?.classList.remove("cms-flash"), 1600)
+    }),
+  )
+}
+
+/** Opens the item of a list or blocks field (at `name`) that a revealed path points into. */
+function useReveal(name: string, onIndex: (i: number) => void) {
+  const cb = useRef(onIndex)
+  cb.current = onIndex
+  useEffect(() => {
+    const h = (e: Event) => {
+      const path = (e as CustomEvent<string>).detail
+      if (!path.startsWith(`${name}.`)) return
+      const i = Number(path.slice(name.length + 1).split(".")[0])
+      if (Number.isInteger(i)) cb.current(i)
+    }
+    window.addEventListener("cms:reveal", h)
+    return () => window.removeEventListener("cms:reveal", h)
+  }, [name])
 }
 
 function Label({ field, extra, locked }: { field: Field; extra?: ReactNode; locked?: boolean }) {
@@ -268,7 +285,7 @@ export function FieldInput({ name, field: fd, value, onChange, ctx: outer, sibli
         </div>
       )
     case "group": {
-      const form = <FieldsForm fields={fd.fields} value={(value ?? {}) as Record<string, V>} onChange={onChange} ctx={ctx} />
+      const form = <FieldsForm fields={fd.fields} value={(value ?? {}) as Record<string, V>} onChange={onChange} ctx={ctx} path={name} />
       if (fd.ui === "seo")
         return (
           <SeoGroup field={fd} value={(value ?? {}) as Record<string, V>} onChange={onChange} ctx={ctx}>
@@ -285,6 +302,8 @@ export function FieldInput({ name, field: fd, value, onChange, ctx: outer, sibli
     }
     case "list":
       return <ListEditor name={name} field={fd} value={Array.isArray(value) ? value : []} onChange={onChange} ctx={ctx} />
+    case "blocks":
+      return <BlocksEditor name={name} field={fd} value={Array.isArray(value) ? value : []} onChange={onChange} ctx={ctx} />
     case "richText": {
       const l = (value ?? { en: { type: "doc", content: [] } }) as Localized<RichDoc>
       return (
@@ -421,6 +440,7 @@ function ListEditor({ name, field: fd, value, onChange, ctx }: { name: string; f
   const dndId = useId()
   const scalar = fd.of.kind !== "group"
   const [open, setOpen] = useState<Set<string>>(new Set())
+  useReveal(name, (i) => keys[i] && setOpen((o) => new Set([...o, keys[i]])))
   const ro = ctx.readOnly
   const onDragEnd = (e: DragEndEvent) => {
     if (!e.over || e.active.id === e.over.id) return
@@ -466,7 +486,7 @@ function ListEditor({ name, field: fd, value, onChange, ctx }: { name: string; f
               <SortableRow key={keys[i] ?? i} id={keys[i] ?? String(i)} disabled={ro}>
                 {(handle) =>
                   scalar ? (
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-2" data-field={`${name}.${i}`}>
                       {handle}
                       <div className="flex-1">
                         <FieldInput name={`${name}.${i}`} field={{ ...fd.of, label: "", help: undefined }} value={item} onChange={(x) => onChange(value.map((y, j) => (j === i ? x : y)))} ctx={ctx} />
@@ -478,7 +498,7 @@ function ListEditor({ name, field: fd, value, onChange, ctx }: { name: string; f
                       )}
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-zinc-200 bg-white">
+                    <div className="rounded-xl border border-zinc-200 bg-white" data-field={`${name}.${i}`}>
                       <div className="flex items-center gap-2 px-2 py-1.5">
                         {handle}
                         <button
@@ -509,7 +529,7 @@ function ListEditor({ name, field: fd, value, onChange, ctx }: { name: string; f
                       </div>
                       {open.has(keys[i]) && fd.of.kind === "group" && (
                         <div className="border-t border-zinc-100 p-4">
-                          <FieldsForm fields={fd.of.fields} value={(item ?? {}) as Record<string, V>} onChange={(x) => onChange(value.map((y, j) => (j === i ? x : y)))} ctx={ctx} />
+                          <FieldsForm fields={fd.of.fields} value={(item ?? {}) as Record<string, V>} onChange={(x) => onChange(value.map((y, j) => (j === i ? x : y)))} ctx={ctx} path={`${name}.${i}`} />
                         </div>
                       )}
                     </div>
@@ -539,6 +559,196 @@ function SortableRow({ id, disabled, children }: { id: string; disabled?: boolea
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cn(isDragging && "relative z-10 opacity-80")}>
       {children(handle)}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Blocks (the page builder)
+// ---------------------------------------------------------------------------
+
+const BLOCK_ICONS: Record<string, LucideIcon> = { LayoutTemplate, Type, Columns2, LayoutGrid, Tag, HelpCircle, Megaphone, ShieldCheck, ChartColumn, Film, Images, MessageSquareText, SeparatorHorizontal }
+const BlockIcon = ({ name, className }: { name?: string; className?: string }) => {
+  const C = (name && BLOCK_ICONS[name]) || LayoutGrid
+  return <C className={className} strokeWidth={1.75} />
+}
+const newBlockKey = () => Math.random().toString(36).slice(2, 10)
+
+/** A one-line summary of a block for its header: its first text, without accent marks. */
+function blockSummary(def: BlockDef, item: Record<string, V>): string {
+  for (const [k, fd] of Object.entries(def.fields)) {
+    if (fd.kind !== "text" && fd.kind !== "textarea") continue
+    const v = item[k]
+    const s = typeof v === "string" ? v : v && typeof v === "object" ? (v as Localized).en : ""
+    if (s?.trim()) return s.replace(/\*([^*]+)\*/g, "$1").trim()
+  }
+  return ""
+}
+
+/** Tells the live preview which block is being edited (it scrolls there). */
+const focusBlock = (path: string) => window.dispatchEvent(new CustomEvent("cms:focus-block", { detail: path }))
+
+function BlockPicker({ blocks, onPick, onCancel }: { blocks: Record<string, BlockDef>; onPick: (type: string) => void; onCancel: () => void }) {
+  return (
+    <div className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-lg">
+      <div className="mb-2 flex items-center justify-between px-1">
+        <p className="text-[13px] font-medium">Add a block</p>
+        <button type="button" onClick={onCancel} className="text-xs text-zinc-500 hover:text-foreground">
+          Cancel
+        </button>
+      </div>
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {Object.entries(blocks).map(([type, def]) => (
+          <button key={type} type="button" onClick={() => onPick(type)} className="flex items-start gap-3 rounded-xl p-2.5 text-start hover:bg-zinc-50">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-ink">
+              <BlockIcon name={def.icon} className="h-4 w-4" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[13px] font-medium">{def.label}</span>
+              {def.help && <span className="block text-xs text-zinc-500">{def.help}</span>}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function BlocksEditor({ name, field: fd, value, onChange, ctx }: { name: string; field: BlocksField; value: V[]; onChange: (v: V[]) => void; ctx: FormCtx }) {
+  const ro = ctx.readOnly
+  const items = value as Record<string, V>[]
+  const keys = items.map((b, i) => (typeof b?._key === "string" && b._key) || `i${i}`)
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  // Where the block picker is open: the index a new block goes in, or null.
+  const [picker, setPicker] = useState<number | null>(null)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
+  const dndId = useId()
+  useReveal(name, (i) => keys[i] && setOpen((o) => new Set([...o, keys[i]])))
+  const atMax = fd.max !== undefined && items.length >= fd.max
+
+  const toggle = (i: number) => {
+    const n = new Set(open)
+    if (n.has(keys[i])) n.delete(keys[i])
+    else {
+      n.add(keys[i])
+      focusBlock(`${name}.${i}`)
+    }
+    setOpen(n)
+  }
+  const add = (type: string, at: number) => {
+    const def = fd.blocks[type]
+    const item = { ...emptyObject(def.fields), ...localizeObject(def.fields, structuredClone(def.starter ?? {})), _type: type, _key: newBlockKey() }
+    onChange([...items.slice(0, at), item, ...items.slice(at)])
+    setOpen((o) => new Set([...o, item._key]))
+    setPicker(null)
+    // Once the preview has the new block (after the autosave), show it there.
+    setTimeout(() => focusBlock(`${name}.${at}`), 2500)
+  }
+  const duplicate = (i: number) => onChange([...items.slice(0, i + 1), { ...structuredClone(items[i]), _key: newBlockKey() }, ...items.slice(i + 1)])
+  const remove = (i: number) => {
+    if (!confirm("Remove this block? Until you publish, you can get it back from History.")) return
+    onChange(items.filter((_, j) => j !== i))
+  }
+  const onDragEnd = (e: DragEndEvent) => {
+    if (!e.over || e.active.id === e.over.id) return
+    onChange(arrayMove(items, keys.indexOf(String(e.active.id)), keys.indexOf(String(e.over.id))))
+  }
+
+  return (
+    <div>
+      <div className="mb-1.5 flex items-end justify-between">
+        <div>
+          <span className="text-[13px] font-medium">{fd.label}</span> <span className="text-xs text-zinc-400">{items.length}</span>
+          {fd.help && <p className="mt-0.5 text-xs text-zinc-500">{fd.help}</p>}
+        </div>
+        {items.length > 1 && (
+          <button type="button" onClick={() => setOpen(open.size ? new Set() : new Set(keys))} className="text-[11px] text-zinc-500 hover:text-foreground">
+            {open.size ? "Collapse all" : "Expand all"}
+          </button>
+        )}
+      </div>
+      {!items.length && picker === null && <p className="rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-6 text-center text-sm text-zinc-500">No blocks yet. Add the first one: a Hero is a good start.</p>}
+      <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={keys} strategy={verticalListSortingStrategy}>
+          <div>
+            {items.map((item, i) => {
+              const def = typeof item?._type === "string" ? fd.blocks[item._type] : undefined
+              const isOpen = open.has(keys[i])
+              return (
+                <SortableRow key={keys[i]} id={keys[i]} disabled={ro}>
+                  {(handle) => (
+                    <div>
+                      <div className={cn("rounded-xl border bg-white", isOpen ? "border-zinc-300 shadow-sm" : "border-zinc-200")} data-field={`${name}.${i}`}>
+                        <div className="flex items-center gap-2 px-2 py-1.5">
+                          {handle}
+                          <button type="button" onClick={() => toggle(i)} className="flex min-w-0 flex-1 items-center gap-2.5 py-1 text-start text-sm">
+                            <ChevronDown className={cn("h-4 w-4 shrink-0 text-zinc-400 transition-transform", !isOpen && "-rotate-90")} />
+                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-ink">
+                              <BlockIcon name={def?.icon} className="h-3.5 w-3.5" />
+                            </span>
+                            <span className="shrink-0 font-medium">{def?.label ?? "Unknown block"}</span>
+                            {def && <span className="truncate text-zinc-500">{blockSummary(def, item)}</span>}
+                          </button>
+                          {!ro && (
+                            <>
+                              {!atMax && def && (
+                                <button type="button" onClick={() => duplicate(i)} className="grid h-8 w-8 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-foreground" aria-label="Duplicate block" title="Duplicate">
+                                  <Copy className="h-4 w-4" />
+                                </button>
+                              )}
+                              <button type="button" onClick={() => remove(i)} className="grid h-8 w-8 place-items-center rounded-lg text-zinc-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove block" title="Remove">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        {isOpen && (
+                          <div className="border-t border-zinc-100 p-4">
+                            {def ? (
+                              <>
+                                {def.help && <p className="mb-4 text-xs text-zinc-500">{def.help}</p>}
+                                <FieldsForm fields={def.fields} value={item} onChange={(x) => onChange(items.map((y, j) => (j === i ? { ...x, _type: item._type, _key: item._key } : y)))} ctx={ctx} path={`${name}.${i}`} />
+                              </>
+                            ) : (
+                              <p className="text-sm text-zinc-500">This kind of block (“{String(item?._type)}”) no longer exists, so the site skips it. Remove it.</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {/* Between blocks: a small "Add here" that shows on hover. */}
+                      {!ro && !atMax && i < items.length - 1 && (
+                        <div className="group relative h-3">
+                          {picker !== i + 1 && (
+                            <button type="button" onClick={() => setPicker(i + 1)} className="absolute left-1/2 top-1/2 z-10 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-zinc-300 bg-white px-2 py-0.5 text-[11px] text-zinc-600 shadow-sm hover:border-foreground hover:text-foreground group-hover:flex focus-visible:flex" aria-label="Add a block here">
+                              <Plus className="h-3 w-3" /> Add here
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {picker === i + 1 && i < items.length - 1 && (
+                        <div className="mb-3">
+                          <BlockPicker blocks={fd.blocks} onPick={(type) => add(type, i + 1)} onCancel={() => setPicker(null)} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </SortableRow>
+              )
+            })}
+          </div>
+        </SortableContext>
+      </DndContext>
+      {!ro && !atMax && (
+        <div className="mt-3">
+          {picker === items.length ? (
+            <BlockPicker blocks={fd.blocks} onPick={(type) => add(type, items.length)} onCancel={() => setPicker(null)} />
+          ) : (
+            <button type="button" onClick={() => setPicker(items.length)} className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-zinc-300 px-3 py-1.5 text-xs text-zinc-600 hover:border-foreground hover:text-foreground">
+              <Plus className="h-3.5 w-3.5" /> Add a block
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

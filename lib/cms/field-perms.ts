@@ -1,4 +1,4 @@
-import type { Field, Fields } from "./fields"
+import { blockFields, type Field, type Fields } from "./fields"
 import { AUTHOR_GROUPS, can, type Role } from "./roles"
 
 // Who may change what inside an entry: prices need "prices", SEO fields need "seo", and the SEO
@@ -18,6 +18,7 @@ export function permValues(fields: Fields, data: unknown, perm: Field["perm"]): 
     if (fd.perm === perm) out.push(v)
     else if (fd.kind === "list" && Array.isArray(v)) v.forEach((x) => walk(fd.of, x))
     else if (fd.kind === "group" && v && typeof v === "object") Object.entries(fd.fields).forEach(([k, f]) => walk(f, (v as Data)[k]))
+    else if (fd.kind === "blocks" && Array.isArray(v)) v.forEach((x) => Object.entries(blockFields(fd, x) ?? {}).forEach(([k, f]) => walk(f, (x as Data)[k])))
   }
   Object.entries(fields).forEach(([k, fd]) => walk(fd, (data as Data | undefined)?.[k]))
   return JSON.stringify(out)
@@ -32,6 +33,7 @@ export function withoutSeo(fields: Fields, data: unknown): unknown {
     if (fd.perm === "seo") continue
     if (fd.kind === "group") out[k] = withoutSeo(fd.fields, v)
     else if (fd.kind === "list" && Array.isArray(v)) out[k] = fd.of.kind === "group" ? v.map((x) => withoutSeo((fd.of as Extract<Field, { kind: "group" }>).fields, x)) : v
+    else if (fd.kind === "blocks" && Array.isArray(v)) out[k] = v.map((x) => (blockFields(fd, x) ? { ...(withoutSeo(blockFields(fd, x)!, x) as Data), _type: (x as Data)._type, _key: (x as Data)._key } : x))
     else out[k] = v
   }
   return out

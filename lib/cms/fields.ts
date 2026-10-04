@@ -15,7 +15,8 @@ export type Localized<T = string> = { en: T; ur?: T; ai?: boolean }
 
 type Common = { label: string; help?: string; required?: boolean; width?: "full" | "half" | "third"; perm?: "prices" | "settings" | "seo" }
 
-export type TextField = Common & { kind: "text" | "textarea"; localized?: boolean; max?: number; placeholder?: string; mono?: boolean }
+/** `pattern` (plain, non-localised text only): a regular expression the value must match, and the message when it doesn't. */
+export type TextField = Common & { kind: "text" | "textarea"; localized?: boolean; max?: number; placeholder?: string; mono?: boolean; pattern?: { re: string; message: string } }
 export type RichTextField = Common & { kind: "richText" }
 export type NumberField = Common & { kind: "number"; min?: number; max?: number; step?: number; unit?: string }
 export type PriceField = Common & { kind: "price" }
@@ -31,6 +32,13 @@ export type RefField = Common & { kind: "ref"; to: string }
 export type ListField = Common & { kind: "list"; of: Field; itemLabel?: string; min?: number; max?: number }
 /** `ui: "seo"` shows the group with a Google result preview and live checks in the admin. */
 export type GroupField = Common & { kind: "group"; fields: Fields; ui?: "seo" }
+/** One kind of block: its fields, and the content a new block starts with (site shape, plain strings). */
+export type BlockDef = { label: string; icon?: string; help?: string; fields: Fields; starter?: Record<string, unknown> }
+/**
+ * A page builder: a list whose items are each one of several kinds of block. Stored as
+ * [{ _type, _key, ...that block's fields }]; `_key` stays with a block when it moves.
+ */
+export type BlocksField = Common & { kind: "blocks"; blocks: Record<string, BlockDef>; min?: number; max?: number }
 export type Field =
   | TextField
   | RichTextField
@@ -46,7 +54,17 @@ export type Field =
   | RefField
   | ListField
   | GroupField
+  | BlocksField
 export type Fields = Record<string, Field>
+
+/** A stored block: its kind, a stable key, and its fields' values. */
+export type BlockItem = { _type: string; _key: string } & Record<string, unknown>
+
+/** The fields of one item in a blocks list (undefined for a block kind that no longer exists). */
+export function blockFields(fd: BlocksField, item: unknown): Fields | undefined {
+  const t = item && typeof item === "object" ? (item as { _type?: unknown })._type : undefined
+  return typeof t === "string" && Object.hasOwn(fd.blocks, t) ? fd.blocks[t].fields : undefined
+}
 
 // ---------------------------------------------------------------------------
 // Builders
@@ -78,6 +96,7 @@ export const f = {
   ref: (label: string, to: string, o: Omit<Opt<RefField>, "to"> = {}): RefField => ({ kind: "ref", label, to, ...o }),
   list: (label: string, of: Field, o: Omit<Opt<ListField>, "of"> = {}): ListField => ({ kind: "list", label, of, ...o }),
   group: (label: string, fields: Fields, o: Omit<Opt<GroupField>, "fields"> = {}): GroupField => ({ kind: "group", label, fields, ...o }),
+  blocks: (label: string, blocks: Record<string, BlockDef>, o: Omit<Opt<BlocksField>, "blocks"> = {}): BlocksField => ({ kind: "blocks", label, blocks, ...o }),
 }
 
 export const isLocalized = (fd: Field) => fd.kind === "richText" || ((fd.kind === "text" || fd.kind === "textarea") && fd.localized !== false)
@@ -111,7 +130,8 @@ const richNode: z.ZodType<RichNode> = z.lazy(() =>
     content: z.array(richNode).optional(),
   }),
 )
-const richDoc = z.object({ type: z.literal("doc"), content: z.array(richNode) })
+// A document saved without its content list (an empty editor) reads as empty rather than invalid.
+const richDoc = z.object({ type: z.literal("doc"), content: z.array(richNode).default([]) })
 
 /** Plain text of a rich document (search, SEO checks, previews). */
 export function richToText(doc: RichDoc | undefined): string {
@@ -130,7 +150,8 @@ export function zodFor(fd: Field): z.ZodTypeAny {
   switch (fd.kind) {
     case "text":
     case "textarea": {
-      const str = fd.max ? z.string().max(fd.max * 2) : z.string() // soft limit is a warning in the form; hard limit is generous
+      let str = fd.max ? z.string().max(fd.max * 2) : z.string() // soft limit is a warning in the form; hard limit is generous
+      if (fd.pattern && fd.localized === false) str = str.regex(new RegExp(fd.pattern.re), fd.pattern.message)
       s = fd.localized === false ? str : localized(str)
       break
     }
@@ -173,11 +194,57 @@ export function zodFor(fd: Field): z.ZodTypeAny {
     case "group":
       s = zodObject(fd.fields)
       break
+    case "blocks": {
+      const kinds = Object.entries(fd.blocks).map(([type, b]) => zodObject(b.fields).extend({ _type: z.literal(type), _key: z.string().min(1) }))
+      type Kind = z.ZodDiscriminatedUnionOption<"_type">
+      const one = kinds.length === 1 ? kinds[0] : z.discriminatedUnion("_type", kinds as unknown as [Kind, ...Kind[]])
+      let arr = z.array(one)
+      if (fd.min) arr = arr.min(fd.min)
+      if (fd.max) arr = arr.max(fd.max)
+      s = arr
+      break
+    }
   }
   return fd.required ? s : s.optional()
 }
 
 export const zodObject = (fields: Fields) => z.object(Object.fromEntries(Object.entries(fields).map(([k, fd]) => [k, zodFor(fd)])))
+
+// ---------------------------------------------------------------------------
+// Empty values (new items in the admin)
+// ---------------------------------------------------------------------------
+
+/** An empty value of the right shape for a new item or list entry. */
+export function emptyOf(fd: Field): unknown {
+  switch (fd.kind) {
+    case "text":
+    case "textarea":
+      return fd.localized === false ? "" : { en: "" }
+    case "richText":
+      return { en: { type: "doc", content: [] } }
+    case "number":
+    case "price":
+      return 0
+    case "boolean":
+      return false
+    case "select":
+      return fd.options[0]?.value ?? ""
+    case "color":
+      return "#f6d9cf"
+    case "list":
+    case "blocks":
+      return []
+    case "group":
+      return emptyObject(fd.fields)
+    case "image":
+      return null
+    case "date":
+      return new Date().toISOString().slice(0, 10)
+    default:
+      return ""
+  }
+}
+export const emptyObject = (fields: Fields) => Object.fromEntries(Object.entries(fields).map(([k, fd]) => [k, emptyOf(fd)]))
 
 // ---------------------------------------------------------------------------
 // Plain site value -> stored value (seeding and editing defaults)
@@ -191,7 +258,14 @@ export function localizeValue(fd: Field, v: unknown): unknown {
   }
   if (fd.kind === "list") return Array.isArray(v) ? v.map((x) => localizeValue(fd.of, x)) : []
   if (fd.kind === "group") return localizeObject(fd.fields, v as Record<string, unknown>)
+  if (fd.kind === "blocks") return Array.isArray(v) ? v.map((x) => eachBlock(fd, x, (fs) => localizeObject(fs, x as Record<string, unknown>))) : []
   return v
+}
+
+/** Applies `fn` to a block's own fields (keeping `_type` and `_key`); unknown kinds pass through. */
+function eachBlock(fd: BlocksField, item: unknown, fn: (fields: Fields) => Record<string, unknown>): unknown {
+  const fs = blockFields(fd, item)
+  return fs ? { ...fn(fs), _type: (item as BlockItem)._type, _key: (item as BlockItem)._key } : item
 }
 
 export function localizeObject(fields: Fields, v: Record<string, unknown> | undefined): Record<string, unknown> {
@@ -228,7 +302,7 @@ function pick<T>(v: Localized<T> | T, locale: Locale): T {
   if (v && typeof v === "object" && "en" in (v as object)) {
     const l = v as Localized<T>
     const ur = l.ur
-    return locale === "ur" && ur !== undefined && ur !== "" && !(typeof ur === "object" && (ur as unknown as RichDoc).content?.length === 0) ? ur : l.en
+    return locale === "ur" && ur !== undefined && ur !== "" && !(typeof ur === "object" && !(ur as unknown as RichDoc)?.content?.length) ? ur : l.en
   }
   return v as T
 }
@@ -257,6 +331,9 @@ export function resolveValue(fd: Field, v: unknown, locale: Locale, ctx?: TokenC
       return Array.isArray(v) ? v.map((x) => resolveValue(fd.of, x, locale, ctx)) : []
     case "group":
       return resolveObject(fd.fields, v as Record<string, unknown>, locale, ctx)
+    case "blocks":
+      // The site never sees a block kind it can't render.
+      return Array.isArray(v) ? v.filter((x) => blockFields(fd, x)).map((x) => eachBlock(fd, x, (fs) => resolveObject(fs, x as Record<string, unknown>, locale, ctx))) : []
     default:
       return v
   }
@@ -280,7 +357,13 @@ export type Img = { id: string; url: string; alt: string; w?: number; h?: number
 export type MediaInfo = { url: string; mime: string; width: number | null; height: number | null; alt: Localized | null; focal: [number, number] | null; color: string | null }
 
 export const hasMediaFields = (fields: Fields): boolean =>
-  Object.values(fields).some((fd) => fd.kind === "image" || (fd.kind === "group" && hasMediaFields(fd.fields)) || (fd.kind === "list" && (fd.of.kind === "image" || (fd.of.kind === "group" && hasMediaFields(fd.of.fields)))))
+  Object.values(fields).some(
+    (fd) =>
+      fd.kind === "image" ||
+      (fd.kind === "group" && hasMediaFields(fd.fields)) ||
+      (fd.kind === "list" && (fd.of.kind === "image" || (fd.of.kind === "group" && hasMediaFields(fd.of.fields)))) ||
+      (fd.kind === "blocks" && Object.values(fd.blocks).some((b) => hasMediaFields(b.fields))),
+  )
 
 /**
  * Replaces resolved image values with the media library's current file, size, focal point and alt
@@ -301,6 +384,7 @@ export function hydrateMedia(fields: Fields, v: Record<string, unknown>, media: 
     }
     if (fd.kind === "list") return Array.isArray(x) ? x.map((y) => one(fd.of, y)).filter((y) => !(fd.of.kind === "image" && y === null)) : x
     if (fd.kind === "group") return hydrateMedia(fd.fields, x as Record<string, unknown>, media, locale)
+    if (fd.kind === "blocks") return Array.isArray(x) ? x.map((y) => eachBlock(fd, y, (fs) => hydrateMedia(fs, y as Record<string, unknown>, media, locale))) : x
     return x
   }
   const out: Record<string, unknown> = { ...v }
@@ -318,7 +402,7 @@ export function coverage(fields: Fields, v: Record<string, unknown> | undefined)
     if (x === undefined || x === null) return
     if (isLocalized(fd)) {
       const l = x as Localized<unknown>
-      const empty = (y: unknown) => y === undefined || y === "" || (typeof y === "object" && y !== null && (y as RichDoc).content?.length === 0)
+      const empty = (y: unknown) => y === undefined || y === "" || (typeof y === "object" && y !== null && !(y as RichDoc).content?.length)
       if (empty(l.en)) return
       acc.total++
       if (!empty(l.ur)) {
@@ -327,6 +411,7 @@ export function coverage(fields: Fields, v: Record<string, unknown> | undefined)
       }
     } else if (fd.kind === "list" && Array.isArray(x)) x.forEach((y) => visit(fd.of, y))
     else if (fd.kind === "group") Object.entries(fd.fields).forEach(([k, sub]) => visit(sub, (x as Record<string, unknown>)[k]))
+    else if (fd.kind === "blocks" && Array.isArray(x)) x.forEach((y) => Object.entries(blockFields(fd, y) ?? {}).forEach(([k, sub]) => visit(sub, (y as Record<string, unknown>)[k])))
   }
   Object.entries(fields).forEach(([k, fd]) => visit(fd, v?.[k]))
   return acc

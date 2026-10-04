@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import { Bold, Heading2, Heading3, Italic, Link2, List, ListOrdered, Quote, Redo2, Undo2, Unlink } from "lucide-react"
@@ -21,7 +21,16 @@ const extensions = [
   }),
 ]
 
+/** TipTap's JSON in the stored shape: always a content list, and an editor holding only an empty paragraph is empty. */
+function normalise(json: { content?: RichDoc["content"] }): RichDoc {
+  const content = json.content ?? []
+  const blank = content.length === 1 && content[0].type === "paragraph" && !content[0].content?.length
+  return { type: "doc", content: blank ? [] : content }
+}
+
 export function RichTextEditor({ value, onChange, urdu, disabled }: { value: RichDoc | undefined; onChange: (v: RichDoc) => void; urdu?: boolean; disabled?: boolean }) {
+  const current = useRef(value)
+  current.current = value
   const editor = useEditor({
     extensions,
     content: value ?? { type: "doc", content: [] },
@@ -34,7 +43,12 @@ export function RichTextEditor({ value, onChange, urdu, disabled }: { value: Ric
         class: cn("prose-cms min-h-40 px-4 py-3 outline-none", urdu && "font-urdu text-[15px] leading-loose"),
       },
     },
-    onUpdate: ({ editor }) => onChange(editor.getJSON() as RichDoc),
+    onUpdate: ({ editor }) => {
+      const next = normalise(editor.getJSON() as RichDoc)
+      // TipTap can report an update that changes nothing (e.g. tidying an empty document): don't mark the entry changed.
+      if (JSON.stringify(next) === JSON.stringify(normalise(current.current ?? { content: [] }))) return
+      onChange(next)
+    },
   })
 
   // Outside changes (restoring a version) replace the content.

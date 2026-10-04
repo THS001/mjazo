@@ -1,4 +1,4 @@
-import { localizeObject, type Field, type Fields, type RichDoc } from "./fields"
+import { blockFields, localizeObject, type Field, type Fields, type RichDoc } from "./fields"
 import type { ContentType } from "./registry"
 
 // Built-in content in the stored shape ({ en, ur } for every localised field), keyed by entry id.
@@ -18,11 +18,12 @@ export function withUrdu(fields: Fields, stored: Data, ur: unknown): Data {
   const one = (fd: Field, v: unknown, u: unknown): unknown => {
     if (u === undefined || u === null || v === undefined || v === null) return v
     if (isLoc(fd)) {
-      const empty = typeof u === "string" ? !u.trim() : (u as RichDoc)?.content?.length === 0
+      const empty = typeof u === "string" ? !u.trim() : !(u as RichDoc)?.content?.length
       return empty ? v : { ...(v as object), ur: u }
     }
     if (fd.kind === "group") return withUrdu(fd.fields, v as Data, u)
     if (fd.kind === "list" && Array.isArray(v) && Array.isArray(u)) return v.map((x, i) => one(fd.of, x, u[i]))
+    if (fd.kind === "blocks" && Array.isArray(v) && Array.isArray(u)) return v.map((x, i) => (blockFields(fd, x) ? { ...withUrdu(blockFields(fd, x)!, x as Data, u[i]) } : x))
     return v
   }
   const out: Data = { ...stored }
@@ -67,11 +68,20 @@ export function withDefaultUrdu(fields: Fields, data: Data, def: Data | undefine
     if (isLoc(fd)) {
       const sv = v as { en?: unknown; ur?: unknown }
       const dv = d as { en?: unknown; ur?: unknown }
-      const empty = (u: unknown) => u === undefined || u === "" || (typeof u === "object" && u !== null && (u as RichDoc).content?.length === 0)
+      const empty = (u: unknown) => u === undefined || u === "" || (typeof u === "object" && u !== null && !(u as RichDoc).content?.length)
       return empty(sv.ur) && !empty(dv.ur) && same(sv.en, dv.en) ? { ...(v as object), ur: dv.ur } : v
     }
     if (fd.kind === "group") return withDefaultUrdu(fd.fields, v as Data, d as Data)
     if (fd.kind === "list" && Array.isArray(v) && Array.isArray(d)) return v.map((x, i) => one(fd.of, x, d[i]))
+    // Blocks match their built-in counterpart by key, not position (they can be reordered).
+    if (fd.kind === "blocks" && Array.isArray(v) && Array.isArray(d)) {
+      const byKey = new Map((d as Data[]).map((b) => [b?._key, b]))
+      return v.map((x) => {
+        const fs = blockFields(fd, x)
+        const base = byKey.get((x as Data)?._key)
+        return fs && base && base._type === (x as Data)._type ? withDefaultUrdu(fs, x as Data, base) : x
+      })
+    }
     return v
   }
   const out: Data = { ...data }

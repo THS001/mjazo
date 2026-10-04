@@ -53,7 +53,7 @@ export function refTargets(fields: Fields): string[] {
       else if (fd.kind === "list") {
         if (fd.of.kind === "ref") out.add(fd.of.to)
         if (fd.of.kind === "group") walk(fd.of.fields)
-      }
+      } else if (fd.kind === "blocks") Object.values(fd.blocks).forEach((b) => walk(b.fields))
     }
   }
   walk(fields)

@@ -1,11 +1,15 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { Eye } from "lucide-react"
 
-/** Shown while an editor previews drafts (Next draft mode): what they see isn't live yet. */
+/** Shown while an editor previews drafts (Next draft mode): what they see isn't live yet. Not inside the editor's own live preview. */
 export function PreviewBar() {
   const pathname = usePathname()
+  const [embedded, setEmbedded] = useState(true)
+  useEffect(() => setEmbedded(window.parent !== window), [])
+  if (embedded) return null
   return (
     <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-4 inset-x-0 z-[60] flex justify-center px-3 pointer-events-none">
       <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-foreground text-background ps-4 pe-1.5 py-1.5 text-xs shadow-xl" dir="ltr">

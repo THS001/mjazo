@@ -179,3 +179,7 @@ html[lang="ur"] .tracking-tighter { letter-spacing: 0; }
 html[lang="ur"] input,
 html[lang="ur"] textarea,
 html[lang="ur"] select { font-family: var(--font-urdu-nastaliq), var(--font-inter), system-ui, sans-serif; }
+
+/* CMS: a field the live preview's click-to-edit just opened. */
+.cms-flash { animation: cms-flash 1.6s ease-out; }
+@keyframes cms-flash { 0%, 35% { box-shadow: 0 0 0 3px var(--brand); background-color: color-mix(in oklch, var(--brand-soft) 80%, transparent); } 100% { box-shadow: 0 0 0 3px transparent; } }

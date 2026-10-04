@@ -106,6 +106,8 @@ export const UI_DEFAULTS = {
     required: "Required",
     errName: "Please enter your name",
     errEmail: "Check your email address",
+    date: "Preferred date",
+    area: "Your area",
   },
   menu: {
     under2k: "Under PKR 2,000",
@@ -332,6 +334,8 @@ export const UI_UR: UiStrings = {
     required: "ضروری ہے",
     errName: "براہِ کرم اپنا نام لکھیں",
     errEmail: "اپنا ای میل ایڈریس چیک کریں",
+    date: "پسندیدہ تاریخ",
+    area: "آپ کا علاقہ",
   },
   menu: {
     under2k: "PKR 2,000 سے کم",

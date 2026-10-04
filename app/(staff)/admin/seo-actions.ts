@@ -4,7 +4,7 @@ import { headers } from "next/headers"
 import { run, ValidationError } from "@/lib/cms/action"
 import { aiEnabled, MODELS } from "@/lib/ai/anthropic"
 import { structured } from "@/lib/ai/structured"
-import { isLocalized, richToText, type Fields, type Locale, type RichDoc } from "@/lib/cms/fields"
+import { blockFields, isLocalized, richToText, type Fields, type Locale, type RichDoc } from "@/lib/cms/fields"
 import { localePath } from "@/lib/i18n"
 import { getType } from "@/lib/cms/registry"
 import { getSeoSettings, getSettings } from "@/lib/cms/read"
@@ -116,6 +116,7 @@ function pageText(fields: Fields, data: Record<string, unknown>): string {
       if (isLocalized(fd)) out.push(fd.kind === "richText" ? richToText((x as { en: RichDoc }).en) : String((x as { en?: string }).en ?? ""))
       else if (fd.kind === "group") walk(fd.fields, x as Record<string, unknown>)
       else if (fd.kind === "list" && Array.isArray(x)) x.forEach((y) => (fd.of.kind === "group" ? walk(fd.of.fields, y as Record<string, unknown>) : isLocalized(fd.of) && out.push(String((y as { en?: string }).en ?? ""))))
+      else if (fd.kind === "blocks" && Array.isArray(x)) x.forEach((y) => walk(blockFields(fd, y) ?? {}, y as Record<string, unknown>))
     }
   }
   walk(fields, data)

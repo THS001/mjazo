@@ -27,7 +27,7 @@ accounts, and what's left.
 | CMS phase 3: media library | Done, not deployed |
 | CMS phase 4: Urdu site | Done, not deployed |
 | CMS phase 5: SEO | Done, not deployed |
-| CMS phase 6: page builder and live preview | Not started |
+| CMS phase 6: page builder and live preview | Done, not deployed |
 | CMS phase 7: hardening and team handbook | Not started |
 | Supabase (database and file storage) | **Not connected yet.** Needed before anything saved in `/admin` is kept, and for cross-page flows on the live site |
 
@@ -46,6 +46,7 @@ accounts, and what's left.
 | 3 Oct 2026 | CMS plan approved (7 phases). **CMS phase 1 deployed.** Phase 2 started |
 | 4 Oct 2026 | CMS phase 2 finished, phases 3 and 4 done, phase 5 well under way. A git repository was created and the code pushed to GitHub |
 | 5 Oct 2026 | **CMS phase 5 finished:** SEO dashboard, redirects screen, SEO previews in the editor, weekly SEO check, plus tests |
+| 5 Oct 2026 | **CMS phase 6 finished:** block pages from 13 blocks, live preview beside every editor, click-to-edit. Also fixed new items returning 404 after a deploy |
 
 ---
 
@@ -207,14 +208,20 @@ The team and the client can edit everything on the site without code changes. Fu
 
 **Checked locally:** 379 of 383 pages audited in the dashboard (average 86, none under 50). The other 4 hit dev-server errors and load fine on their own. Redirects were tested end to end: English, Urdu, query strings, loop refusal, edit and delete.
 
-### Phase 6: Page builder and live preview. Not started
+### Phase 6: Page builder and live preview. Done, not deployed
 
-- new pages at any address, built from blocks:
-  - hero, text, image and text, cards, services rail
-  - FAQ, call to action, stats, video, gallery
-  - enquiry form, spacer
-- a live preview beside the editor, at phone and desktop widths, in English and Urdu
-- click text in the preview to jump to its field
+- **Block pages (Pages → Block pages):** new pages at any free address, like `/eid-sale` or `/campaigns/eid-sale`, with their own SEO. They're in the sitemap and the SEO dashboard, have Urdu at `/ur/…`, and get a redirect when their address changes. Addresses that belong to the site's own sections are refused.
+- **13 blocks,** built from the site's own components:
+  - hero, text, image and text, cards
+  - services (picked, by category or most booked), questions, call to action
+  - promises strip, numbers, video, gallery, enquiry form, spacer
+  - Backgrounds and anchors on most blocks; new blocks start with sample content.
+- **Live preview beside every editor** (not just block pages): the real page with the draft, at desktop or phone width, in English or Urdu. It updates after each autosave and follows the block you open.
+- **Click-to-edit:** click any text in the preview to open its field, including inside collapsed blocks and lists, and in Urdu.
+- **Fixed: new items returned 404 after a deploy.** A setting in the site layout meant services, posts, help topics, areas and block pages published after a deploy only appeared after the next deploy. They now render on their first visit.
+- **Fixed:** an empty Urdu rich-text box could block saving or leave a stray draft.
+
+**Checked:** a 13-block page was built in the admin, previewed and published, and checked at desktop and phone width. Its address change added the redirect, and a production build served it (and 404s for unknown addresses) correctly.
 
 ### Phase 7: Hardening. Not started
 
@@ -277,7 +284,7 @@ All are listed with explanations in [.env.example](.env.example).
 4. Set `OPS_PASSCODE` and `SESSION_SECRET` to turn on the staff tools.
 5. Set `CRON_SECRET`. Point an external 5-minute pinger at `/api/cron/safety` and `/api/cron/cms-publish`. The weekly SEO check runs by itself (a Vercel cron in `vercel.json`), once `CRON_SECRET` is set.
 6. Optionally set `RESEND_API_KEY` and the `OPS_*` emails, the WhatsApp Cloud API settings, `STT_API_KEY` and `PAGESPEED_API_KEY`.
-7. Deploy (`npx vercel deploy --prod` from `website/`). Phases 3 to 5 of the CMS aren't live yet.
+7. Deploy (`npx vercel deploy --prod` from `website/`). Phases 3 to 6 of the CMS aren't live yet.
 8. In `/admin/translate`, run "Translate everything missing". Have someone review the Urdu, then switch on the Urdu site under Settings → Feature switches.
 
 ---
@@ -305,16 +312,15 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
 
 ## 9. What's left, in order
 
-1. **CMS phase 6:** the block page builder, live preview and click-to-edit.
-2. **CMS phase 7:** tests, the permission audit, backup export and import, MFA, the history comparison, performance checks and the team handbook.
-3. **Interface text still in code:**
+1. **CMS phase 7:** tests, the permission audit, backup export and import, MFA, the history comparison, performance checks and the team handbook.
+2. **Interface text still in code:**
    - inside the AI tools (Ghar Scan, Home Pulse, Glam Mirror, Shaadi planner, Concierge)
    - account screens, offer buttons and the partner flow
    - move it into "Buttons & labels", with Urdu
-4. **Owner setup:** section 7 (Supabase, settings, pingers, deploy).
-5. **Urdu content:** the AI translation pass, a human review, then switching on the Urdu site.
-6. **Founder confirmations:** section 8 (contact details, prices, policies, legal text).
-7. **Brand:** the open decisions in section 4.
+3. **Owner setup:** section 7 (Supabase, settings, pingers, deploy).
+4. **Urdu content:** the AI translation pass, a human review, then switching on the Urdu site.
+5. **Founder confirmations:** section 8 (contact details, prices, policies, legal text).
+6. **Brand:** the open decisions in section 4.
 
 ---
 
@@ -327,6 +333,8 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
 - **Booking arrival windows are fixed** in `lib/time.ts` and must not be made editable, because jobs store their labels. Urdu display labels come from `windowLabel()`.
 - **Admin pages start with `await pageUser()`** (from `lib/cms/auth`), which sends signed-out visitors to the sign-in page. Next renders a page alongside its layout, so the layout's own redirect isn't enough.
 - **Redirects:** the ones built into the code are in `lib/builtin-redirects.mjs`, used by `next.config.mjs` and shown in the CMS. Matching, tracing and the loop checks are pure functions in `lib/cms/redirect-match.ts`, shared by `proxy.ts`, the admin and the tests.
+- **Adding a block:** add it to `BLOCKS` in `lib/cms/types/block-page.ts` (fields, an icon from the list in `components/admin/fields.tsx`, starter content) and a `case` in `components/cms/blocks.tsx`. Give its main texts `data-cms="blocks.<n>.<field>"` for click-to-edit. `blocks.test.ts` checks every block's starter content.
+- **Never set `dynamicParams = false` in `app/[locale]/layout.tsx`.** Next applies it to every page below, and items published after a deploy would 404 until the next deploy.
 - **Share images:** `pageMetadata()` sets one on every page, because a page's own `openGraph` replaces the card it would inherit. A route with its own `opengraph-image` file must pass `card: true`, or the default card replaces it.
 - **Windows dev machine:**
   - Stop the dev server before `git mv` (it locks folders).
@@ -334,4 +342,4 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - Compiling hundreds of routes at once (e.g. "Audit all" on a fresh dev server) can briefly corrupt the dev server's own manifests, giving 500s with JSON errors. Restart it. The production build isn't affected.
   - In Git Bash, set `MSYS_NO_PATHCONV=1` when passing `/paths` to scripts.
 - **Shell heredocs strip backslashes and backticks** in code. Edit code with an editor or a script file, never a heredoc.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (114 tests), then `npx next build` (827 pages).
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (134 tests), then `npx next build` (827 pages, plus two per published block page).

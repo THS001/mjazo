@@ -1,6 +1,6 @@
 import "server-only"
 import { revalidateTag, updateTag } from "next/cache"
-import { resolveObject, zodObject, type Field, type Fields } from "./fields"
+import { blockFields, resolveObject, zodObject, type BlocksField, type Field, type Fields } from "./fields"
 import { allTypes, getType, type ContentType } from "./registry"
 import { fieldPermError, publishPermError, typeAccessError } from "./field-perms"
 import { CmsAuthError, type CmsUser } from "./auth"
@@ -149,18 +149,31 @@ function checkFieldPerms(t: ContentType<unknown, unknown>, user: CmsUser, before
 
 export function validate(t: ContentType<unknown, unknown>, data: Data) {
   const r = zodObject(t.fields).safeParse(data)
-  if (r.success) return
+  if (r.success) {
+    const problems = t.check?.(data) ?? []
+    if (problems.length) throw new ValidationError(problems)
+    return
+  }
+  // A readable place for each problem, e.g. "Blocks › Hero #2 › Title".
   const label = (path: (string | number)[]) => {
     let fields: Fields | undefined = t.fields
+    let blocks: BlocksField | null = null
+    let value: unknown = data
     const parts: string[] = []
     for (const p of path) {
+      value = (value as Record<string | number, unknown> | undefined)?.[p]
       if (typeof p === "number") {
-        parts.push(`#${p + 1}`)
+        if (blocks) {
+          fields = blockFields(blocks, value)
+          parts.push(`${fields ? blocks.blocks[(value as { _type: string })._type].label : "Block"} #${p + 1}`)
+          blocks = null
+        } else parts.push(`#${p + 1}`)
         continue
       }
       const fd: Field | undefined = fields?.[p]
       if (!fd) break
       parts.push(fd.label)
+      blocks = fd.kind === "blocks" ? fd : null
       fields = fd.kind === "group" ? fd.fields : fd.kind === "list" && fd.of.kind === "group" ? fd.of.fields : undefined
     }
     return parts.join(" › ") || "Entry"
@@ -168,13 +181,15 @@ export function validate(t: ContentType<unknown, unknown>, data: Data) {
   throw new ValidationError(r.error.issues.slice(0, 8).map((i) => `${label(i.path)}: ${i.message}`))
 }
 
-/** Slugs must be unique within a collection. */
+/** Slugs (and a type's `unique` value, like a block page's address) must be unique within a collection. */
 async function checkSlug(t: ContentType<unknown, unknown>, id: string, data: Data) {
-  if (t.kind !== "collection" || typeof data.slug !== "string") return
+  if (t.kind !== "collection") return
+  const keys = [...(typeof data.slug === "string" ? [{ key: "slug", label: "Slug" }] : []), ...(t.unique && typeof data[t.unique.key] === "string" ? [t.unique] : [])]
+  if (!keys.length) return
   const others = (await adminList(t.type)).filter((i) => i.id !== id && i.state !== "hidden")
   for (const o of others) {
     const loaded = await loadEntry(t.type, o.id)
-    if (loaded?.data.slug === data.slug) throw new ValidationError([`Slug “${data.slug}” is already used by “${o.title}”.`])
+    for (const k of keys) if (loaded?.data[k.key] === data[k.key]) throw new ValidationError([`${k.label} “${data[k.key]}” is already used by “${o.title}”.`])
   }
 }
 
@@ -296,9 +311,9 @@ export async function createEntry(user: CmsUser, type: string, data: Data) {
   checkTypeAccess(t, user)
   checkFieldPerms(t, user, undefined, data)
   validate(t, data)
-  const id = String(data.slug ?? "")
-  if (!id) throw new ValidationError(["Give it a slug first."])
-  if (defaultsOf(t).has(id) || (await getRow(type, id))) throw new ValidationError([`An item with the slug “${id}” already exists.`])
+  const id = t.newId ? t.newId(data) : String(data.slug ?? "")
+  if (!id) throw new ValidationError([t.newId ? `Give it ${t.unique ? `an ${t.unique.label.toLowerCase()}` : "a name"} first.` : "Give it a slug first."])
+  if (defaultsOf(t).has(id) || (await getRow(type, id))) throw new ValidationError([t.newId ? `An item like this already exists (${id}). Choose another ${t.unique?.label.toLowerCase() ?? "name"}.` : `An item with the slug “${id}” already exists.`])
   await checkSlug(t, id, data)
   const saved = await writeRow({ ...baseRow(type, id, null), draft: data, updated_by: user.name }, 0)
   await audit(user, "created", t, id, titleOf(t, data, id))

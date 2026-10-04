@@ -2,7 +2,7 @@ import "server-only"
 import { aiEnabled, MODELS } from "@/lib/ai/anthropic"
 import { structured } from "@/lib/ai/structured"
 import { ValidationError } from "./action"
-import { isLocalized, type Field, type Fields, type Localized, type RichDoc, type RichNode } from "./fields"
+import { blockFields, isLocalized, type Field, type Fields, type Localized, type RichDoc, type RichNode } from "./fields"
 
 // Machine translation of CMS content into Urdu. Every translated value is flagged `ai: true`, so the
 // admin shows "AI translation, needs review" until a person edits or approves it.
@@ -34,6 +34,7 @@ export function collect(fields: Fields, data: Data, mode: "missing" | "all"): It
       out.push({ path, text: en })
     } else if (fd.kind === "list" && Array.isArray(v)) v.forEach((x, i) => visit(fd.of, x, [...path, i]))
     else if (fd.kind === "group") Object.entries(fd.fields).forEach(([k, sub]) => visit(sub, (v as Data)[k], [...path, k]))
+    else if (fd.kind === "blocks" && Array.isArray(v)) v.forEach((x, i) => Object.entries(blockFields(fd, x) ?? {}).forEach(([k, sub]) => visit(sub, (x as Data)[k], [...path, i, k])))
   }
   Object.entries(fields).forEach(([k, fd]) => visit(fd, data[k], [k]))
   return out

@@ -3,15 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, CalendarClock, Check, ChevronRight, Eye, EyeOff, History, Languages, Loader2, RotateCcw, Send, Sparkles, X } from "lucide-react"
+import { AlertTriangle, CalendarClock, Check, ChevronRight, Eye, EyeOff, History, Languages, Loader2, PanelRight, RotateCcw, Send, Sparkles, X } from "lucide-react"
 import { approveAll, coverage } from "@/lib/cms/fields"
+import { findField } from "@/lib/cms/click-to-edit"
 import { translateEntryAction } from "@/app/(staff)/admin/translate-actions"
 import { cn } from "@/lib/utils"
 import type { TypeMeta } from "@/lib/cms/meta"
 import type { Loaded } from "@/lib/cms/write"
 import type { Data, VersionRow } from "@/lib/cms/store"
 import { archiveAction, createAction, discardAction, publishAction, restoreAction, saveDraftAction, scheduleAction, submitForReviewAction, unarchiveAction, unscheduleAction, versionsAction, type Result } from "@/app/(staff)/admin/actions"
-import { FieldsForm, emptyObject, type FormCtx } from "./fields"
+import { FieldsForm, emptyObject, revealField, type FormCtx } from "./fields"
+import { PreviewPanel, type Pick } from "./preview-panel"
 import { Btn, Card, Notice, StateBadge, ago, when } from "./ui"
 
 export type EditorPerms = { canEdit: boolean; canPublish: boolean; canPrices: boolean; canMedia: boolean; canSeo: boolean; seoOnly?: boolean; readOnlyReason: string | null }
@@ -38,6 +40,12 @@ export function Editor({ meta, entry, refs, perms, previewPath }: Props) {
   const [showUr, setShowUr] = useState(true)
   const [history, setHistory] = useState(false)
   const [scheduling, setScheduling] = useState(false)
+  // Live preview: open or closed (remembered on this computer), and a count of saves it should show.
+  const [live, setLive] = useState(false)
+  const [saves, setSaves] = useState(0)
+  const [hint, setHint] = useState("")
+  // A block page's preview follows its address once the new address is saved.
+  const [savedPath, setSavedPath] = useState(typeof entry?.data.path === "string" ? (entry.data.path as string) : null)
   const dirty = useRef(false)
   const version = useRef(entry?.version ?? 0)
   const queue = useRef<Promise<unknown>>(Promise.resolve())
@@ -45,6 +53,40 @@ export function Editor({ meta, entry, refs, perms, previewPath }: Props) {
   dataRef.current = data
   const readOnly = !perms.canEdit || Boolean(perms.readOnlyReason) || loaded?.state === "hidden"
   const ctx: FormCtx = { showUr, canPrices: perms.canPrices, canMedia: perms.canMedia, canSeo: perms.canSeo, seoOnly: perms.seoOnly, readOnly, refs, entryType: meta.type, path: previewPath, root: data }
+
+  useEffect(() => {
+    try {
+      setLive(localStorage.getItem("mjazo-cms-live-preview") === "1")
+    } catch {}
+  }, [])
+  const toggleLive = () =>
+    setLive((v) => {
+      try {
+        localStorage.setItem("mjazo-cms-live-preview", v ? "0" : "1")
+      } catch {}
+      return !v
+    })
+  useEffect(() => {
+    if (save.kind !== "saved") return
+    setSaves((n) => n + 1)
+    if (typeof dataRef.current.path === "string" && /^\/[a-z0-9]/.test(dataRef.current.path)) setSavedPath(dataRef.current.path)
+  }, [save])
+  useEffect(() => {
+    if (!hint) return
+    const t = setTimeout(() => setHint(""), 3500)
+    return () => clearTimeout(t)
+  }, [hint])
+
+  const showLive = live && !isNew && Boolean(previewPath)
+  const livePath = savedPath ?? previewPath
+
+  /** Click-to-edit: open the field holding the text that was clicked in the preview. */
+  const pick = (p: Pick) => {
+    const path = findField(meta.fields, dataRef.current, p, p.lang)
+    if (!path) return setHint("That text isn't in this entry: it may be the header, the footer, or text from another page or setting.")
+    if (p.lang === "ur" && !showUr) setShowUr(true)
+    revealField(path, p.lang)
+  }
 
   const apply = useCallback((r: Result<Loaded | null>) => {
     if (r.ok) {
@@ -178,6 +220,11 @@ export function Editor({ meta, entry, refs, perms, previewPath }: Props) {
             <Languages className="w-4 h-4" /> اردو
           </button>
           {!isNew && previewPath && (
+            <button onClick={toggleLive} className={cn("hidden h-10 items-center gap-1.5 rounded-full border px-3 text-sm xl:inline-flex", live ? "border-foreground bg-foreground text-background" : "border-zinc-300 bg-white hover:border-foreground")} title="Show the page beside the form, updating as you edit">
+              <PanelRight className="w-4 h-4" /> Live preview
+            </button>
+          )}
+          {!isNew && previewPath && (
             <Btn onClick={preview}>
               <Eye className="w-4 h-4" /> Preview
             </Btn>
@@ -228,7 +275,9 @@ export function Editor({ meta, entry, refs, perms, previewPath }: Props) {
         </Notice>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_260px]">
+      {/* With the live preview open: the form (and the side panel under it) on the left, the page on the right. */}
+      <div data-wide={showLive ? "" : undefined} className={cn("grid gap-6", showLive ? "xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : "lg:grid-cols-[1fr_260px]")}>
+        <div className={cn("min-w-0", !showLive && "contents")}>
         <Card className="p-5 sm:p-6">
           {meta.description && <p className="mb-5 text-sm text-zinc-500">{meta.description}</p>}
           <FieldsForm fields={meta.fields} value={data} onChange={(v) => change(v as Data)} ctx={ctx} />
@@ -236,7 +285,7 @@ export function Editor({ meta, entry, refs, perms, previewPath }: Props) {
 
         {/* Side panel */}
         {!isNew && (
-          <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+          <div className={cn(showLive ? "mt-6 grid gap-4 sm:grid-cols-2" : "space-y-4 lg:sticky lg:top-6 lg:self-start")}>
             <Card className="p-4 text-sm">
               <p className="font-medium">Status</p>
               <dl className="mt-2 space-y-1.5 text-xs text-zinc-500">
@@ -346,6 +395,14 @@ export function Editor({ meta, entry, refs, perms, previewPath }: Props) {
               Changes save as a draft automatically. The site only changes when you press <b>Publish</b>
               {perms.canPublish ? "" : " (an Editor or Admin does this for you)"}. Use <b>Preview</b> to see the draft on the real page first.
             </Card>
+          </div>
+        )}
+        </div>
+
+        {showLive && livePath && (
+          <div className="relative hidden xl:sticky xl:top-4 xl:block xl:h-[calc(100vh-2rem)] xl:self-start">
+            <PreviewPanel path={livePath} saved={saves} onPick={pick} onClose={toggleLive} />
+            {hint && <div className="absolute inset-x-6 bottom-12 z-20 rounded-xl bg-foreground px-4 py-2.5 text-center text-xs text-background shadow-lg">{hint}</div>}
           </div>
         )}
       </div>

@@ -1,7 +1,9 @@
 import "server-only"
 import type { HelpTopic, LegalDoc, Post } from "@/lib/content"
+import type { BlockPage } from "../types/block-page"
 import { getCatalog, getContent, getPage } from "../read"
 import { getType } from "../registry"
+import { pathToId } from "../block-paths"
 import type { Locale } from "../fields"
 
 // Every public page the SEO dashboard audits (in the order its sections show), with its focus
@@ -37,11 +39,12 @@ const STATIC: [string, string | null, string?][] = [
 ]
 
 export async function sitePages(locale: Locale = "en"): Promise<SitePage[]> {
-  const [{ worlds, visibleCategories, allServices, areas }, helpTopics, posts, legal] = await Promise.all([
+  const [{ worlds, visibleCategories, allServices, areas }, helpTopics, posts, legal, blockPages] = await Promise.all([
     getCatalog(locale),
     getContent<HelpTopic>("help-topic", locale),
     getContent<Post>("post", locale),
     getContent<LegalDoc>("legal", locale),
+    getContent<BlockPage>("block-page", locale),
   ])
   const statics = await Promise.all(
     STATIC.map(async ([p, id, name]): Promise<SitePage> => {
@@ -62,6 +65,7 @@ export async function sitePages(locale: Locale = "en"): Promise<SitePage[]> {
     ...posts.map((p) => ({ path: `/blog/${p.slug}`, label: p.title, group: "Blog", keyword: p.seo?.keyword ?? "", edit: `/admin/c/post/${p.slug}`, noindex: Boolean(p.seo?.noindex) })),
     ...helpTopics.map((t) => ({ path: `/help/${t.slug}`, label: t.title, group: "Help", keyword: t.seo?.keyword ?? "", edit: `/admin/c/help-topic/${t.slug}`, noindex: Boolean(t.seo?.noindex) })),
     ...legal.map((d) => ({ path: `/${d.slug}`, label: d.title, group: "Legal", keyword: d.seo?.keyword ?? "", edit: `/admin/c/legal/${d.slug}`, noindex: Boolean(d.seo?.noindex) })),
+    ...blockPages.map((b) => ({ path: b.path, label: b.title, group: "Block pages", keyword: b.seo?.keyword ?? "", edit: `/admin/c/block-page/${pathToId(b.path)}`, noindex: Boolean(b.seo?.noindex) })),
   ]
 }
 

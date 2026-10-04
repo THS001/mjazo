@@ -1,6 +1,6 @@
 # Mjazo CMS: build status
 
-_Last updated 5 October 2026. Code: https://github.com/THS001/mjazo (branch `main`)._
+_Last updated 5 October 2026 (phase 6). Code: https://github.com/THS001/mjazo (branch `main`)._
 
 The CMS at `/admin` lets the team and the client edit everything on mjazo.vercel.app without code
 changes: text, prices, images, menus, SEO, and the Urdu site. It is built into the Next.js site and
@@ -14,7 +14,7 @@ looking the same while making more of it editable.
 | 3. Media | Media library, image slots, hero video, 3D models | Done, not deployed |
 | 4. Urdu | `/ur` site, right-to-left layout, translation tools | Done, not deployed |
 | 5. SEO | SEO fields, metadata, redirects, SEO score, dashboard | Done, not deployed |
-| 6. Page builder | New pages from blocks, live preview, click-to-edit | Not started |
+| 6. Page builder | New pages from blocks, live preview, click-to-edit | Done, not deployed |
 | 7. Hardening | Tests, permission audit, backup, performance, team handbook | Not started |
 
 Until Supabase is connected, nothing saved in `/admin` is kept on the live site: the site shows
@@ -37,7 +37,7 @@ These need the owner's accounts and keys. The code is ready for all of them.
 4. **Scheduled publishing and the weekly SEO check:** set `CRON_SECRET`. Point a 5-minute pinger at `/api/cron/cms-publish`, using the same secret as the Safety Guardian pinger. The weekly SEO check needs no pinger: `vercel.json` schedules it, and Vercel sends the secret.
 5. **Optional:** set `PAGESPEED_API_KEY` for more PageSpeed audits per day.
 6. **Deploy** with `npx vercel deploy --prod` from `website/`, after checking the right Vercel account with `npx vercel whoami`.
-   - Phases 3 to 5 are not live yet.
+   - Phases 3 to 6 are not live yet.
    - Claude's production deploys are blocked by its safety system, so the owner deploys.
 
 `ANTHROPIC_API_KEY` is already set on Vercel (production). It powers the AI translation, alt text
@@ -225,18 +225,46 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 
 ---
 
-## Phase 6: Block page builder and click-to-edit. Not started
+## Phase 6: Block page builder and click-to-edit. Done, not deployed
 
-1. **A new field kind for blocks:** a list where each item picks a block type and has that type's fields. It gets validation, the admin editor (add, reorder, duplicate, remove) and translation support.
-2. **"Block page" collection:** new pages at any address, each with its own SEO group, served by the `[...slug]` route that currently shows the 404 page. Published pages go in the sitemap.
-3. **Blocks**, built from existing site components:
-   - hero, rich text, image and text, card grid
-   - a services rail (chosen from the catalogue), FAQ, a call-to-action band
-   - the promises strip, stats, video, gallery, an enquiry form, a spacer
-4. **Live preview in the editor:**
-   - the real page beside the form, refreshing after each autosave
-   - phone and desktop widths, English and Urdu
-5. **Click-to-edit:** clicking text in the preview jumps to its field in the form. It matches on the text itself, plus `data-cms` markers on blocks.
+**What it does**
+
+- **Block pages** (Pages → Block pages, `lib/cms/types/block-page.ts`): new pages at any free address, such as `/eid-sale` or `/campaigns/eid-sale`. Each has a name, a summary, its blocks and its own SEO group.
+  - **Addresses:** one to four parts of lowercase letters, numbers and hyphens. The first part can't be one of the site's sections (`/services`, `/blog`…), a staff app, the API or a language prefix (`lib/cms/block-paths.ts`; a test keeps that list in step with `app/[locale]`). Addresses must be unique.
+  - **Changing a published page's address** adds a redirect from the old one, in both languages, like other items.
+  - **Served** by the `[...slug]` route, with metadata from the page's SEO group (its summary or the hero's intro and image when empty). Pages are listed in the sitemap and on the SEO dashboard (section "Block pages"). The Urdu version is at `/ur/…`.
+- **A new field kind, `blocks`** (`lib/cms/fields.ts`): a list whose items are each one kind of block, stored as `{ _type, _key, …fields }`. Every layer handles it: validation (a discriminated union, with readable errors like "Blocks › Cards #2 › Columns"), the stored and site shapes, media lookup, Urdu coverage and the AI translation, the role rules (the SEO role can't change blocks), reference pickers and the AI SEO suggestions. A block kind that no longer exists is skipped on the site.
+- **13 blocks**, built from the site's own components (`components/cms/blocks.tsx`, `blocks-client.tsx`):
+  - Hero (`PageHero`), Text (rich text), Image and text, Cards (icon grid, links optional)
+  - Services (picked, a whole category, or most booked; real bookable `ServiceCard`s), Questions (`FAQ`, with FAQ schema), Call to action
+  - Promises strip, Numbers (tokens like `{{catalog.areaCount}}` work), Video (from the media library; silent loop or with controls), Gallery
+  - Enquiry form (sent to the team like the site's other forms, as kind "page", with the page and form name; can ask for an area and a date), Spacer
+  - Most blocks take a background (paper, ink, saffron, cream) and an anchor (`#enquire`) that buttons can link to. `*Asterisks*` give the italic accent.
+  - Each new block starts with sample content, so the preview shows it straight away. Missing images and videos show a placeholder in preview and nothing on the live site.
+- **The blocks editor** (`components/admin/fields.tsx`): add from a picker (with a description of each block), insert between blocks, drag to reorder, duplicate, remove, collapse; each block's header shows its first line of text.
+- **Live preview beside every editor** (`components/admin/preview-panel.tsx`), not just block pages. "Live preview" in the editor's header (wide screens) puts the real page next to the form, in draft mode:
+  - desktop (scaled to fit) or phone width, English or Urdu
+  - it refreshes after every autosave without losing its scroll position, and scrolls to a block when you open it in the form
+  - reload and open-in-a-new-tab buttons; the choice to show it is remembered on that computer
+- **Click-to-edit** (`lib/cms/click-to-edit.ts`, `components/cms/preview-bridge.tsx`): with "Click to edit" on, clicking any text in the preview opens its field. Collapsed blocks and list items expand, the input is focused (the Urdu one in the Urdu preview) and briefly highlighted. Block pages mark every block and their main texts with `data-cms`; designed pages are matched on the text itself, allowing for `{{tokens}}` and `*accents*`. Text from elsewhere (header, footer) shows a short note instead. Turn it off to click links normally.
+
+**Fixes made along the way**
+
+- **New items 404'd after a deploy.** `app/[locale]/layout.tsx` had `dynamicParams = false`, and Next applies it to every page below, so any service, post, help topic, area or block page published after a deploy returned 404 until the next deploy. The build manifest showed `fallback: false` on those routes; it now shows `null` (rendered on first visit, then cached). The proxy only ever sends `en` or `ur`, so nothing relied on it.
+- **Opening a rich-text field could change the entry.** An empty Urdu rich-text editor could report `{ type: "doc" }` (no content list). That made the entry fail validation ("Required"), or could leave a spurious draft. The editor now reports empty documents in one shape and ignores updates that change nothing, and the read side treats a document without content as empty.
+- **Enquiry forms** take a `context` (sent with the details) and a new kind, `page`, which the submissions schema accepts.
+- Two new labels in Buttons & labels, with Urdu: "Preferred date" and "Your area".
+
+**Verified**
+
+- A page was built in the admin from all 13 blocks, previewed live, published, and loaded at desktop and 375px phone width with no sideways scrolling. Its address was then changed, adding the redirect automatically.
+- Click-to-edit found a card title in a nested list, a letter-by-letter animated headline, and (from the Urdu preview) the Urdu text box. Edits showed in the preview about 4 seconds after typing.
+- A taken address (`/services/eid`) was refused with a clear message.
+- In a production build, a built page answered 200, its old address 308, and never-built addresses 404.
+
+**Left**
+
+- **Not tried with real media:** the gallery, video and image blocks were only checked with their placeholders; nothing was uploaded for this test.
 
 ---
 
@@ -262,7 +290,7 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 ## Checks and tests
 
 - `npx tsc --noEmit`: clean.
-- `npm test`: 114 tests pass. They cover:
+- `npm test`: 134 tests pass. They cover:
   - every content type's built-in content validating against its fields, and round-tripping unchanged
   - shipped Urdu
   - media type and content checks, size limits and image lookup
@@ -270,8 +298,10 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
   - the SEO score, including animated headlines
   - redirect matching, tracing, loop and clash checks (`redirect-match.test.ts`), plus saving, editing and slug-change redirects (`redirects.test.ts`)
   - what each role may change and publish, including the SEO role (`field-perms.test.ts`)
+  - the blocks field through every layer, block page addresses, and every block's starting content (`blocks.test.ts`)
+  - click-to-edit matching (`click-to-edit.test.ts`)
   - catalogue helpers and roles
-- `npx next build`: passes, 827 pages (5 October 2026, end of phase 5).
+- `npx next build`: passes (5 October 2026, end of phase 6). 827 pages, plus two per published block page (English and Urdu).
 
 ## Commits
 
@@ -285,3 +315,4 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 | Status | This document, `.env.example` and cleanup |
 | Progress | `PROGRESS.md` for the whole project |
 | Phase 5 | SEO dashboard, redirects screen, editor SEO previews, weekly check, tests |
+| Phase 6 | Block pages, 13 blocks, live preview, click-to-edit; new items no longer 404 after a deploy |

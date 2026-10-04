@@ -36,7 +36,8 @@ describe("content types", () => {
   for (const t of types) {
     it(`${t.type}: built-in content validates and every field has a default`, () => {
       const items = t.kind === "collection" ? (t.defaults() as unknown[]) : [t.defaults()]
-      expect(items.length).toBeGreaterThan(0)
+      // Types whose items are only made in the admin (block pages) ship none.
+      if (!t.newId) expect(items.length).toBeGreaterThan(0)
       for (const item of items) {
         const cms = (t.toCms ? t.toCms(item) : item) as Record<string, unknown>
         const parsed = zodObject(t.fields).safeParse(localizeObject(t.fields, cms))

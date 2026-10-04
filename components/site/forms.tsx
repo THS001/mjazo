@@ -59,7 +59,7 @@ export function SuccessCard({ title, body, children }: { title: string; body: Re
 
 type Extra = { name: string; label: string; type: "text" | "date" | "number" | "select" | "chips" | "textarea"; options?: string[]; required?: boolean; multi?: boolean; placeholder?: string }
 
-/** Generic enquiry form (weddings, business, contact, gift cards, Plus waitlist). */
+/** Generic enquiry form (weddings, business, contact, gift cards, Plus waitlist, block pages). */
 export function EnquiryForm({
   kind,
   extras = [],
@@ -67,13 +67,16 @@ export function EnquiryForm({
   whatsappText,
   success,
   dark,
+  context,
 }: {
-  kind: "wedding" | "business" | "contact" | "gift" | "plus"
+  kind: "wedding" | "business" | "contact" | "gift" | "plus" | "page"
   extras?: Extra[]
   submitLabel?: string
   whatsappText?: string
   success?: string
   dark?: boolean
+  /** Sent with every enquiry (e.g. which page and form it came from). */
+  context?: Record<string, string>
 }) {
   const { whatsappLink } = useSite()
   const t = useT()
@@ -99,7 +102,7 @@ export function EnquiryForm({
     setState("loading")
     setServerError("")
     try {
-      const details = Object.fromEntries(extras.map((x) => [x.name, values[x.name] ?? ""]))
+      const details = { ...context, ...Object.fromEntries(extras.map((x) => [x.name, values[x.name] ?? ""])) }
       await submit("enquiry", { kind, name: str("name"), phone: normalisePhone(str("phone")), email: str("email"), message: str("message"), details })
       track(kind === "wedding" || kind === "business" ? "event_enquiry" : `${kind}_enquiry`, { kind })
       setState("done")
