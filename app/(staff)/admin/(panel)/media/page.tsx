@@ -1,4 +1,4 @@
-import { getCmsUser } from "@/lib/cms/auth"
+import { pageUser } from "@/lib/cms/auth"
 import { can } from "@/lib/cms/roles"
 import { writable } from "@/lib/cms/store"
 import { MediaLibrary } from "@/components/admin/media"
@@ -6,7 +6,7 @@ import { MediaLibrary } from "@/components/admin/media"
 export const metadata = { title: "Media" }
 
 export default async function MediaPage() {
-  const user = (await getCmsUser())!
+  const user = await pageUser()
   const canEdit = can(user.role, "media") && writable()
   return (
     <div>

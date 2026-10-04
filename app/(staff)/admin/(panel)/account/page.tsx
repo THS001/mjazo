@@ -1,4 +1,4 @@
-import { authMode, getCmsUser } from "@/lib/cms/auth"
+import { authMode, pageUser } from "@/lib/cms/auth"
 import { ROLE_INFO } from "@/lib/cms/roles"
 import { Card } from "@/components/admin/ui"
 import { PasswordForm } from "@/components/admin/account"
@@ -6,7 +6,7 @@ import { PasswordForm } from "@/components/admin/account"
 export const metadata = { title: "Your account" }
 
 export default async function AccountPage() {
-  const user = (await getCmsUser())!
+  const user = await pageUser()
   return (
     <div className="max-w-xl space-y-6">
       <div>

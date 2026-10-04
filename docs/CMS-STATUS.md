@@ -1,6 +1,6 @@
 # Mjazo CMS: build status
 
-_Last updated 4 October 2026. Code: https://github.com/THS001/mjazo (branch `main`)._
+_Last updated 5 October 2026. Code: https://github.com/THS001/mjazo (branch `main`)._
 
 The CMS at `/admin` lets the team and the client edit everything on mjazo.vercel.app without code
 changes: text, prices, images, menus, SEO, and the Urdu site. It is built into the Next.js site and
@@ -13,7 +13,7 @@ looking the same while making more of it editable.
 | 2. Editors | Every page, page templates, menus, blog, help, legal | Done (deploy not confirmed) |
 | 3. Media | Media library, image slots, hero video, 3D models | Done, not deployed |
 | 4. Urdu | `/ur` site, right-to-left layout, translation tools | Done, not deployed |
-| 5. SEO | SEO fields, metadata, redirects, SEO score, dashboard | About 70% done |
+| 5. SEO | SEO fields, metadata, redirects, SEO score, dashboard | Done, not deployed |
 | 6. Page builder | New pages from blocks, live preview, click-to-edit | Not started |
 | 7. Hardening | Tests, permission audit, backup, performance, team handbook | Not started |
 
@@ -34,7 +34,7 @@ These need the owner's accounts and keys. The code is ready for all of them.
    - `0004_cms.sql` creates the CMS tables (entries, versions, users, media, redirects, SEO reports, audit log).
    - It also creates the public `media` storage bucket.
 3. **Set `CMS_OWNER_EMAIL`**. That person signs in first, then invites everyone else from `/admin/people`.
-4. **Scheduled publishing:** set `CRON_SECRET`. Point a 5-minute pinger at `/api/cron/cms-publish`, using the same secret as the Safety Guardian pinger.
+4. **Scheduled publishing and the weekly SEO check:** set `CRON_SECRET`. Point a 5-minute pinger at `/api/cron/cms-publish`, using the same secret as the Safety Guardian pinger. The weekly SEO check needs no pinger: `vercel.json` schedules it, and Vercel sends the secret.
 5. **Optional:** set `PAGESPEED_API_KEY` for more PageSpeed audits per day.
 6. **Deploy** with `npx vercel deploy --prod` from `website/`, after checking the right Vercel account with `npx vercel whoami`.
    - Phases 3 to 5 are not live yet.
@@ -158,9 +158,9 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 
 ---
 
-## Phase 5: SEO. In progress (about 70%)
+## Phase 5: SEO. Done, not deployed
 
-**Done (in the code, committed)**
+**What it does**
 
 - **SEO group** on every page and every world, category, service, area, post, help topic and legal page: title, description, focus keyword, share image, "hide from search engines" and canonical address. Today's titles and descriptions are the starting values, so they are editable and translatable.
 - **Settings → SEO settings** (`lib/cms/types/seo.ts`):
@@ -171,42 +171,57 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 - **One metadata helper for every route** (`lib/cms/seo/metadata.ts`):
   - canonical address in the page's language
   - hreflang once the Urdu site is on
-  - share images, and noindex rules
+  - noindex rules
+  - share images: the SEO image, else the page's own image, else the default from SEO settings, else the generated Mjazo card. Service pages keep their own generated card (`card: true`). Before this fix, pages without an image shared no picture at all, because a page's own `openGraph` replaces the card it would inherit.
 - **`robots.txt` and the sitemap:** both follow the SEO settings, and hidden pages are left out.
-- **SEO role:** can edit and publish SEO fields only; the server rejects any other change from it.
-- **Redirects** (`lib/cms/redirects.ts`, `lib/cms/redirect-rules.ts`):
-  - applied in `proxy.ts` for both languages
-  - `/old/*` wildcards, and a check against loops and staff paths
-  - **automatic redirect** when a published item's address changes
-- **SEO score (0–100)** (`lib/cms/seo/score.ts`, with tests). 16 weighted checks on the real page HTML:
+- **SEO role:** can edit and publish SEO fields only; the server rejects any other change from it. The rules live in `lib/cms/field-perms.ts` and are tested role by role. Authors see SEO fields locked instead of getting an error on save.
+- **Redirects** (`lib/cms/redirect-match.ts` for matching and checks, `lib/cms/redirects.ts` for saving, `lib/cms/redirect-rules.ts` for reading):
+  - applied in `proxy.ts` for both languages, keeping the query string
+  - `/old/*` wildcards; refuses loops (including through wildcards and the built-in redirects), staff paths, the home page and clashes with the built-in redirects
+  - **automatic redirect** when a published item's address changes. Older redirects are pointed straight at the newest address (no chains). Changing an address back removes the redirect that would now loop.
+  - the redirects built into the code (`lib/builtin-redirects.mjs`, used by `next.config.mjs`) show read-only in the admin
+- **SEO score (0–100)** (`lib/cms/seo/score.ts`, with tests). Up to 16 weighted checks on the real page HTML (the keyword checks need a focus keyword):
   - title and description length
   - focus keyword in the title, H1, description, opening text and address
   - one H1 and heading order
   - internal links, image alt text and amount of content
   - readability (Flesch, English only)
   - share image, and whether the page can be indexed
-- **Server actions** (`app/(staff)/admin/seo-actions.ts`), plus report storage (`lib/cms/seo/reports.ts`) and the list of auditable pages (`lib/cms/seo/pages.ts`):
-  - audit a page, and run Google PageSpeed
-  - check suspected broken links
-  - AI title, description and keyword suggestions
-  - manage redirects
+  - Headlines animated letter by letter (`<span>` per letter) are read as whole words, as a browser shows them.
+- **SEO dashboard at `/admin/seo`** (`components/admin/seo.tsx`):
+  - all 383 pages: the 24 designed pages, 8 worlds, 22 categories, 132 services, 8 areas, 176 area pages (area × category), the blog, help and legal pages
+  - each page's score, its top problems, when it was audited, and its full report (every check, what Google reads, PageSpeed)
+  - "Audit all", or just the filtered pages, sent in batches with progress and a Stop button
+  - filters by section, problems and audit state; search; sort by score or audit age; English and Urdu
+  - Google PageSpeed per page, for phone or desktop. It tests the public address, takes up to a minute, and the result is kept with the report.
+  - site-wide panels: duplicate titles and descriptions, broken internal links (a "Check links" button tests unknown addresses and flags redirecting links), orphan pages (once every page has a report), and Urdu coverage with a link to the translation tools
+- **Redirects at `/admin/redirects`** (`components/admin/redirects.tsx`):
+  - list, search, add, edit (including the old address) and delete
+  - checks as you type: loops, clashes, a live page the redirect would hide, a destination that redirects again (with "Use … instead"), or an unknown destination
+  - permanent (308) or temporary (307), a note, visit counts, who added it and when
+  - a "where does this address go?" tester that shows every hop and whether the final page loads
+  - the built-in redirects, read-only
+- **SEO group in every editor** (`components/admin/seo-group.tsx`):
+  - Google result and WhatsApp/social card previews, in English and Urdu. Empty fields show what the live page uses today.
+  - live checks with the same thresholds as the score: title and description length, keyword in title and description, share image (warns about WebP and AVIF), hidden from search
+  - "Suggest with AI" for the title, description and keyword, shortened to fit each field, with "Use" per field or "Use all three"
+  - the page's latest score, linking to its report in the dashboard
+- **Weekly SEO check** (`app/api/cron/seo-weekly`, scheduled in `vercel.json` for Mondays at 07:00 Karachi time). It re-audits every English page, then runs PageSpeed (phone) on the home page, the services menu, the 8 worlds, offers, Plus and Karachi. Vercel sends `CRON_SECRET` with the request; without it the route refuses to run.
+- **Sidebar:** SEO and Redirects under Tools.
+- **Server actions** (`app/(staff)/admin/seo-actions.ts`), with the audit code shared with the weekly check (`lib/cms/seo/audit.ts`), report storage (`lib/cms/seo/reports.ts`) and the list of auditable pages (`lib/cms/seo/pages.ts`).
 
-**Left in phase 5**
+**Verified**
 
-1. **SEO dashboard at `/admin/seo`:**
-   - every page with its score and top issues, plus "Audit all" with progress
-   - PageSpeed per page, and filters by section and language
-   - site-wide panels: duplicate titles and descriptions, broken internal links, orphan pages, and a link to the Urdu coverage
-2. **Redirects screen at `/admin/redirects`:** list, add, edit and delete, a "where does this address go?" tester, and hit counts.
-3. **SEO group in the editor:**
-   - a live Google result preview and a WhatsApp/social card preview
-   - live length and keyword checks
-   - a "Suggest with AI" button
-   - a link to the page's latest SEO report
-4. **Sidebar links** for SEO and Redirects.
-5. **Tests** for redirect matching and loop detection, and for the SEO-role permission rules.
-6. **Checks:** run in the browser, do a production build, commit and push.
-7. **Optional:** a weekly PageSpeed run on the main pages.
+- **The dashboard, locally:** 379 of 383 pages audited, average score 86; 338 good, 42 needing work, none poor. The 4 others hit dev-server errors during the run and load fine on their own.
+- **Site-wide panels:** no duplicate titles or descriptions and no broken internal links. Nine designed pages are orphans, linked only from the menu and footer: Plus, How it works, Business, Gift cards, Refer, Get the app, About, Contact and Report a problem. Urdu coverage reads 15% (284 of 1,929 texts).
+- **Redirects, end to end:** English, Urdu (`/ur/old` → `/ur/new`), query strings kept and visits counted. Also checked: the chain warning and its shortcut, refusal of a loop, editing the old address (the visit count is kept), delete, and the tester.
+- **Editor SEO group** on a service, in English and Urdu: the live title and description load, the checks update as you type, the AI button explains the missing key locally, and the score links through.
+- **Local data:** reports and redirects are written to a temporary file first, then swapped in, so a read never sees half a file.
+
+**Left**
+
+- **Untested against Supabase and the live site:** PageSpeed (it needs the public address) and AI suggestions (they need the API key in the admin's environment). Both run once phases 3 to 5 are deployed with Supabase connected.
+- **The orphan pages above** need links from related pages' content. That's a content task, not code.
 
 ---
 
@@ -228,16 +243,16 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 ## Phase 7: Hardening. Not started
 
 1. **Tests:**
-   - the full permission matrix (every role against every action)
+   - the full permission matrix (every role against every action). Which fields each role may change is already tested (`lib/cms/field-perms.test.ts`).
    - export and import round trip, scheduled publishing
-   - slug-change redirects
    - the read-layer fallbacks for every type
+   - (Slug-change redirects were tested in phase 5.)
 2. **Permission audit:** every server action and route handler re-checked, including media upload, preview, cron and the SEO actions.
 3. **Backup:** a full JSON export of all content, media records and redirects, and an import (Owner only) recorded in history.
 4. **Two-step sign-in (MFA)** for Owners and Admins, carried over from phase 1.
 5. **History diff view**, carried over from phase 2.
 6. **Performance:**
-   - check build time with both languages (826 pages now)
+   - check build time with both languages (827 pages now)
    - check the page size the catalogue adds to each page
    - check cache tags refresh only what changed
 7. **Team handbook:** a short PDF in the Mjazo brand style on how to edit, publish, translate, add media, read the SEO score and manage redirects.
@@ -247,14 +262,16 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 ## Checks and tests
 
 - `npx tsc --noEmit`: clean.
-- `npm test`: 81 tests pass. They cover:
+- `npm test`: 114 tests pass. They cover:
   - every content type's built-in content validating against its fields, and round-tripping unchanged
   - shipped Urdu
   - media type and content checks, size limits and image lookup
   - translation plumbing
-  - the SEO score
+  - the SEO score, including animated headlines
+  - redirect matching, tracing, loop and clash checks (`redirect-match.test.ts`), plus saving, editing and slug-change redirects (`redirects.test.ts`)
+  - what each role may change and publish, including the SEO role (`field-perms.test.ts`)
   - catalogue helpers and roles
-- `npx next build`: passes (last run at the end of phase 4).
+- `npx next build`: passes, 827 pages (5 October 2026, end of phase 5).
 
 ## Commits
 
@@ -266,3 +283,5 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 | Phase 4 | Urdu site, right-to-left layout, translation tools |
 | Phase 5 (in progress) | SEO fields, metadata, redirects, SEO score |
 | Status | This document, `.env.example` and cleanup |
+| Progress | `PROGRESS.md` for the whole project |
+| Phase 5 | SEO dashboard, redirects screen, editor SEO previews, weekly check, tests |

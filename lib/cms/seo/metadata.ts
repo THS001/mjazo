@@ -24,9 +24,18 @@ type Input = {
   noindex?: boolean | "follow"
   /** Use the title as is (no "· Mjazo" ending), e.g. on the home page. */
   absolute?: boolean
+  /** The route has its own generated share card (an opengraph-image file), shown when no image is set. */
+  card?: boolean
 }
 
 export const fillPattern = (s: string | undefined, vars?: Record<string, string | number>) => (s ? renderTokens(s, vars).replace(/\s+/g, " ").trim() : "")
+
+/**
+ * The generated Mjazo card (app/opengraph-image.tsx). A page's own openGraph replaces the one it
+ * would inherit, so pages without a share image name the card explicitly. Routes with a card of
+ * their own (`card`) set no image instead, because an image set here would replace their card.
+ */
+const DEFAULT_CARD = { url: "/opengraph-image", w: 1200, h: 630, alt: "" }
 
 export async function pageMetadata(o: Input): Promise<Metadata> {
   const locale = requestLocale()
@@ -35,7 +44,7 @@ export async function pageMetadata(o: Input): Promise<Metadata> {
   const description = (fillPattern(o.seo?.description, o.vars) || fillPattern(o.description, o.vars) || seoSettings.defaultDescription).slice(0, 300)
   const url = localePath(o.path, locale)
   const canonical = o.seo?.canonical?.trim() || url
-  const img = (o.seo?.image?.url ? o.seo.image : null) ?? o.image ?? seoSettings.defaultImage ?? null
+  const img = (o.card ? [o.seo?.image, o.image] : [o.seo?.image, o.image, seoSettings.defaultImage, DEFAULT_CARD]).find((x) => x?.url)
   const images = img?.url ? [{ url: img.url, ...(img.w ? { width: img.w } : {}), ...(img.h ? { height: img.h } : {}), alt: img.alt || title }] : undefined
   const noindex = Boolean(o.seo?.noindex || o.noindex || !seoSettings.indexing || (locale === "ur" && !flags.URDU_SITE))
   return {

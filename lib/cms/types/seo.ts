@@ -14,7 +14,7 @@ export const seoGroup = (help = "How this page appears in Google and when shared
       title: f.text("Search title", { max: 60, perm: "seo", help: "Shown in Google and the browser tab (30–60 characters). “· Mjazo” is added for you." }),
       description: f.textarea("Search description", { max: 160, perm: "seo", help: "The grey text under the title in Google (70–160 characters)." }),
       keyword: f.text("Focus keyword", { perm: "seo", help: "The phrase this page should rank for, e.g. “waxing at home Karachi”. The SEO score checks it." }),
-      image: f.image("Share image", { perm: "seo", help: "Shown when the page is shared on WhatsApp or social media. 1200 × 630 works best." }),
+      image: f.image("Share image", { perm: "seo", help: "Shown when the page is shared on WhatsApp or social media. A JPG or PNG of 1200 × 630 works best." }),
       noindex: f.boolean("Hide from search engines", { perm: "seo" }),
       canonical: f.code("Canonical address", { perm: "seo", help: "Only if this page copies another one: its path (/services) or full address." }),
     },

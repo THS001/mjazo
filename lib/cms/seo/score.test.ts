@@ -42,6 +42,20 @@ describe("SEO score", () => {
     expect(a.score).toBeLessThan(60)
   })
 
+  it("reads a headline animated letter by letter as whole words", () => {
+    const letters = (w: string) => `<span aria-hidden="true" class="inline-block">${[...w].map((c) => `<span class="inline-block" style="opacity:0">${c}</span>`).join("")}</span>`
+    const h1 = `<span aria-label="Everything your home needs.">${letters("Everything ")}${letters("your ")}${letters("home ")}${letters("needs.")}</span>`
+    const a = analyse(page({ h1, title: "Everything your home needs · Mjazo" }), { path: "/x", keyword: "home needs" })
+    expect(a.stats.h1).toEqual(["Everything your home needs."])
+    expect(a.checks.find((c) => c.id === "keyword-h1")?.status).toBe("pass")
+  })
+
+  it("keeps words apart across block tags", () => {
+    const a = analyse(page({ body: "Clean homes<br>Happy families</p><p>Every day" }), { path: "/x" })
+    expect(a.stats.words).toBeGreaterThan(300)
+    expect(analyse(page({ h1: "Deep<div>cleaning</div>" }), { path: "/x" }).stats.h1).toEqual(["Deep cleaning"])
+  })
+
   it("asks for a focus keyword when none is set", () => {
     const a = analyse(page({}), { path: "/x" })
     expect(a.checks.find((c) => c.id === "keyword-set")?.status).toBe("fail")

@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 4 October 2026._
+_Last updated 5 October 2026._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -26,7 +26,7 @@ accounts, and what's left.
 | CMS phase 2: every page editable | Done; the deploy ran but I couldn't confirm it went live |
 | CMS phase 3: media library | Done, not deployed |
 | CMS phase 4: Urdu site | Done, not deployed |
-| CMS phase 5: SEO | About 70% done |
+| CMS phase 5: SEO | Done, not deployed |
 | CMS phase 6: page builder and live preview | Not started |
 | CMS phase 7: hardening and team handbook | Not started |
 | Supabase (database and file storage) | **Not connected yet.** Needed before anything saved in `/admin` is kept, and for cross-page flows on the live site |
@@ -45,6 +45,7 @@ accounts, and what's left.
 | 2 Oct 2026 | **AI roadmap phases 1 to 3** built and deployed. The Anthropic key was added to Vercel and the AI features were verified on the live site |
 | 3 Oct 2026 | CMS plan approved (7 phases). **CMS phase 1 deployed.** Phase 2 started |
 | 4 Oct 2026 | CMS phase 2 finished, phases 3 and 4 done, phase 5 well under way. A git repository was created and the code pushed to GitHub |
+| 5 Oct 2026 | **CMS phase 5 finished:** SEO dashboard, redirects screen, SEO previews in the editor, weekly SEO check, plus tests |
 
 ---
 
@@ -183,25 +184,28 @@ The team and the client can edit everything on the site without code changes. Fu
 - **AI translation:** per entry, or "translate everything missing" across the whole site. Every AI translation is flagged until a person reviews it.
 - **A switch keeps the Urdu site hidden from search engines** until you turn it on.
 
-### Phase 5: SEO. About 70% done
-
-**Done:**
+### Phase 5: SEO. Done, not deployed
 
 - **SEO fields** on every page and item: search title, description, focus keyword, share image, hide from search, canonical address.
 - **SEO settings:** title patterns in English and Urdu, defaults, robots rules, verification codes.
-- **Metadata on every page** comes from one helper.
+- **Metadata on every page** comes from one helper. Pages without a share image of their own now use the Mjazo card; service pages keep their own generated card.
 - **Robots and sitemap** follow the settings.
-- **SEO role:** limited to SEO fields.
-- **Redirects:** including automatic redirects when an address changes.
-- **SEO score:** 16 checks, with tests.
-- **Report storage** and the server actions behind audits, PageSpeed, AI suggestions and redirects.
+- **SEO role:** limited to SEO fields. Authors see SEO fields locked.
+- **SEO score:** up to 16 checks on the real page, with tests.
+- **SEO dashboard (`/admin/seo`):**
+  - every page (383, including the 176 area pages) with its score and top problems
+  - "Audit all" (or one section), filters, sorting, and each page's full report
+  - Google PageSpeed for phone and desktop
+  - site-wide panels: duplicate titles and descriptions, broken internal links, orphan pages, Urdu coverage
+- **Redirects (`/admin/redirects`):**
+  - add, edit and delete, with loop and clash checks as you type
+  - a "where does this address go?" tester, visit counts, and warnings for chains and hidden pages
+  - the redirects built into the code, shown read-only
+  - automatic redirects when a published address changes, kept free of chains and loops
+- **SEO group in every editor:** Google and WhatsApp previews, live checks, "Suggest with AI", and the page's latest score.
+- **Weekly check:** every Monday, Vercel re-audits every page and runs PageSpeed on the main ones (`/api/cron/seo-weekly`; needs `CRON_SECRET`).
 
-**Left:**
-
-- the SEO dashboard screen and the redirects screen
-- a Google result preview and AI suggestions inside the editor
-- tests for redirects and the SEO role
-- a check in the browser, a production build, and a push
+**Checked locally:** 379 of 383 pages audited in the dashboard (average 86, none under 50). The other 4 hit dev-server errors and load fine on their own. Redirects were tested end to end: English, Urdu, query strings, loop refusal, edit and delete.
 
 ### Phase 6: Page builder and live preview. Not started
 
@@ -257,7 +261,7 @@ All are listed with explanations in [.env.example](.env.example).
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | CMS sign-in and media uploads | Not set |
 | `CMS_OWNER_EMAIL` | The first CMS Owner | Not set |
 | `OPS_PASSCODE`, `SESSION_SECRET` | Turning on `/ops` and `/pro` | Not set |
-| `CRON_SECRET` (plus a 5-minute pinger) | Safety Guardian and scheduled publishing | Not set |
+| `CRON_SECRET` (plus a 5-minute pinger) | Safety Guardian, scheduled publishing and the weekly SEO check | Not set |
 | `RESEND_API_KEY`, `OPS_EMAIL`, `OPS_FROM` | Emailing every submission to the team | Not set |
 | `WHATSAPP_*` | Concierge on WhatsApp | Not set |
 | `STT_API_KEY` | WhatsApp voice notes | Not set |
@@ -271,7 +275,7 @@ All are listed with explanations in [.env.example](.env.example).
 2. Run migrations `0001` to `0004` in the Supabase SQL editor.
 3. Set `CMS_OWNER_EMAIL`, sign in at `/admin`, and invite the team from People & roles.
 4. Set `OPS_PASSCODE` and `SESSION_SECRET` to turn on the staff tools.
-5. Set `CRON_SECRET`. Point an external 5-minute pinger at `/api/cron/safety` and `/api/cron/cms-publish`.
+5. Set `CRON_SECRET`. Point an external 5-minute pinger at `/api/cron/safety` and `/api/cron/cms-publish`. The weekly SEO check runs by itself (a Vercel cron in `vercel.json`), once `CRON_SECRET` is set.
 6. Optionally set `RESEND_API_KEY` and the `OPS_*` emails, the WhatsApp Cloud API settings, `STT_API_KEY` and `PAGESPEED_API_KEY`.
 7. Deploy (`npx vercel deploy --prod` from `website/`). Phases 3 to 5 of the CMS aren't live yet.
 8. In `/admin/translate`, run "Translate everything missing". Have someone review the Urdu, then switch on the Urdu site under Settings → Feature switches.
@@ -301,17 +305,16 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
 
 ## 9. What's left, in order
 
-1. **Finish CMS phase 5:** the SEO dashboard, the redirects screen, the Google preview and AI suggestions in the editor, tests, a build, then commit and push.
-2. **CMS phase 6:** the block page builder, live preview and click-to-edit.
-3. **CMS phase 7:** tests, the permission audit, backup export and import, MFA, the history comparison, performance checks and the team handbook.
-4. **Interface text still in code:**
+1. **CMS phase 6:** the block page builder, live preview and click-to-edit.
+2. **CMS phase 7:** tests, the permission audit, backup export and import, MFA, the history comparison, performance checks and the team handbook.
+3. **Interface text still in code:**
    - inside the AI tools (Ghar Scan, Home Pulse, Glam Mirror, Shaadi planner, Concierge)
    - account screens, offer buttons and the partner flow
    - move it into "Buttons & labels", with Urdu
-5. **Owner setup:** section 7 (Supabase, settings, pingers, deploy).
-6. **Urdu content:** the AI translation pass, a human review, then switching on the Urdu site.
-7. **Founder confirmations:** section 8 (contact details, prices, policies, legal text).
-8. **Brand:** the open decisions in section 4.
+4. **Owner setup:** section 7 (Supabase, settings, pingers, deploy).
+5. **Urdu content:** the AI translation pass, a human review, then switching on the Urdu site.
+6. **Founder confirmations:** section 8 (contact details, prices, policies, legal text).
+7. **Brand:** the open decisions in section 4.
 
 ---
 
@@ -322,9 +325,13 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
 - **Use the locale-aware link and router.** Use `Link` and `useRouter` from `@/components/site/locale-link`, not `next/link` or `next/navigation`, so Urdu pages keep their `/ur` links.
 - **Never make a server component async** (e.g. `FAQ`) if it renders inside the layout's client wrappers: it causes a React `useId` hydration mismatch.
 - **Booking arrival windows are fixed** in `lib/time.ts` and must not be made editable, because jobs store their labels. Urdu display labels come from `windowLabel()`.
+- **Admin pages start with `await pageUser()`** (from `lib/cms/auth`), which sends signed-out visitors to the sign-in page. Next renders a page alongside its layout, so the layout's own redirect isn't enough.
+- **Redirects:** the ones built into the code are in `lib/builtin-redirects.mjs`, used by `next.config.mjs` and shown in the CMS. Matching, tracing and the loop checks are pure functions in `lib/cms/redirect-match.ts`, shared by `proxy.ts`, the admin and the tests.
+- **Share images:** `pageMetadata()` sets one on every page, because a page's own `openGraph` replaces the card it would inherit. A route with its own `opengraph-image` file must pass `card: true`, or the default card replaces it.
 - **Windows dev machine:**
   - Stop the dev server before `git mv` (it locks folders).
-  - After big changes the dev server can return 404 everywhere except `/`; restart it.
+  - After big changes the dev server can return 404 everywhere except `/`; restart it. If even `/admin` gives 404, stop it and delete `.next/dev`.
+  - Compiling hundreds of routes at once (e.g. "Audit all" on a fresh dev server) can briefly corrupt the dev server's own manifests, giving 500s with JSON errors. Restart it. The production build isn't affected.
   - In Git Bash, set `MSYS_NO_PATHCONV=1` when passing `/paths` to scripts.
 - **Shell heredocs strip backslashes and backticks** in code. Edit code with an editor or a script file, never a heredoc.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (81 tests), then `npx next build` (826 pages).
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (114 tests), then `npx next build` (827 pages).

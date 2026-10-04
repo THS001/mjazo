@@ -35,6 +35,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     description: category.status !== "live" ? s.patterns.serviceDescriptionSoon : priced ? s.patterns.serviceDescription : s.patterns.serviceDescriptionNoPrice,
     vars: { service: service.name, short: service.short, price: formatPKR(service.price), category: category.name },
     image: service.image,
+    card: true,
   })
 }
 

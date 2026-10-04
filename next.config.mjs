@@ -1,3 +1,5 @@
+import { BUILTIN_REDIRECTS } from "./lib/builtin-redirects.mjs"
+
 // Media-library images are optimised by next/image: from Supabase Storage on the live site, and
 // from /api/cms/media/file/... (a same-site path) in local development.
 const supabaseHost = (() => {
@@ -19,15 +21,7 @@ const nextConfig = {
     localPatterns: [{ pathname: "/api/cms/media/file/**" }, { pathname: "/**", search: "" }],
   },
   async redirects() {
-    return [
-      { source: "/account/plus", destination: "/plus", permanent: false },
-      { source: "/account/referrals", destination: "/refer", permanent: false },
-      { source: "/join", destination: "/partner", permanent: true },
-      { source: "/book", destination: "/services/w/beauty-wellness", permanent: false },
-      { source: "/areas", destination: "/karachi", permanent: true },
-      { source: "/packages", destination: "/offers", permanent: true },
-      { source: "/faq", destination: "/help", permanent: true },
-    ]
+    return BUILTIN_REDIRECTS.map((r) => ({ ...r }))
   },
 }
 

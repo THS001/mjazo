@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react"
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
@@ -10,6 +10,7 @@ import { ICONS } from "@/components/site/primitives"
 import type { Field, Fields, Localized, MediaRef, RichDoc } from "@/lib/cms/fields"
 import { RichTextEditor } from "./rich-text-editor"
 import { MediaInput } from "./media"
+import { SeoGroup } from "./seo-group"
 
 // Form controls generated from a content type's fields. Localised fields show English and Urdu
 // side by side; price fields lock for people without the "prices" permission.
@@ -18,10 +19,15 @@ export type FormCtx = {
   showUr: boolean
   canPrices: boolean
   canMedia: boolean
+  /** Whether fields with perm "seo" are editable (not for Authors). */
+  canSeo?: boolean
   /** The SEO role: only fields with perm "seo" are editable. */
   seoOnly?: boolean
   readOnly: boolean
   entryType?: string
+  /** The entry's page address (for the SEO preview), and the whole entry (for AI suggestions). */
+  path?: string | null
+  root?: Record<string, unknown>
   refs: Record<string, { id: string; title: string }[]>
 }
 
@@ -120,7 +126,15 @@ function Label({ field, extra, locked }: { field: Field; extra?: ReactNode; lock
 
 export function FieldInput({ name, field: fd, value, onChange, ctx: outer, siblings }: { name: string; field: Field; value: V; onChange: (v: V) => void; ctx: FormCtx; siblings?: Record<string, V> }) {
   // The SEO role sees everything but can change SEO fields only (and everything inside an SEO group).
-  const ctx = outer.seoOnly && fd.perm === "seo" ? { ...outer, seoOnly: false } : outer.seoOnly && fd.kind !== "group" && fd.kind !== "list" ? { ...outer, readOnly: true } : outer
+  // Roles without "seo" (Authors) see SEO fields locked.
+  const ctx =
+    outer.seoOnly && fd.perm === "seo"
+      ? { ...outer, seoOnly: false }
+      : outer.seoOnly && fd.kind !== "group" && fd.kind !== "list"
+        ? { ...outer, readOnly: true }
+        : fd.perm === "seo" && outer.canSeo === false
+          ? { ...outer, readOnly: true }
+          : outer
   const ro = ctx.readOnly
   switch (fd.kind) {
     case "text":
@@ -253,14 +267,22 @@ export function FieldInput({ name, field: fd, value, onChange, ctx: outer, sibli
           <IconPicker value={String(value ?? "")} onChange={onChange} disabled={ro} />
         </div>
       )
-    case "group":
+    case "group": {
+      const form = <FieldsForm fields={fd.fields} value={(value ?? {}) as Record<string, V>} onChange={onChange} ctx={ctx} />
+      if (fd.ui === "seo")
+        return (
+          <SeoGroup field={fd} value={(value ?? {}) as Record<string, V>} onChange={onChange} ctx={ctx}>
+            {form}
+          </SeoGroup>
+        )
       return (
         <fieldset className="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4">
           <legend className="px-1 text-[13px] font-semibold">{fd.label}</legend>
           {fd.help && <p className="mb-3 text-xs text-zinc-500">{fd.help}</p>}
-          <FieldsForm fields={fd.fields} value={(value ?? {}) as Record<string, V>} onChange={onChange} ctx={ctx} />
+          {form}
         </fieldset>
       )
+    }
     case "list":
       return <ListEditor name={name} field={fd} value={Array.isArray(value) ? value : []} onChange={onChange} ctx={ctx} />
     case "richText": {
@@ -396,6 +418,7 @@ function ListEditor({ name, field: fd, value, onChange, ctx }: { name: string; f
     if (keys.length !== value.length) setKeys((k) => (value.length > k.length ? [...k, ...value.slice(k.length).map(newKey)] : k.slice(0, value.length)))
   }, [value, keys.length])
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
+  const dndId = useId()
   const scalar = fd.of.kind !== "group"
   const [open, setOpen] = useState<Set<string>>(new Set())
   const ro = ctx.readOnly
@@ -435,7 +458,8 @@ function ListEditor({ name, field: fd, value, onChange, ctx }: { name: string; f
           </button>
         )}
       </div>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      {/* useId: dnd-kit's own id counter differs between the server and the browser (hydration mismatch). */}
+      <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={keys} strategy={verticalListSortingStrategy}>
           <div className="space-y-2">
             {value.map((item, i) => (

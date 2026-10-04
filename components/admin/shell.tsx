@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Activity, ExternalLink, ImageIcon, Languages, LayoutDashboard, LogOut, Menu, UserRound, Users, X } from "lucide-react"
+import { Activity, ExternalLink, Gauge, ImageIcon, Languages, LayoutDashboard, LogOut, Menu, Signpost, UserRound, Users, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ROLE_INFO, type Role } from "@/lib/cms/roles"
 import type { TypeMeta } from "@/lib/cms/meta"
@@ -52,6 +52,8 @@ export function AdminShell({ nav, user, backend, children }: { nav: Nav; user: S
       ))}
       <div className="space-y-0.5">
         <p className="px-3 pb-1 text-[10px] uppercase tracking-[0.18em] text-white/35">Tools</p>
+        {item("/admin/seo", "SEO", <Gauge className="w-4 h-4" strokeWidth={1.75} />)}
+        {item("/admin/redirects", "Redirects", <Signpost className="w-4 h-4" strokeWidth={1.75} />)}
         {item("/admin/translate", "Urdu translation", <Languages className="w-4 h-4" strokeWidth={1.75} />)}
       </div>
       <div className="space-y-0.5">

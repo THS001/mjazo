@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import { getCmsUser } from "@/lib/cms/auth"
+import { pageUser } from "@/lib/cms/auth"
 import { resolveObject } from "@/lib/cms/fields"
 import { refTargets, typeMeta } from "@/lib/cms/meta"
 import { getType } from "@/lib/cms/registry"
@@ -17,7 +17,7 @@ export default async function EntryPage({ params }: { params: Promise<{ type: st
   const meta = typeMeta(type)
   const entry = meta ? await loadEntry(type, decodeURIComponent(id)) : null
   if (!meta || !entry) notFound()
-  const user = (await getCmsUser())!
+  const user = await pageUser()
   const refs = Object.fromEntries(await Promise.all(refTargets(meta.fields).map(async (t) => [t, await refOptions(t)] as const)))
   const t = getType(type)!
   const path = t.path ? t.path(resolveObject(meta.fields, entry.data, "en")) : "/"

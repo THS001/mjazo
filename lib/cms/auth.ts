@@ -1,6 +1,7 @@
 import "server-only"
 import { cache } from "react"
 import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 import { createServerClient } from "@supabase/ssr"
 import { db } from "@/lib/server/store"
 import { can, ROLES, type Perm, type Role } from "./roles"
@@ -66,6 +67,16 @@ export class CmsAuthError extends Error {
   constructor(message = "You don't have permission to do that.") {
     super(message)
   }
+}
+
+/**
+ * The signed-in user, for /admin pages; signed-out visitors go to the sign-in page. Next renders a
+ * page alongside its layout, so pages can't rely on the layout's own redirect having happened.
+ */
+export async function pageUser(): Promise<CmsUser> {
+  const u = await getCmsUser()
+  if (!u) redirect("/admin/login")
+  return u
 }
 
 /** The signed-in user if they hold `perm`; throws otherwise. Call at the top of every server action. */

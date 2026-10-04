@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation"
-import { getCmsUser } from "@/lib/cms/auth"
+import { pageUser } from "@/lib/cms/auth"
 import { refTargets, typeMeta } from "@/lib/cms/meta"
 import { SINGLETON } from "@/lib/cms/read"
 import { can } from "@/lib/cms/roles"
@@ -16,7 +16,7 @@ export default async function CollectionPage({ params }: { params: Promise<{ typ
   const meta = typeMeta(type)
   if (!meta) notFound()
   if (meta.kind === "singleton") redirect(`/admin/c/${type}/${SINGLETON}`)
-  const user = (await getCmsUser())!
+  const user = await pageUser()
   const [items, refs] = await Promise.all([adminList(type), Promise.all(refTargets(meta.fields).map(async (t) => [t, await refOptions(t)] as const))])
   const editable = can(user.role, "edit") && (meta.perm !== "settings" || can(user.role, "settings"))
   return <CollectionList meta={meta} items={items} refs={Object.fromEntries(refs)} canCreate={editable} canReorder={editable && can(user.role, "publish")} />

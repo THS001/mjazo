@@ -2,7 +2,7 @@ import "server-only"
 import { revalidateTag, updateTag } from "next/cache"
 import { resolveObject, zodObject, type Field, type Fields } from "./fields"
 import { allTypes, getType, type ContentType } from "./registry"
-import { AUTHOR_GROUPS, can } from "./roles"
+import { fieldPermError, publishPermError, typeAccessError } from "./field-perms"
 import { CmsAuthError, type CmsUser } from "./auth"
 import { ValidationError } from "./action"
 import { storedDefaults, withDefaultUrdu } from "./defaults"
@@ -136,49 +136,15 @@ export { listVersions }
 // Checks
 // ---------------------------------------------------------------------------
 
-/** People with "seo" but not "edit" (the SEO role) may change SEO fields only. */
-const seoOnly = (user: CmsUser) => !can(user.role, "edit") && can(user.role, "seo")
-
+// The rules themselves are in field-perms.ts (pure, and tested role by role).
 function checkTypeAccess(t: ContentType<unknown, unknown>, user: CmsUser) {
-  if (!can(user.role, "edit") && !can(user.role, "seo")) throw new CmsAuthError("Your role can view content but not change it.")
-  if (seoOnly(user)) return // limited to SEO fields by checkFieldPerms
-  if (t.perm === "settings" && !can(user.role, "settings")) throw new CmsAuthError("Only Owners and Admins can change site settings.")
-  if (user.role === "author" && !AUTHOR_GROUPS.includes(t.group)) throw new CmsAuthError("Authors can edit blog posts and help articles only.")
+  const error = typeAccessError(t, user.role)
+  if (error) throw new CmsAuthError(error)
 }
-
-/** Every value of fields carrying `perm`, so we can tell whether a save changed them. */
-function permValues(fields: Fields, data: unknown, perm: Field["perm"]): string {
-  const out: unknown[] = []
-  const walk = (fd: Field, v: unknown) => {
-    if (fd.perm === perm) out.push(v)
-    else if (fd.kind === "list" && Array.isArray(v)) v.forEach((x) => walk(fd.of, x))
-    else if (fd.kind === "group" && v && typeof v === "object") Object.entries(fd.fields).forEach(([k, f]) => walk(f, (v as Data)[k]))
-  }
-  Object.entries(fields).forEach(([k, fd]) => walk(fd, (data as Data | undefined)?.[k]))
-  return JSON.stringify(out)
-}
-
-/** The data with every SEO field blanked, to tell whether anything else changed. */
-function withoutSeo(fields: Fields, data: unknown): unknown {
-  if (!data || typeof data !== "object") return data
-  const out: Data = {}
-  for (const [k, fd] of Object.entries(fields)) {
-    const v = (data as Data)[k]
-    if (fd.perm === "seo") continue
-    if (fd.kind === "group") out[k] = withoutSeo(fd.fields, v)
-    else if (fd.kind === "list" && Array.isArray(v)) out[k] = fd.of.kind === "group" ? v.map((x) => withoutSeo((fd.of as Extract<Field, { kind: "group" }>).fields, x)) : v
-    else out[k] = v
-  }
-  return out
-}
-const onlySeoChanged = (fields: Fields, before: Data | null | undefined, after: Data) => JSON.stringify(withoutSeo(fields, before ?? {})) === JSON.stringify(withoutSeo(fields, after))
 
 function checkFieldPerms(t: ContentType<unknown, unknown>, user: CmsUser, before: Data | undefined, after: Data) {
-  if (!can(user.role, "prices") && permValues(t.fields, before, "prices") !== permValues(t.fields, after, "prices"))
-    throw new CmsAuthError("Only Owners and Admins can change prices.")
-  if (!can(user.role, "seo") && permValues(t.fields, before, "seo") !== permValues(t.fields, after, "seo"))
-    throw new CmsAuthError("Your role can't change SEO fields.")
-  if (seoOnly(user) && !onlySeoChanged(t.fields, before, after)) throw new CmsAuthError("Your role can change SEO fields only.")
+  const error = fieldPermError(t.fields, user.role, before, after)
+  if (error) throw new CmsAuthError(error)
 }
 
 export function validate(t: ContentType<unknown, unknown>, data: Data) {
@@ -262,7 +228,8 @@ export async function publish(user: CmsUser, type: string, id: string, version: 
   checkTypeAccess(t, user)
   const loaded = await loadEntry(type, id)
   if (!loaded) throw new ValidationError(["This item no longer exists."])
-  if (!can(user.role, "publish") && !(can(user.role, "seo") && onlySeoChanged(t.fields, loaded.live, loaded.data))) throw new CmsAuthError("Your role can publish SEO changes only. Ask an Editor to publish the rest.")
+  const denied = publishPermError(t.fields, user.role, loaded.live, loaded.data)
+  if (denied) throw new CmsAuthError(denied)
   const data = t.beforePublish ? t.beforePublish(loaded.data) : loaded.data
   validate(t, data)
   await checkSlug(t, id, data)

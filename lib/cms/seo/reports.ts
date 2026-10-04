@@ -1,7 +1,7 @@
 import "server-only"
-import { promises as fs } from "fs"
 import path from "path"
 import { db } from "@/lib/server/store"
+import { readJson, writeJson } from "../local-json"
 import type { Analysis } from "./score"
 
 // SEO and PageSpeed reports: cms_seo_reports (migration 0004), or .data/cms/seo.json locally.
@@ -11,12 +11,14 @@ export type PageSpeed = { at: string; strategy: "mobile" | "desktop"; performanc
 export type Report = { path: string; locale: string; score: number; analysis: Analysis; pagespeed: PageSpeed | null; created_at: string }
 
 const FILE = path.join(process.cwd(), ".data", "cms", "seo.json")
-const readLocal = async (): Promise<Report[]> => {
-  try {
-    return JSON.parse(await fs.readFile(FILE, "utf8"))
-  } catch {
-    return []
-  }
+const readLocal = () => readJson<Report[]>(FILE, [])
+
+// Audits run several at a time: local writes take turns so none is lost.
+let queue: Promise<unknown> = Promise.resolve()
+const inTurn = <T>(fn: () => Promise<T>): Promise<T> => {
+  const next = queue.then(fn, fn)
+  queue = next.catch(() => {})
+  return next
 }
 
 export async function saveReport(r: Omit<Report, "created_at">): Promise<Report> {
@@ -27,6 +29,10 @@ export async function saveReport(r: Omit<Report, "created_at">): Promise<Report>
     return row
   }
   if (process.env.VERCEL) return row
+  return inTurn(() => saveLocal(row))
+}
+
+async function saveLocal(row: Report): Promise<Report> {
   const rows = await readLocal()
   rows.push(row)
   // Keep the last 10 reports per page and language.
@@ -38,8 +44,7 @@ export async function saveReport(r: Omit<Report, "created_at">): Promise<Report>
     if (n < 10) kept.push(x)
     count.set(k, n + 1)
   }
-  await fs.mkdir(path.dirname(FILE), { recursive: true })
-  await fs.writeFile(FILE, JSON.stringify(kept.reverse()))
+  await writeJson(FILE, kept.reverse())
   return row
 }
 

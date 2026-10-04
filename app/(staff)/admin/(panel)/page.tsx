@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { ArrowRight, CircleCheck, CircleDashed } from "lucide-react"
-import { getCmsUser } from "@/lib/cms/auth"
+import { pageUser } from "@/lib/cms/auth"
 import { navGroups } from "@/lib/cms/meta"
 import { ROLE_INFO } from "@/lib/cms/roles"
 import { backend, listAudit } from "@/lib/cms/store"
@@ -11,7 +11,7 @@ import { ago } from "@/lib/cms/format"
 export const metadata = { title: "Dashboard" }
 
 export default async function Dashboard() {
-  const user = (await getCmsUser())!
+  const user = await pageUser()
   const groups = navGroups()
   const lists = await Promise.all(groups.flatMap((g) => g.types.map(async (t) => ({ t, items: await adminList(t.type) }))))
   const pending = lists.flatMap(({ t, items }) => items.filter((i) => i.state === "changed" || i.state === "draft" || i.state === "scheduled" || i.review).map((i) => ({ ...i, type: t.type, label: t.label })))

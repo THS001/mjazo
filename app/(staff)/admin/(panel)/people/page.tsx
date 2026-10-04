@@ -1,4 +1,4 @@
-import { getCmsUser, authMode } from "@/lib/cms/auth"
+import { authMode, pageUser } from "@/lib/cms/auth"
 import { can } from "@/lib/cms/roles"
 import { listUsers } from "@/lib/cms/users"
 import { People } from "@/components/admin/people"
@@ -7,7 +7,7 @@ import { Notice } from "@/components/admin/ui"
 export const metadata = { title: "People & roles" }
 
 export default async function PeoplePage() {
-  const user = (await getCmsUser())!
+  const user = await pageUser()
   return (
     <div>
       <p className="text-xs text-zinc-500">Team</p>

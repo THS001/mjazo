@@ -30,7 +30,9 @@ const decode = (s: string) =>
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&nbsp;/g, " ")
-const text = (html: string) => decode(html.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim()
+// Inline tags join their text (animated headlines wrap each letter in a <span>); other tags separate it.
+const INLINE_TAGS = /<\/?(?:a|abbr|b|bdi|bdo|cite|code|data|dfn|em|i|kbd|mark|q|s|samp|small|span|strong|sub|sup|time|u|var|wbr)(?:\s[^>]*)?>/gi
+const text = (html: string) => decode(html.replace(INLINE_TAGS, "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim()
 const attr = (tag: string, name: string) => {
   const m = tag.match(new RegExp(`\\s${name}=("([^"]*)"|'([^']*)')`, "i"))
   return m ? decode(m[2] ?? m[3] ?? "") : null

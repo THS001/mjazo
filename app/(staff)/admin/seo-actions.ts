@@ -4,14 +4,17 @@ import { headers } from "next/headers"
 import { run, ValidationError } from "@/lib/cms/action"
 import { aiEnabled, MODELS } from "@/lib/ai/anthropic"
 import { structured } from "@/lib/ai/structured"
-import { isLocalized, type Fields, type Locale, type RichDoc } from "@/lib/cms/fields"
+import { isLocalized, richToText, type Fields, type Locale, type RichDoc } from "@/lib/cms/fields"
 import { localePath } from "@/lib/i18n"
 import { getType } from "@/lib/cms/registry"
-import { deleteRedirect, listRedirects, matchRedirect, saveRedirect } from "@/lib/cms/redirects"
-import { latestReport, latestReports, saveReport, type PageSpeed } from "@/lib/cms/seo/reports"
-import { sitePages } from "@/lib/cms/seo/pages"
+import { getSeoSettings, getSettings } from "@/lib/cms/read"
+import { writable } from "@/lib/cms/store"
+import { deleteRedirect, listRedirects, saveRedirect } from "@/lib/cms/redirects"
+import { BUILTIN } from "@/lib/cms/redirect-match"
+import { latestReports } from "@/lib/cms/seo/reports"
+import { APP_PATHS, sitePages } from "@/lib/cms/seo/pages"
+import { AUDITS_AT_ONCE, auditPage, pagespeedAvailable, pagespeedTarget, pool, runPageSpeed } from "@/lib/cms/seo/audit"
 import { analyse } from "@/lib/cms/seo/score"
-import { richToText } from "@/lib/cms/fields"
 import { SITE_URL } from "@/lib/site"
 
 // SEO tools: audits, PageSpeed, AI suggestions and redirects. Audits and suggestions need "seo";
@@ -25,67 +28,81 @@ async function origin() {
   return host ? `${proto}://${host}` : SITE_URL
 }
 
+/** Every auditable page with its latest reports, for the dashboard. */
 export async function seoOverviewAction(locale: Locale = "en") {
-  return run("view", async () => ({ pages: await sitePages(locale), reports: await latestReports() }))
+  return run("view", async () => {
+    const [pages, reports, settings] = await Promise.all([sitePages(locale), latestReports(), getSettings("en")])
+    return {
+      pages,
+      reports,
+      appPaths: APP_PATHS,
+      pagespeed: { available: pagespeedAvailable(), host: new URL(pagespeedTarget("/")).host },
+      urduPublic: Boolean(settings.flags.URDU_SITE),
+    }
+  })
 }
 
 /** Fetches the page as visitors see it, scores it and keeps the report. */
 export async function auditAction(path: string, locale: Locale, keyword: string) {
+  return run("seo", async () => auditPage(await origin(), path, locale, keyword))
+}
+
+/** Audits up to 24 pages, several at a time (the browser runs one server action at a time, so "Audit all" sends batches). */
+export async function auditManyAction(items: { path: string; keyword: string }[], locale: Locale) {
   return run("seo", async () => {
     const base = await origin()
-    const res = await fetch(`${base}${localePath(path, locale)}`, { cache: "no-store", redirect: "follow", headers: { "user-agent": "MjazoSEOAudit/1.0" } })
-    if (!res.ok) throw new ValidationError([`The page answered ${res.status}.`])
-    const analysis = analyse(await res.text(), { path, keyword, locale, origin: base })
-    const prev = await latestReport(path, locale)
-    return saveReport({ path, locale, score: analysis.score, analysis, pagespeed: prev?.pagespeed ?? null })
+    return pool(items.slice(0, 24), AUDITS_AT_ONCE, async (p) => {
+      try {
+        return { path: p.path, report: await auditPage(base, p.path, locale, p.keyword), error: null }
+      } catch (e) {
+        return { path: p.path, report: null, error: e instanceof ValidationError ? e.issues.join(" ") : "Couldn't load the page." }
+      }
+    })
   })
 }
 
-/** Google PageSpeed Insights for the live address (works for public URLs only). */
+/** Google PageSpeed Insights for the public address (works for public URLs only). */
 export async function pagespeedAction(path: string, strategy: "mobile" | "desktop" = "mobile") {
-  return run("seo", async () => {
-    if (/localhost|127\.0\.0\.1/.test(SITE_URL)) throw new ValidationError(["PageSpeed needs the public site address."])
-    const url = `${SITE_URL}${path}`
-    const q = new URLSearchParams({ url, strategy })
-    for (const c of ["performance", "accessibility", "best-practices", "seo"]) q.append("category", c)
-    if (process.env.PAGESPEED_API_KEY) q.set("key", process.env.PAGESPEED_API_KEY)
-    const res = await fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${q}`, { cache: "no-store", signal: AbortSignal.timeout(90_000) })
-    if (!res.ok) throw new ValidationError([res.status === 429 ? "Google's free PageSpeed quota is used up for now. Add PAGESPEED_API_KEY for more." : `PageSpeed answered ${res.status}.`])
-    const j = (await res.json()) as { lighthouseResult?: { categories?: Record<string, { score: number | null }>; audits?: Record<string, { displayValue?: string }> } }
-    const cat = j.lighthouseResult?.categories ?? {}
-    const audits = j.lighthouseResult?.audits ?? {}
-    const pct = (k: string) => (typeof cat[k]?.score === "number" ? Math.round(cat[k].score! * 100) : null)
-    const ps: PageSpeed = {
-      at: new Date().toISOString(),
-      strategy,
-      performance: pct("performance"),
-      accessibility: pct("accessibility"),
-      bestPractices: pct("best-practices"),
-      seo: pct("seo"),
-      lcp: audits["largest-contentful-paint"]?.displayValue ?? null,
-      cls: audits["cumulative-layout-shift"]?.displayValue ?? null,
-      tbt: audits["total-blocking-time"]?.displayValue ?? null,
-    }
-    const prev = await latestReport(path, "en")
-    if (prev) await saveReport({ ...prev, pagespeed: ps })
-    return ps
-  })
+  return run("seo", () => runPageSpeed(path, strategy))
 }
 
 /** Status codes for internal links the audit couldn't match to a known page. */
 export async function checkLinksAction(paths: string[]) {
   return run("seo", async () => {
     const base = await origin()
-    const out: { path: string; status: number }[] = []
+    const out: { path: string; status: number; location: string | null }[] = []
     for (const p of paths.slice(0, 40)) {
       try {
-        const r = await fetch(`${base}${p}`, { method: "GET", redirect: "manual", cache: "no-store" })
-        out.push({ path: p, status: r.status })
+        const r = await fetch(`${base}${p}`, { method: "GET", redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(20_000) })
+        const loc = r.headers.get("location")
+        out.push({ path: p, status: r.status, location: loc ? new URL(loc, base).pathname : null })
       } catch {
-        out.push({ path: p, status: 0 })
+        out.push({ path: p, status: 0, location: null })
       }
     }
     return out
+  })
+}
+
+/** What the editor's SEO panel shows: the page as it is live now, the title ending, and the latest report. */
+export async function seoPanelAction(path: string, locale: Locale = "en") {
+  return run("view", async () => {
+    const base = await origin()
+    const [settings, reports] = await Promise.all([getSeoSettings(locale), latestReports()])
+    let live: { title: string; description: string; image: string | null } | null = null
+    try {
+      const res = await fetch(`${base}${localePath(path, locale)}`, { cache: "no-store", signal: AbortSignal.timeout(20_000), headers: { "user-agent": "MjazoSEOAudit/1.0" } })
+      if (res.ok) {
+        const a = analyse(await res.text(), { path, locale })
+        // Share images are absolute on the public address; show them from this server instead.
+        live = { title: a.stats.title, description: a.stats.description, image: a.stats.ogImage?.replace(SITE_URL, base) ?? null }
+      }
+    } catch {}
+    const r = reports.find((x) => x.path === path && x.locale === locale)
+    const report = r
+      ? { score: r.score, at: r.created_at, fails: r.analysis.checks.filter((c) => c.status === "fail").length, warns: r.analysis.checks.filter((c) => c.status === "warn").length, top: r.analysis.checks.filter((c) => c.status !== "pass").sort((a, b) => b.weight - a.weight).slice(0, 3).map((c) => c.label) }
+      : null
+    return { live, template: settings.titleTemplate, host: new URL(SITE_URL).host, report }
   })
 }
 
@@ -131,22 +148,22 @@ export async function seoSuggestAction(type: string, data: Record<string, unknow
 // Redirects
 // ---------------------------------------------------------------------------
 
+/** The CMS's redirects, plus the ones built into the site's code (read-only). */
 export async function listRedirectsAction() {
-  return run("view", () => listRedirects())
+  return run("view", async () => ({ rows: await listRedirects(), builtin: BUILTIN }))
 }
 
-export async function saveRedirectAction(r: { source: string; destination: string; permanent: boolean; note?: string }) {
-  return run("seo", (u) => saveRedirect(u, r))
+export async function saveRedirectAction(r: { source: string; destination: string; permanent: boolean; note?: string; previous?: string | null }) {
+  return run("seo", (u) => {
+    if (!writable()) throw new ValidationError(["Saving is switched off until Supabase is connected."])
+    return saveRedirect(u, r)
+  })
 }
 
 export async function deleteRedirectAction(source: string) {
   return run("seo", async (u) => {
+    if (!writable()) throw new ValidationError(["Saving is switched off until Supabase is connected."])
     await deleteRedirect(u, source)
     return null
   })
-}
-
-/** Where a path would end up (for the "test an address" box). */
-export async function testRedirectAction(path: string) {
-  return run("view", async () => matchRedirect(path, await listRedirects()))
 }

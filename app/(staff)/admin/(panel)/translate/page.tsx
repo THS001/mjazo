@@ -1,4 +1,4 @@
-import { getCmsUser } from "@/lib/cms/auth"
+import { pageUser } from "@/lib/cms/auth"
 import { can } from "@/lib/cms/roles"
 import { aiEnabled } from "@/lib/ai/anthropic"
 import { TranslateTool } from "@/components/admin/translate"
@@ -6,7 +6,7 @@ import { TranslateTool } from "@/components/admin/translate"
 export const metadata = { title: "Urdu translation" }
 
 export default async function TranslatePage() {
-  const user = (await getCmsUser())!
+  const user = await pageUser()
   return (
     <div>
       <h1 className="font-serif text-3xl">Urdu translation</h1>
