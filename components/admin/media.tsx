@@ -37,6 +37,9 @@ async function measure(file: File): Promise<{ width?: number; height?: number; c
       const c = document.createElement("canvas")
       c.width = c.height = 8
       const g = c.getContext("2d")!
+      // Transparent parts count as the light page behind them, not black (logos would vanish on their placeholder).
+      g.fillStyle = "#fff"
+      g.fillRect(0, 0, 8, 8)
       g.drawImage(bmp, 0, 0, 8, 8)
       const d = g.getImageData(0, 0, 8, 8).data
       let r = 0, gr = 0, b = 0

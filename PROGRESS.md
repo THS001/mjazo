@@ -240,7 +240,7 @@ The team and the client can edit everything on the site without code changes. Fu
 - **Saving:** Ctrl+S keeps a version in History. Content that's back to the live version no longer shows as "Unpublished changes".
 - **Several Owners:** `CMS_OWNER_EMAIL` takes several emails, and an Owner's first emailed sign-in link creates their account.
 - **Performance:** about 2 minutes to build on Vercel. Every page's data is 13.5 KB smaller (category FAQs no longer go to the browser). Cache tags were checked: a page edit refreshes only that page.
-- **Team handbook:** `docs/Mjazo-CMS-Team-Handbook.pdf` (10 pages, brand style; source in `docs/handbook/`).
+- **Team handbook:** `docs/Mjazo-CMS-Team-Handbook.pdf`: 20 pages in the brand style, each built around a real screenshot of the admin with numbered callouts. Source and screenshot script are in `docs/handbook/`.
 
 ---
 
@@ -294,7 +294,7 @@ All are listed with explanations in [.env.example](.env.example).
 2. **Rotate the pasted secrets:** create a new Supabase secret key, put it in Vercel as `SUPABASE_SERVICE_ROLE_KEY` and delete the old one. Also reset the database password; the site doesn't use it.
 3. Add an SMTP sender in Supabase (Authentication → Emails) before inviting the team: the built-in email only sends a few an hour. Then invite the team from People & roles and share the handbook PDF.
 4. Set `OPS_PASSCODE` and `SESSION_SECRET` to turn on the staff tools.
-5. Set `CRON_SECRET`. Point an external 5-minute pinger at `/api/cron/safety` and `/api/cron/cms-publish`. The weekly SEO check runs by itself (a Vercel cron in `vercel.json`), once `CRON_SECRET` is set.
+5. Run `node scripts/setup-supabase.mjs --cron`: it makes `CRON_SECRET`, stores it in Vercel and shows the pinger steps. Point an external 5-minute pinger (cron-job.org) at `/api/cron/safety` and `/api/cron/cms-publish` with that secret, then redeploy. The weekly SEO check then runs by itself (a Vercel cron in `vercel.json`).
 6. Optionally set `RESEND_API_KEY` and the `OPS_*` emails, the WhatsApp Cloud API settings, `STT_API_KEY` and `PAGESPEED_API_KEY`.
 7. Deploy (`npx vercel deploy --prod` from `website/`) after checking `npx vercel whoami`.
 8. In `/admin/translate`, run "Translate everything missing". Have someone review the Urdu, then switch on the Urdu site under Settings → Feature switches.

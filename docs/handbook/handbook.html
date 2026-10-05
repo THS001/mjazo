@@ -7,57 +7,71 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;1,400&display=block" rel="stylesheet">
 <style>
-  /* Source of docs/Mjazo-CMS-Team-Handbook.pdf. Print it with: node docs/handbook/print.mjs */
+  /* Source of docs/Mjazo-CMS-Team-Handbook.pdf.
+     Screenshots: node docs/handbook/shots.mjs (dev server running). Print: node docs/handbook/print.mjs
+     Each page is one topic and fits one A4 page, so the contents' page numbers stay right. */
   :root {
     --ink: #0B0B0B; --paper: #F8F8F8; --cream: #FBF6EE; --saffron: #F4A437; --saffron-ink: #934F00;
     --saffron-soft: #FDECD1; --grey6: #555555; --grey3: #D7D7D7;
   }
-  @page { size: A4; margin: 18mm 17mm 20mm;
+  @page { size: A4; margin: 16mm 17mm 18mm;
     @bottom-left { content: "Mjazo CMS · Team handbook"; font: 500 7.5pt Inter, sans-serif; color: #555555; letter-spacing: .02em }
     @bottom-right { content: counter(page); font: 500 7.5pt Inter, sans-serif; color: #555555 } }
   @page :first { margin: 0; @bottom-left { content: none } @bottom-right { content: none } }
   * { box-sizing: border-box }
   html { -webkit-print-color-adjust: exact; print-color-adjust: exact }
-  body { margin: 0; font: 400 9.6pt/1.55 Inter, sans-serif; color: var(--ink); background: #fff }
+  body { margin: 0; font: 400 9.3pt/1.5 Inter, sans-serif; color: var(--ink); background: #fff }
   h1, h2, h3 { font-family: "Playfair Display", serif; font-weight: 400; margin: 0 }
-  h1 { font-size: 27pt; line-height: 1.1; letter-spacing: -.01em; margin-bottom: 12pt }
+  h1 { font-size: 24pt; line-height: 1.1; letter-spacing: -.01em; margin-bottom: 8pt }
   h1 em, h2 em { font-style: italic; color: var(--saffron-ink) }
-  h2 { font-size: 14pt; margin: 16pt 0 5pt }
-  h3 { font: 600 9.6pt Inter, sans-serif; margin: 10pt 0 2pt }
-  p { margin: 0 0 6pt }
-  ul, ol { margin: 0 0 6pt; padding-left: 14pt }
-  li { margin: 0 0 2.5pt }
+  h2 { font-size: 13pt; margin: 12pt 0 4pt }
+  h3 { font: 600 9.3pt Inter, sans-serif; margin: 8pt 0 2pt }
+  p { margin: 0 0 5pt }
+  ul, ol { margin: 0 0 5pt; padding-left: 14pt }
+  li { margin: 0 0 2pt }
   b, strong { font-weight: 600 }
-  code { font: 500 8.6pt/1 ui-monospace, Consolas, monospace; background: #F1EEE8; padding: 1pt 3pt; border-radius: 3pt }
-  .eyebrow { font: 600 7pt Inter, sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--saffron-ink); margin-bottom: 7pt }
-  .lead { font-size: 11pt; color: #2b2b2b; margin: -3pt 0 12pt; max-width: 150mm }
+  code { font: 500 8.3pt/1 ui-monospace, Consolas, monospace; background: #F1EEE8; padding: 1pt 3pt; border-radius: 3pt }
+  .eyebrow { font: 600 7pt Inter, sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--saffron-ink); margin-bottom: 6pt }
+  .lead { font-size: 10.5pt; color: #2b2b2b; margin: 0 0 8pt; max-width: 160mm }
   .page { break-before: page }
-  .rule { height: 2pt; width: 28pt; background: var(--saffron); border-radius: 2pt; margin: 12pt 0 0 }
+  .rule { height: 2pt; width: 28pt; background: var(--saffron); border-radius: 2pt; margin: 10pt 0 0 }
   .muted { color: var(--grey6) }
-  .small { font-size: 8.4pt }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 9mm }
-  .box { background: var(--cream); border-radius: 9pt; padding: 9pt 11pt; margin: 9pt 0; break-inside: avoid }
-  .box.tip { border-left: 3pt solid var(--saffron) ; border-radius: 0 9pt 9pt 0 }
+  .small { font-size: 8.3pt }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8mm }
+  .box { background: var(--cream); border-radius: 9pt; padding: 8pt 10pt; margin: 8pt 0; break-inside: avoid }
+  .box.tip { border-left: 3pt solid var(--saffron); border-radius: 0 9pt 9pt 0 }
   .box.ink { background: var(--ink); color: #fff }
   .box.ink .eyebrow { color: var(--saffron) }
   .box h3:first-child, .box p:last-child, .box ul:last-child { margin-top: 0; margin-bottom: 0 }
-  table { width: 100%; border-collapse: collapse; margin: 6pt 0 10pt; break-inside: avoid }
-  th { font: 600 7pt Inter, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--grey6); text-align: left; padding: 0 8pt 5pt 0; border-bottom: 1pt solid var(--ink) }
-  td { padding: 5.5pt 8pt 5.5pt 0; border-bottom: .75pt solid var(--grey3); vertical-align: top }
+  table { width: 100%; border-collapse: collapse; margin: 5pt 0 8pt; break-inside: avoid }
+  th { font: 600 7pt Inter, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--grey6); text-align: left; padding: 0 8pt 4pt 0; border-bottom: 1pt solid var(--ink) }
+  td { padding: 4.5pt 8pt 4.5pt 0; border-bottom: .75pt solid var(--grey3); vertical-align: top }
   td:first-child { white-space: nowrap; font-weight: 600 }
   .yes { color: #1a7f4b; font-weight: 600 } .no { color: #9a9a9a }
   .chip { display: inline-flex; align-items: center; gap: 4pt; font: 500 8pt Inter, sans-serif; padding: 1.5pt 7pt; border-radius: 99pt; white-space: nowrap }
   .chip::before { content: ""; width: 5pt; height: 5pt; border-radius: 9pt; background: currentColor }
   .live { background: #E8F5EE; color: #1a7f4b } .changed { background: var(--saffron-soft); color: var(--saffron-ink) }
   .draft { background: #EFEFEF; color: #555 } .scheduled { background: #E6EEF8; color: #2B5C9A } .hidden { background: #EFEFEF; color: #8a8a8a }
-  .steps { counter-reset: s; list-style: none; padding: 0; margin: 8pt 0 }
-  .steps li { counter-increment: s; position: relative; padding: 0 0 7pt 24pt; margin: 0 }
+  .steps { counter-reset: s; list-style: none; padding: 0; margin: 6pt 0 }
+  .steps li { counter-increment: s; position: relative; padding: 0 0 6pt 22pt; margin: 0 }
   .steps li::before { content: counter(s); position: absolute; left: 0; top: -1pt; width: 15pt; height: 15pt; border-radius: 99pt; background: var(--ink); color: #fff; font: 600 7.5pt/15pt Inter, sans-serif; text-align: center }
-  .blocks { display: grid; grid-template-columns: 1fr 1fr; gap: 5pt 9mm; margin: 6pt 0 8pt }
-  .blocks div { break-inside: avoid; padding: 5pt 0; border-bottom: .75pt solid var(--grey3) }
+  .blocks { display: grid; grid-template-columns: 1fr 1fr; gap: 3pt 8mm; margin: 6pt 0 6pt }
+  .blocks div { break-inside: avoid; padding: 4pt 0; border-bottom: .75pt solid var(--grey3) }
   .blocks b { display: block }
   .key { display: inline-block; font: 600 7.6pt Inter, sans-serif; border: .75pt solid #bdbdbd; border-bottom-width: 1.6pt; border-radius: 3pt; padding: 0 3.5pt; background: #fff }
   .ur { font-family: "Noto Nastaliq Urdu", "Segoe UI", serif }
+
+  /* Screenshots with numbered callouts (positions from shots.js) */
+  figure.shot { position: relative; margin: 6pt 0 4pt; break-inside: avoid }
+  figure.shot img { display: block; width: 100%; border: .75pt solid var(--grey3); border-radius: 6pt; box-shadow: 0 2pt 8pt rgba(0,0,0,.06) }
+  .mk { position: absolute; transform: translate(-50%, -50%); width: 15pt; height: 15pt; border-radius: 99pt; background: var(--saffron); color: var(--ink); font: 700 8pt/15pt Inter, sans-serif; text-align: center; box-shadow: 0 0 0 1.6pt #fff, 0 1pt 4pt rgba(0,0,0,.35) }
+  /* A grid, not CSS columns: a column break could split a number from its circle. */
+  .legend { counter-reset: l; list-style: none; padding: 0; margin: 5pt 0 8pt; display: grid; grid-template-columns: 1fr 1fr; column-gap: 8mm }
+  .legend li { counter-increment: l; position: relative; padding-left: 19pt; margin: 0 0 3.5pt; break-inside: avoid; font-size: 8.7pt; line-height: 1.45 }
+  .legend li::before { content: counter(l); position: absolute; left: 0; top: .5pt; width: 13pt; height: 13pt; border-radius: 99pt; background: var(--saffron); font: 700 7pt/13pt Inter, sans-serif; text-align: center }
+  .legend.one { grid-template-columns: 1fr }
+  .pair { display: grid; gap: 7mm; align-items: start }
+  .pair > figure.shot { margin-top: 0 }
 
   /* Cover */
   .cover { width: 210mm; height: 297mm; background: var(--ink); color: #fff; position: relative; overflow: hidden; padding: 24mm 20mm }
@@ -68,10 +82,11 @@
   .cover .sub { font-size: 13pt; color: rgba(255,255,255,.75); margin-top: 10pt; max-width: 120mm }
   .cover .meta { position: absolute; left: 20mm; bottom: 46mm; font-size: 8.5pt; color: rgba(255,255,255,.55); line-height: 1.7 }
   .cover .dot { display: inline-block; width: 6pt; height: 6pt; border-radius: 9pt; background: var(--saffron); margin-right: 6pt; vertical-align: 1pt }
-  .toc { list-style: none; padding: 0; margin: 4pt 0 0 }
-  .toc li { display: flex; justify-content: space-between; border-bottom: .75pt solid var(--grey3); padding: 5pt 0; margin: 0 }
+  .toc { list-style: none; padding: 0; margin: 4pt 0 0; columns: 2; column-gap: 8mm }
+  .toc li { display: flex; justify-content: space-between; border-bottom: .75pt solid var(--grey3); padding: 4pt 0; margin: 0; break-inside: avoid }
   .toc span:last-child { color: var(--grey6); font-variant-numeric: tabular-nums }
 </style>
+<script src="shots.js"></script>
 </head>
 <body>
 
@@ -79,7 +94,7 @@
 <section class="cover">
   <img src="mjazo-logo-white.svg" alt="Mjazo">
   <h1>The CMS<br><em>handbook</em></h1>
-  <p class="sub">How the Mjazo team edits the website: pages, services and prices, pictures, Urdu and SEO.</p>
+  <p class="sub">How the Mjazo team edits the website, screen by screen: pages, services and prices, pictures, Urdu and SEO.</p>
   <p class="meta"><span class="dot"></span>For everyone who signs in at mjazo.vercel.app/admin<br>October 2026 · Ghar ka har kaam. Pakka.</p>
   <div class="giant">EDIT · PUBLISH</div>
 </section>
@@ -89,27 +104,38 @@
   <p class="eyebrow">Welcome</p>
   <h1>Edit the website <em>yourself</em>.</h1>
   <p class="lead">Everything on the Mjazo website can be changed at <b>mjazo.vercel.app/admin</b>, no code needed: services and prices, every page, menus, the blog, help articles, legal text, pictures, SEO and the Urdu site. Customers see nothing until someone publishes.</p>
+  <p class="muted small">The pictures in this handbook are real screens of the admin. The numbered circles on each one are explained in the list under it.</p>
   <div class="rule"></div>
 
   <h2>Your first edit in five steps</h2>
   <ol class="steps">
-    <li><b>Sign in</b> at <code>/admin</code> with your email. Owners and Admins also type the code from their authenticator app.</li>
-    <li><b>Find the thing</b> to change in the menu on the left. Or open <b>Live preview</b> and click the text you want to edit.</li>
+    <li><b>Sign in</b> at <code>/admin</code> with your email. Owners and Admins also type the code from their authenticator app (page 3).</li>
+    <li><b>Find the thing</b> to change in the menu on the left (page 5). Or open <b>Live preview</b> and click the text you want to edit (page 8).</li>
     <li><b>Make your change.</b> It saves by itself as a draft a moment after you stop typing.</li>
     <li><b>Check it</b> with <b>Preview</b>, which shows the real page with your draft, only to you.</li>
-    <li><b>Publish.</b> The website updates straight away. Changed your mind? <b>History</b> brings back any earlier version.</li>
+    <li><b>Publish.</b> The website updates straight away. Changed your mind? <b>History</b> brings back any earlier version (page 10).</li>
   </ol>
 
   <h2>In this handbook</h2>
   <ul class="toc">
-    <li><span>Your account: signing in, two-step sign-in and roles</span><span>3</span></li>
-    <li><span>The admin at a glance, and what each status means</span><span>4</span></li>
-    <li><span>Edit, check, publish</span><span>5</span></li>
-    <li><span>History, the activity log and backups</span><span>6</span></li>
-    <li><span>New pages from blocks</span><span>7</span></li>
-    <li><span>Pictures and Urdu</span><span>8</span></li>
-    <li><span>SEO, addresses and special text</span><span>9</span></li>
-    <li><span>Writing for Mjazo, and when something goes wrong</span><span>10</span></li>
+    <li><span>Signing in and two-step sign-in</span><span>3</span></li>
+    <li><span>Roles and inviting people</span><span>4</span></li>
+    <li><span>The dashboard and menu</span><span>5</span></li>
+    <li><span>Lists and statuses</span><span>6</span></li>
+    <li><span>The editor</span><span>7</span></li>
+    <li><span>Saving and live preview</span><span>8</span></li>
+    <li><span>Publishing and scheduling</span><span>9</span></li>
+    <li><span>History and the activity log</span><span>10</span></li>
+    <li><span>Backups</span><span>11</span></li>
+    <li><span>Block pages</span><span>12</span></li>
+    <li><span>The 13 blocks</span><span>13</span></li>
+    <li><span>Pictures and media</span><span>14</span></li>
+    <li><span>Urdu</span><span>15</span></li>
+    <li><span>SEO in the editor</span><span>16</span></li>
+    <li><span>The SEO dashboard</span><span>17</span></li>
+    <li><span>Redirects and special text</span><span>18</span></li>
+    <li><span>Writing for Mjazo</span><span>19</span></li>
+    <li><span>When something goes wrong</span><span>20</span></li>
   </ul>
 
   <div class="box tip">
@@ -122,30 +148,50 @@
   </div>
 </section>
 
-<!-- 3. Account -->
+<!-- 3. Signing in -->
 <section class="page">
   <p class="eyebrow">Your account</p>
-  <h1>Signing in, and <em>who can do what</em></h1>
+  <h1>Signing <em>in</em></h1>
+  <p class="lead">Go to <b>mjazo.vercel.app/admin</b>. New people get an invitation email from an Owner or Admin; open it, and you're in.</p>
+  <div class="pair" style="grid-template-columns: 74mm 1fr">
+    <figure class="shot" data-shot="login"><img src="shots/login.png" alt="The sign-in screen"></figure>
+    <ol class="legend one">
+      <li>Your email address.</li>
+      <li>Your password, if you've set one (under <b>Account</b>, at the bottom of the menu).</li>
+      <li><b>Sign in.</b></li>
+      <li><b>Email me a sign-in link</b>: no password needed. Open the link from your inbox on the same device. An Owner's very first sign-in works this way.</li>
+      <li><b>Forgot password?</b> emails a link to set a new one.</li>
+    </ol>
+  </div>
+  <p class="muted small">Links can take a few minutes to arrive. Ask for one, then wait: asking again and again slows them down.</p>
+
+  <h2>Two-step sign-in</h2>
+  <p><b>Owners and Admins must use it</b>; everyone else can turn it on under <b>Account</b>. You need an authenticator app on your phone: Google Authenticator, Microsoft Authenticator or 1Password.</p>
   <div class="cols">
     <div>
-      <h2>Signing in</h2>
-      <p>Go to <code>mjazo.vercel.app/admin</code>. Sign in with your email and password, or click <b>Email me a sign-in link</b> and open the link from your inbox. <b>Forgot password?</b> sends a link to set a new one.</p>
-      <p>New people are invited by an Owner or Admin from <b>Team → People &amp; roles</b>. Open the invitation email, then set a password under <b>Account</b> (top of the menu).</p>
-      <p class="muted small">Links can take a few minutes to arrive. Ask for one, then wait; asking again and again slows them down.</p>
+      <h3>Setting it up (once)</h3>
+      <ol class="steps">
+        <li>After signing in, the admin shows a QR code.</li>
+        <li>In the app, add an account and scan it. "Mjazo CMS" appears with a 6-digit code that changes every 30 seconds.</li>
+        <li>Type the code into the admin. Done.</li>
+      </ol>
     </div>
     <div>
-      <h2>Two-step sign-in</h2>
-      <p><b>Owners and Admins must use it.</b> Everyone else can turn it on under Account. You need an authenticator app on your phone: Google Authenticator, Microsoft Authenticator or 1Password.</p>
+      <h3>Every sign-in after that</h3>
       <ol class="steps">
-        <li>Scan the QR code the admin shows you.</li>
-        <li>Type the 6-digit code from the app.</li>
-        <li>Each time you sign in, type the new code.</li>
+        <li>Sign in with your email as usual.</li>
+        <li>Open the app and type the code it shows for Mjazo CMS.</li>
       </ol>
-      <p><b>Lost your phone?</b> Ask an Owner to reset your two-step sign-in from People &amp; roles, then set it up again.</p>
+      <p><b>Lost your phone?</b> Ask an Owner to reset your two-step sign-in from <b>People &amp; roles</b>, then set it up again on your new phone.</p>
     </div>
   </div>
+  <div class="box"><p>Never share your account or your codes. Everyone gets their own sign-in, so the activity log can show who changed what.</p></div>
+</section>
 
-  <h2>Roles</h2>
+<!-- 4. Roles -->
+<section class="page">
+  <p class="eyebrow">Your account</p>
+  <h1>Roles, and <em>inviting people</em></h1>
   <table>
     <tr><th>Role</th><th>What they do</th><th>Publish</th><th>Prices &amp; settings</th></tr>
     <tr><td>Owner</td><td>Everything, including people, roles and restoring backups.</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
@@ -155,68 +201,152 @@
     <tr><td>SEO</td><td>SEO fields on every page, redirects and audits.</td><td class="yes">SEO only</td><td class="no">No</td></tr>
     <tr><td>Viewer</td><td>Looks around and previews; changes nothing.</td><td class="no">No</td><td class="no">No</td></tr>
   </table>
-  <p class="muted small">Fields your role can't change are shown greyed out. If you need one changed, ask someone whose role can.</p>
+  <p class="muted small">Fields your role can't change are greyed out. If you need one changed, ask someone whose role can.</p>
+
+  <h2>Inviting someone (Team → People &amp; roles)</h2>
+  <figure class="shot" data-shot="people"><img src="shots/people.png" alt="Inviting someone"></figure>
+  <ol class="legend">
+    <li>Their email address.</li>
+    <li>Their name, as it will show in the activity log.</li>
+    <li>Their role. Give people the smallest role that lets them do their job.</li>
+    <li><b>Send invite</b>: they get an email with a link to sign in.</li>
+    <li>What the chosen role can do.</li>
+  </ol>
+  <p>Below the form, the list shows everyone with access: their role, when they were last seen, and whether two-step sign-in is on. From there an Owner or Admin can change someone's role, switch their access off, or reset their two-step sign-in. Admins can't change Owners.</p>
 </section>
 
-<!-- 4. At a glance -->
+<!-- 5. Dashboard -->
 <section class="page">
   <p class="eyebrow">Finding your way</p>
-  <h1>The admin <em>at a glance</em></h1>
+  <h1>The dashboard <em>and menu</em></h1>
+  <p class="lead">The first screen after signing in. It shows what needs you, and every part of the site you can edit.</p>
+  <figure class="shot" data-shot="dashboard"><img src="shots/dashboard.png" alt="The dashboard"></figure>
+  <ol class="legend">
+    <li><b>The menu.</b> Every part of the site, grouped (see below). Your name, <b>View site</b> and <b>Sign out</b> are at its bottom.</li>
+    <li><b>Waiting for you</b>: drafts, items sent for review and scheduled changes. Click one to open it.</li>
+    <li><b>Scheduled</b>: goes live by itself at the time someone set.</li>
+    <li><b>Unpublished changes</b>: live, with edits waiting to be published.</li>
+    <li><b>Content</b>: a card for everything you can edit; the same as the menu.</li>
+  </ol>
   <table>
-    <tr><th>Menu</th><th>What's there</th></tr>
-    <tr><td>Dashboard</td><td>What's waiting for you (drafts, reviews, schedules), anything left to set up, and the latest activity.</td></tr>
-    <tr><td>Media</td><td>Every picture, video, 3D model and PDF on the site.</td></tr>
-    <tr><td>Pages</td><td>Every page: home, about, offers, Plus and more. Also the shared templates every world, category, service and area page uses, and <b>Block pages</b> (page 7).</td></tr>
+    <tr><th>Menu group</th><th>What's in it</th></tr>
+    <tr><td>Pages</td><td>Every page (home, about, offers, Plus…), the shared templates for world, category, service and area pages, and Block pages.</td></tr>
     <tr><td>Catalogue</td><td>Worlds, categories, services, areas and bundles. <b>Prices live here.</b></td></tr>
     <tr><td>Blog · Help · Legal</td><td>Posts, help topics and the legal documents.</td></tr>
-    <tr><td>Navigation</td><td>The header and footer menus, and the buttons and labels used across the site.</td></tr>
-    <tr><td>Settings</td><td>Company and contact details, booking policy, Plus and referrals, feature switches, SEO settings, catalogue rules and search words.</td></tr>
-    <tr><td>Tools</td><td>SEO, Redirects and Urdu translation.</td></tr>
-    <tr><td>Team</td><td>People &amp; roles, the activity log and backups.</td></tr>
+    <tr><td>Navigation</td><td>Header and footer menus; buttons and labels used across the site.</td></tr>
+    <tr><td>Settings</td><td>Company and contact details, booking policy, Plus and referrals, feature switches, SEO settings, catalogue rules, search words.</td></tr>
+    <tr><td>Tools · Team</td><td>SEO, Redirects, Urdu translation · People &amp; roles, Activity log, Backup.</td></tr>
   </table>
+</section>
 
+<!-- 6. Lists -->
+<section class="page">
+  <p class="eyebrow">Finding your way</p>
+  <h1>Lists <em>and statuses</em></h1>
+  <p class="lead">Catalogue items, posts, help topics and block pages each have a list. Click a row to edit it.</p>
+  <figure class="shot" data-shot="list"><img src="shots/list.png" alt="The services list"></figure>
+  <ol class="legend">
+    <li><b>New service</b> (New post, New area… in other lists).</li>
+    <li>Search the list.</li>
+    <li>Show only items with a given status, for example unpublished changes.</li>
+    <li>Each item's status (below).</li>
+    <li>Drag the handle to change the order the site shows them in.</li>
+    <li>Open the item on the live site.</li>
+    <li><b>Built-in</b>: nobody has edited it yet; the site shows its original content.</li>
+  </ol>
   <h2>What the status means</h2>
   <table>
     <tr><th>Status</th><th>Customers see</th><th>What to do</th></tr>
     <tr><td><span class="chip live">Live</span></td><td>This version. Nothing is waiting.</td><td>Edit whenever you like.</td></tr>
     <tr><td><span class="chip changed">Unpublished changes</span></td><td>The live version. Your edits wait in a draft.</td><td>Preview, then Publish, or Discard changes.</td></tr>
     <tr><td><span class="chip draft">Draft</span></td><td>Nothing yet: it has never been published.</td><td>Finish it and Publish.</td></tr>
-    <tr><td><span class="chip scheduled">Scheduled</span></td><td>The live version until the time you picked.</td><td>Nothing; it publishes by itself.</td></tr>
+    <tr><td><span class="chip scheduled">Scheduled</span></td><td>The live version until the time picked.</td><td>Nothing; it publishes by itself.</td></tr>
     <tr><td><span class="chip hidden">Hidden</span></td><td>Nothing: it's off the site.</td><td>Restore to site to bring it back.</td></tr>
   </table>
-  <div class="box">
-    <p>Everything starts with the content the site was built with. An item nobody has edited yet shows as <b>Live</b> with that built-in content. Your first publish replaces it, and the built-in version stays in the code as a safety net.</p>
-  </div>
 </section>
 
-<!-- 5. Editing -->
+<!-- 7. Editor -->
 <section class="page">
   <p class="eyebrow">Editing</p>
-  <h1>Edit, check, <em>publish</em></h1>
+  <h1>The <em>editor</em></h1>
+  <p class="lead">Every item opens in the same editor: the form in the middle, the buttons at the top, and its status on the right.</p>
+  <figure class="shot" data-shot="editor"><img src="shots/editor.png" alt="The editor"></figure>
+  <ol class="legend">
+    <li>Where you are, and the item's name.</li>
+    <li>Its status, and who changed it last.</li>
+    <li><b class="ur">اردو</b>: show or hide the Urdu fields.</li>
+    <li><b>Live preview</b>: the page beside the form (page 8).</li>
+    <li><b>Preview</b>: the real page with your draft, in a new tab.</li>
+    <li><b>History</b>: every version, to compare or restore (page 10).</li>
+    <li><b>Publish</b>: put your draft on the website.</li>
+    <li>The English text.</li>
+    <li>Its Urdu, beside each English field.</li>
+    <li><b>Schedule publish</b>: pick when it goes live (page 9).</li>
+    <li><b>Discard changes</b>: throw the draft away.</li>
+    <li><b>Hide from site</b>: take the item off the website.</li>
+    <li><b>Translate the rest with AI</b>: fill the empty Urdu fields (page 15).</li>
+  </ol>
+  <div class="box tip"><p>The small grey text under a field explains it, and counters like <b>16/60</b> show how long it can be. A red star marks fields that must be filled in.</p></div>
+</section>
+
+<!-- 8. Saving and live preview -->
+<section class="page">
+  <p class="eyebrow">Editing</p>
+  <h1>Saving and <em>live preview</em></h1>
   <div class="cols">
     <div>
       <h3>Drafts save themselves</h3>
-      <p>A moment after you stop typing, your changes are saved as a draft and the top of the page says <b>Draft saved</b>. Close the tab and come back later; the draft waits for you.</p>
-      <h3>Save a version: <span class="key">Ctrl</span> <span class="key">S</span></h3>
-      <p>On a Mac, <span class="key">⌘</span> <span class="key">S</span>. This saves now and keeps this version in History, so you can come back to it. Do it before a big rewrite.</p>
-      <h3>Preview</h3>
-      <p>Opens the real page with your draft in a new tab. Only you see it. Check it on your phone as well as a computer.</p>
-      <h3>Live preview and click-to-edit</h3>
-      <p><b>Live preview</b> shows the page beside the form and updates as you type. Click any text in it to jump straight to its field.</p>
-      <h3>Publish</h3>
-      <p>Puts your draft on the website straight away. Every publish is kept in History.</p>
+      <p>A moment after you stop typing, your changes are saved as a draft. Close the tab and come back later; the draft waits for you. If you change something back to exactly what's live, the draft disappears and the item shows as Live again.</p>
     </div>
     <div>
-      <h3>Schedule publish</h3>
-      <p>Pick a date and time (Karachi time). The draft publishes by itself, once an Owner has finished setting this up (the Dashboard says if not). If someone who can't publish edits it in the meantime, the schedule is cancelled so nothing unchecked goes live.</p>
+      <h3>Save a version: <span class="key">Ctrl</span> <span class="key">S</span></h3>
+      <p>On a Mac, <span class="key">⌘</span> <span class="key">S</span>. It saves now and keeps this version in History, to come back to. Do it before a big rewrite.</p>
+      <h3>Preview</h3>
+      <p>Opens the real page with your draft in a new tab. Only you see it.</p>
+    </div>
+  </div>
+  <h2>Live preview and click-to-edit</h2>
+  <figure class="shot" data-shot="live"><img src="shots/live.png" alt="The editor with its live preview open"></figure>
+  <ol class="legend">
+    <li><b>Live preview</b> on or off. The admin remembers your choice.</li>
+    <li>See the page at <b>Desktop</b> or <b>Phone</b> width.</li>
+    <li>The <b>English</b> or <b class="ur">اردو</b> page.</li>
+    <li><b>Click to edit</b>: click any text in the preview to jump to its field.</li>
+    <li>The real page with your draft. It updates a moment after each change. The icons above it reload it, open it in a new tab, or close it.</li>
+  </ol>
+</section>
+
+<!-- 9. Publishing -->
+<section class="page">
+  <p class="eyebrow">Editing</p>
+  <h1>Publishing and <em>scheduling</em></h1>
+  <h3>Publish</h3>
+  <p>Puts your draft on the website straight away. Every publish is kept in History.</p>
+  <h2>Schedule publish</h2>
+  <div class="pair" style="grid-template-columns: 58mm 1fr">
+    <figure class="shot" data-shot="schedule"><img src="shots/schedule.png" alt="Scheduling a publish"></figure>
+    <div>
+      <ol class="legend one">
+        <li>Pick the date and time, in <b>Karachi time</b>.</li>
+        <li><b>Schedule</b>. The item shows as <span class="chip scheduled">Scheduled</span> and publishes by itself.</li>
+        <li><b>Cancel</b> closes the form without scheduling.</li>
+      </ol>
+      <p>A scheduled item shows <b>Goes live</b> with the time, and a <b>Cancel schedule</b> button. If someone who can't publish edits it in the meantime, the schedule is cancelled, so nothing unchecked goes live.</p>
+      <p class="muted small">Scheduling works once an Owner has finished setting it up; the Dashboard says if not.</p>
+    </div>
+  </div>
+  <div class="cols">
+    <div>
       <h3>Submit for review (Authors)</h3>
       <p>Authors can't publish. <b>Submit for review</b> puts the draft on the Dashboard under <b>Waiting for you</b> for an Editor to check and publish.</p>
       <h3>Discard changes</h3>
       <p>Throws the draft away. The live version stays as it is.</p>
+    </div>
+    <div>
       <h3>Hide from site</h3>
       <p>Takes an item off the website, for example a service you've stopped offering. <b>Restore to site</b> brings it back.</p>
       <h3>Two people, one item</h3>
-      <p>If someone else saved the same item while you were editing, you get a warning instead of overwriting their work. Reload to see their changes, then make yours again.</p>
+      <p>If someone else saved the same item while you were editing, you get a warning instead of overwriting their work. Reload, then make your change again.</p>
     </div>
   </div>
   <div class="box tip">
@@ -224,56 +354,101 @@
     <ul>
       <li>Preview on a phone: most customers book from one.</li>
       <li>Prices: check the amount and the "from" wording. Only Owners and Admins can change them.</li>
-      <li>If the Urdu site is switched on, check the Urdu too (page 8).</li>
+      <li>If the Urdu site is switched on, check the Urdu too (page 15).</li>
     </ul>
   </div>
 </section>
 
-<!-- 6. History -->
+<!-- 10. History and activity -->
 <section class="page">
   <p class="eyebrow">Nothing is lost</p>
-  <h1>History, activity <em>and backups</em></h1>
-  <h2>History</h2>
-  <p>Every item has a <b>History</b> button. It lists every publish, every <span class="key">Ctrl</span> <span class="key">S</span> save, every restore and every import, with who did it and when.</p>
-  <ol class="steps">
-    <li>Click <b>Compare</b> on a version.</li>
-    <li>Choose what to compare it with: <b>what's in the form now</b>, or <b>the live version</b>. Only the differences show, word by word: <span style="background:#FDE8E8;color:#9B1C1C;text-decoration:line-through">struck-out words</span> are in the old version, <span style="background:#E8F5EE;color:#14532D">highlighted words</span> are newer.</li>
-    <li>To go back, click <b>Restore</b>. The old version becomes your draft. Publish it to make it live.</li>
-  </ol>
-
-  <h2>Activity log</h2>
-  <p><b>Team → Activity log</b> shows who published, scheduled, hid, restored, invited or downloaded what, and when. Use it to answer "who changed this price?".</p>
-
-  <h2>Backups</h2>
-  <div class="cols">
+  <h1>History and the <em>activity log</em></h1>
+  <p class="lead">Click <b>History</b> in any editor. It lists every publish, every <span class="key">Ctrl</span> <span class="key">S</span> save, every restore and every import, with who did it and when.</p>
+  <div class="pair" style="grid-template-columns: 70mm 1fr">
     <div>
-      <h3>Download (Owners and Admins)</h3>
-      <p><b>Team → Backup → Download backup</b> gives you one file with everything people have saved here: pages, catalogue, posts, settings (live, drafts, scheduled and hidden), the media library's records and the redirects.</p>
-      <p>Download one before big changes and keep it somewhere private: it holds all the site's content.</p>
-      <p class="muted small">Not in a backup: the built-in content (it ships with the site) and the photo files themselves (they stay in storage).</p>
+      <figure class="shot" data-shot="history"><img src="shots/history.png" alt="The history panel"></figure>
+      <ol class="legend one">
+        <li>What History keeps.</li>
+        <li><b>Compare</b> a version with now.</li>
+        <li><b>Restore</b> it as your draft.</li>
+      </ol>
     </div>
     <div>
-      <h3>Restore (Owners only)</h3>
-      <p>Choose the file, check the summary, then pick:</p>
+      <figure class="shot" data-shot="compare"><img src="shots/compare.png" alt="Comparing two versions"></figure>
+      <ol class="legend one">
+        <li>Compare with <b>what's in the form now</b>…</li>
+        <li>…or with <b>the live version</b>.</li>
+        <li><span style="background:#FDE8E8;color:#9B1C1C;text-decoration:line-through">Red, struck out</span>: in the old version. <span style="background:#E8F5EE;color:#14532D">Green</span>: newer.</li>
+        <li><b>Restore</b> that version as your draft, then publish it.</li>
+      </ol>
+    </div>
+  </div>
+  <h2>Activity log (Team → Activity log)</h2>
+  <figure class="shot" data-shot="activity"><img src="shots/activity.png" alt="The activity log"></figure>
+  <ol class="legend">
+    <li><b>Who</b> did it.</li>
+    <li><b>What</b> they did: published, scheduled, hid, uploaded, invited, downloaded a backup…</li>
+    <li><b>Details</b>: which fields changed. Use it to answer "who changed this price?".</li>
+  </ol>
+</section>
+
+<!-- 11. Backups -->
+<section class="page">
+  <p class="eyebrow">Nothing is lost</p>
+  <h1><em>Backups</em></h1>
+  <p class="lead">Team → Backup. Download one before big changes, and keep it somewhere private: it holds all the site's content.</p>
+  <figure class="shot" data-shot="backup"><img src="shots/backup.png" alt="The backup page"></figure>
+  <ol class="legend">
+    <li><b>Download backup</b> (Owners and Admins): one file with everything people have saved here.</li>
+    <li><b>Choose a backup file</b> to restore (Owners only).</li>
+  </ol>
+  <div class="cols">
+    <div>
+      <h3>What's in a backup</h3>
+      <p>Every page, catalogue item, post and setting people have saved (live, drafts, scheduled and hidden), the media library's records and the redirects.</p>
+      <p class="muted small">Not in it: the built-in content (it ships with the site) and the photo files themselves (they stay in storage).</p>
+    </div>
+    <div>
+      <h3>Restoring</h3>
+      <p>Choose the file and check the summary it shows, then pick:</p>
       <ul>
         <li><b>As drafts</b> (recommended): every entry comes back as a draft. The website doesn't change until someone reviews and publishes.</li>
-        <li><b>Exactly as in the backup</b>: live content, drafts, schedules and hidden items become what they were. The website changes straight away.</li>
+        <li><b>Exactly as in the backup</b>: live content, drafts, schedules and hidden items become what they were. The website changes straight away; you tick a box to confirm.</li>
       </ul>
       <p>A restore never deletes anything. Entries that already match are left alone, and every restored entry gets an "Imported" version in its History.</p>
     </div>
   </div>
 </section>
 
-<!-- 7. Blocks -->
+<!-- 12. Block pages -->
 <section class="page">
   <p class="eyebrow">Page builder</p>
-  <h1>New pages <em>from blocks</em></h1>
-  <p class="lead">For a campaign, an event or a landing page, build a page from ready-made blocks in Mjazo's style. No designer needed.</p>
-  <ol class="steps">
-    <li><b>Pages → Block pages → New.</b> Give it a title and an address, for example <code>/campaigns/eid-sale</code>: lowercase, words joined with hyphens.</li>
-    <li><b>Add blocks</b> with the + between them. Drag the handle to reorder, or use Duplicate and Remove.</li>
-    <li>Turn on <b>Live preview</b> to see the page as you build it, then Publish.</li>
+  <h1>Block <em>pages</em></h1>
+  <p class="lead">For a campaign, an event or a landing page: build a new page from ready-made blocks in Mjazo's style. Start with <b>Pages → Block pages → New</b>, give it a name and an address like <code>/campaigns/eid-sale</code> (lowercase, words joined with hyphens).</p>
+  <figure class="shot" data-shot="blocks" style="width: 150mm; margin-left: auto; margin-right: auto"><img src="shots/blocks.png" alt="A block page in the editor"></figure>
+  <ol class="legend">
+    <li>The page's blocks, top to bottom.</li>
+    <li>Drag a block by its handle to move it.</li>
+    <li>Click a block to open it and edit its text, pictures, buttons and background.</li>
+    <li>Duplicate a block.</li>
+    <li>Remove a block.</li>
+    <li>Open all blocks at once.</li>
+    <li>This page is scheduled: it <b>goes live</b> by itself at that time.</li>
   </ol>
+  <p class="muted small">Change a published page's address and the old address redirects to the new one by itself.</p>
+</section>
+
+<!-- 13. The blocks -->
+<section class="page">
+  <p class="eyebrow">Page builder</p>
+  <h1>The 13 <em>blocks</em></h1>
+  <div class="pair" style="grid-template-columns: 96mm 1fr">
+    <figure class="shot" data-shot="addblock"><img src="shots/addblock.png" alt="Choosing a block"></figure>
+    <div>
+      <p><b>Add a block</b> under the list (or the small <b>+</b> between two blocks, when you point at the gap) opens this choice. New blocks start with sample text to replace.</p>
+      <p>Turn on <b>Live preview</b> to watch the page take shape, then Publish.</p>
+    </div>
+  </div>
   <div class="blocks">
     <div><b>Hero</b>A big headline, a short line and buttons, at the top.</div>
     <div><b>Text</b>Headings, paragraphs, lists and links.</div>
@@ -283,7 +458,7 @@
     <div><b>Questions</b>Questions and answers that open on tap.</div>
     <div><b>Call to action</b>A closing headline with buttons.</div>
     <div><b>Promises strip</b>Mjazo's promises in one band.</div>
-    <div><b>Numbers</b>Key figures, which can count live (see page 9).</div>
+    <div><b>Numbers</b>Key figures, which can count live (page 18).</div>
     <div><b>Video</b>A video from the media library.</div>
     <div><b>Gallery</b>Several photos together.</div>
     <div><b>Enquiry form</b>Customers leave their number; it arrives with the other website requests.</div>
@@ -294,75 +469,134 @@
     <ul>
       <li>Each block has a background: <b>Paper</b>, <b>Ink</b>, <b>Saffron</b> or <b>Blush</b>. Alternate them, and use Saffron at most once.</li>
       <li>Put <code>*one word*</code> of a headline in stars to make it the italic accent: <i style="font-family:'Playfair Display',serif">A headline for <span style="color:#934F00">this</span> page</i>.</li>
-      <li>Change a published page's address and the old one redirects to it by itself.</li>
     </ul>
   </div>
 </section>
 
-<!-- 8. Pictures and Urdu -->
+<!-- 14. Media -->
 <section class="page">
-  <p class="eyebrow">Pictures and Urdu</p>
-  <h1>Media, and the <em>Urdu</em> site</h1>
-  <div class="cols">
+  <p class="eyebrow">Pictures</p>
+  <h1>Pictures <em>and media</em></h1>
+  <figure class="shot" data-shot="media"><img src="shots/media.png" alt="The media library"></figure>
+  <ol class="legend">
+    <li>Search by name, alt text or tag.</li>
+    <li>Show only images, videos, 3D models or PDFs.</li>
+    <li><b>Upload</b>, or drop files anywhere on the page. JPG, PNG, WebP, AVIF, GIF and PDF up to 10 MB; MP4 and WebM video up to 50 MB; 3D models up to 25 MB.</li>
+    <li><b>No alt text</b>: add a description before using it.</li>
+  </ol>
+  <div class="pair" style="grid-template-columns: 50mm 1fr">
+    <figure class="shot" data-shot="media-detail"><img src="shots/media-detail.png" alt="A picture's details"></figure>
     <div>
-      <h2>Pictures and media</h2>
-      <p>Upload in <b>Media</b>, or straight from any image field. Accepted: JPG, PNG, WebP, AVIF and GIF up to 10 MB; MP4 and WebM up to 50 MB; 3D models (GLB) up to 25 MB; PDF up to 10 MB.</p>
-      <h3>Alt text</h3>
-      <p>Describe what the picture shows, for blind visitors and for Google: "A Mjazo pro threading a customer's brows at home". The AI can suggest one; it's marked <i>Written by AI</i>. Check it before saving.</p>
-      <h3>Focal point</h3>
-      <p>Click the important part of the picture, such as a face. When the site crops the picture for phones, that part stays in view.</p>
-      <h3>Replace file</h3>
-      <p>Swaps the file but keeps it in place. Every page using it shows the new one, so there's no need to edit each page.</p>
-      <h3>Before deleting</h3>
-      <p>Each item shows where it's used. Delete only what says <i>Not used anywhere yet</i>.</p>
+      <p>Click a picture to open its details:</p>
+      <ol class="legend one">
+        <li><b>Focal point</b>: click the important part, such as a face. When the site crops the picture for phones, that part stays in view.</li>
+        <li><b>Copy link</b> to the file.</li>
+        <li><b>Suggest with AI</b> writes alt text from the picture. Check it before saving.</li>
+        <li><b>Alt text</b>: what the picture shows, for blind visitors and Google. "A Mjazo pro threading a customer's brows at home", in English and Urdu.</li>
+        <li><b>Tags</b>, to find it again.</li>
+        <li><b>Where it's used</b>: every page that shows it.</li>
+        <li><b>Replace file</b>: swaps the picture everywhere it's used at once.</li>
+        <li><b>Delete</b>: only possible when it isn't used anywhere.</li>
+      </ol>
       <div class="box"><p><b>Our pictures:</b> real Karachi homes and real pros. Never retouch or lighten skin.</p></div>
-    </div>
-    <div>
-      <h2>Urdu</h2>
-      <p>Every text field has an Urdu side. Click <b class="ur">اردو</b> at the top of an editor to show the Urdu fields next to the English ones.</p>
-      <h3>AI translation</h3>
-      <p><b>Translate the rest with AI</b> in an editor fills the empty Urdu fields. Each one carries a purple <i>AI translation, needs review</i> label. Read them, correct what's wrong, then click <b>Mark AI Urdu as reviewed</b>.</p>
-      <h3>Tools → Urdu translation</h3>
-      <p>Shows how much of the site has Urdu, and can translate everything still missing in one go.</p>
-      <h3>Going public</h3>
-      <p>The Urdu site at <code>/ur</code> goes public when an Owner or Admin switches it on in <b>Settings → Feature switches</b>. Before that, a native speaker reads the Urdu, especially prices, policies and anything legal.</p>
-      <div class="box tip"><p>Changing the English doesn't change the Urdu. When you change what an English sentence says, update its Urdu too.</p></div>
     </div>
   </div>
 </section>
 
-<!-- 9. SEO and special text -->
+<!-- 15. Urdu -->
+<section class="page">
+  <p class="eyebrow">Urdu</p>
+  <h1>The <em>Urdu</em> site</h1>
+  <figure class="shot" data-shot="urdu"><img src="shots/urdu.png" alt="Urdu fields in the editor"></figure>
+  <ol class="legend">
+    <li><b class="ur">اردو</b> shows or hides the Urdu fields.</li>
+    <li>The English text.</li>
+    <li>Its Urdu, written right to left.</li>
+    <li>How much of this item has Urdu.</li>
+    <li><b>Translate the rest with AI</b> fills the empty Urdu fields. Each carries a purple <i>AI translation, needs review</i> label: read them, correct them, then click <b>Mark AI Urdu as reviewed</b>.</li>
+  </ol>
+  <h2>Tools → Urdu translation</h2>
+  <figure class="shot" data-shot="translate"><img src="shots/translate.png" alt="The Urdu translation page"></figure>
+  <ol class="legend">
+    <li>How much of the whole site has Urdu.</li>
+    <li><b>Publish each one straight away</b>. Leave it off to review the drafts first.</li>
+    <li><b>Translate everything missing</b> in one go.</li>
+    <li><b>Needs review</b>: AI Urdu that nobody has checked yet.</li>
+    <li>Each section and how far its Urdu is.</li>
+  </ol>
+  <p class="small">The Urdu site at <code>/ur</code> goes public when an Owner or Admin switches it on in <b>Settings → Feature switches</b>. Before that, a native speaker reads the Urdu, especially prices, policies and anything legal. Changing the English doesn't change the Urdu: update both.</p>
+</section>
+
+<!-- 16. SEO group -->
 <section class="page">
   <p class="eyebrow">Being found</p>
-  <h1>SEO, addresses <em>and special text</em></h1>
+  <h1>SEO <em>in the editor</em></h1>
+  <p class="lead">Most items have an <b>SEO</b> section near the bottom of the form: how the page appears in Google and when its link is shared on WhatsApp. Empty fields use the page's own text.</p>
+  <figure class="shot" data-shot="seo-group" style="width: 150mm; margin-left: auto; margin-right: auto"><img src="shots/seo-group.png" alt="The SEO section"></figure>
+  <ol class="legend">
+    <li><b>Google</b>: the result as Google shows it.</li>
+    <li><b>WhatsApp &amp; social</b>: the card a shared link shows.</li>
+    <li>The search title and description.</li>
+    <li>Checks: green is fine, amber says what to fix.</li>
+    <li><b>Suggest with AI</b>: a title, description and keyword to start from.</li>
+    <li>The page's latest <b>SEO score</b>.</li>
+  </ol>
+  <h2>The fields below the checks</h2>
+  <table>
+    <tr><td>Search title</td><td>Shown in Google and the browser tab, 30 to 60 characters. "· Mjazo" is added for you.</td></tr>
+    <tr><td>Search description</td><td>The grey text under the title in Google, 70 to 160 characters.</td></tr>
+    <tr><td>Focus keyword</td><td>The phrase the page should rank for, such as "waxing at home Karachi". The score checks it.</td></tr>
+    <tr><td>Share image</td><td>Shown when the link is shared. A JPG or PNG of 1200 × 630 works best.</td></tr>
+    <tr><td>Hide from search engines</td><td>For pages that shouldn't appear in Google.</td></tr>
+  </table>
+</section>
+
+<!-- 17. SEO dashboard -->
+<section class="page">
+  <p class="eyebrow">Being found</p>
+  <h1>The SEO <em>dashboard</em></h1>
+  <p class="lead">Tools → SEO. How every page scores in search, and what to fix first.</p>
+  <figure class="shot" data-shot="seo"><img src="shots/seo.png" alt="The SEO dashboard"></figure>
+  <ol class="legend">
+    <li>The average SEO score, and how many pages are good, need work or are poor.</li>
+    <li><b>Audit all pages</b>: checks every page again (a few minutes).</li>
+    <li>Search pages, addresses or keywords.</li>
+    <li>Filter by section or problem, and sort.</li>
+    <li>Each page's score: green 80+, amber 50 to 79, red under 50.</li>
+    <li><b>Top problems</b> to fix on that page.</li>
+    <li><b>Audit</b> one page again after you fix it. The pencil opens its editor.</li>
+  </ol>
+  <p>An audit reads the published page the way Google does and runs 16 checks: title and description, focus keyword, headings, links, image alt text, amount of text and readability. Drafts count once they're published. Once an Owner has switched it on, the whole site is checked again by itself every Monday.</p>
+</section>
+
+<!-- 18. Redirects and special text -->
+<section class="page">
+  <p class="eyebrow">Being found</p>
+  <h1>Redirects and <em>special text</em></h1>
+  <figure class="shot" data-shot="redirects" style="width: 150mm; margin-left: auto; margin-right: auto"><img src="shots/redirects.png" alt="The redirects page"></figure>
+  <ol class="legend">
+    <li><b>Old address</b>, for example <code>/eid</code>.</li>
+    <li><b>New address</b>: a page on the site or a full web address.</li>
+    <li><b>Permanent</b> for pages that moved for good.</li>
+    <li><b>Add redirect</b>. It warns about loops and addresses that lead nowhere.</li>
+    <li>Test where any address ends up.</li>
+    <li>Redirects added by themselves when an address changed.</li>
+    <li>Redirects built into the site, set by a developer.</li>
+  </ol>
   <div class="cols">
     <div>
-      <h2>SEO</h2>
-      <p>Most items have an <b>SEO</b> section: the title and description Google shows, and the picture shown when someone shares the link on WhatsApp. It previews the Google result and gives a score with tips.</p>
-      <p><b>Tools → SEO</b> lists every page with its score, the checks that failed and its speed. Once an Owner has switched it on, the whole site is checked again by itself every Monday.</p>
-      <h2>Addresses and redirects</h2>
-      <p>When the address of a service, post or page changes, the old address redirects to the new one by itself, so old links and Google keep working.</p>
-      <p><b>Tools → Redirects</b> is for anything else, such as a short address for a campaign (<code>/eid</code> → <code>/campaigns/eid-sale</code>). It warns about addresses that lead nowhere.</p>
+      <h3>Placeholders: <code>{{ … }}</code></h3>
+      <p>Some text holds placeholders the site fills in from Settings, so one change there updates the text everywhere. Keep the double braces exactly as they are.</p>
+      <p><code>{{catalog.serviceCount}}</code> services · <code>{{catalog.areaCount}}</code> live areas · <code>{{policy.freeChangeHours}}</code> free-change hours · <code>{{plus.priceText}}</code> the Plus price.</p>
     </div>
     <div>
-      <h2>Special text</h2>
-      <h3>Placeholders: <code>{{ … }}</code></h3>
-      <p>Some text has placeholders, such as <code>{{policy.freeChangeHours}}</code>. The site fills them in from Settings, so a change there updates the text everywhere. Keep the double braces exactly as they are.</p>
-      <table>
-        <tr><th>Write</th><th>Shows</th></tr>
-        <tr><td><code>{{catalog.serviceCount}}</code></td><td>How many services there are</td></tr>
-        <tr><td><code>{{catalog.areaCount}}</code></td><td>How many Karachi areas are live</td></tr>
-        <tr><td><code>{{catalog.areaNames}}</code></td><td>Their names</td></tr>
-        <tr><td><code>{{policy.freeChangeHours}}</code></td><td>Hours for free changes</td></tr>
-        <tr><td><code>{{plus.priceText}}</code></td><td>The Plus price</td></tr>
-      </table>
       <h3>The italic accent: <code>*word*</code></h3>
       <p>In headlines, one word in stars becomes the italic accent. Use it once per headline.</p>
     </div>
   </div>
 </section>
 
-<!-- 10. Voice and help -->
+<!-- 19. House style -->
 <section class="page">
   <p class="eyebrow">House style</p>
   <h1>Writing <em>for Mjazo</em></h1>
@@ -384,19 +618,48 @@
       <p class="small" style="color:rgba(255,255,255,.7)">Verified pros for every corner of your Karachi home, at clear prices you pay after.</p>
     </div>
   </div>
+  <h2>Pictures</h2>
+  <p>Real Karachi homes and real pros; soft, warm light. Never retouch or lighten skin. Every picture gets alt text that says what it shows.</p>
+  <h2>Headlines</h2>
+  <p>One idea, said simply, with one accent word in italics: "Glow at <i>home</i>". The accent is saffron on light backgrounds; saffron is the only accent colour.</p>
+  <h2>Prices and promises</h2>
+  <p>Write prices as <b>PKR 4,500</b>, with "from" when options change the price. Promises (free changes, redo, pay after) come from the booking policy placeholders, so they're always the same everywhere.</p>
+</section>
 
-  <h2>When something goes wrong</h2>
+<!-- 20. When something goes wrong -->
+<section class="page">
+  <p class="eyebrow">Help</p>
+  <h1>When something <em>goes wrong</em></h1>
   <table>
     <tr><th>If…</th><th>Then</th></tr>
     <tr><td>You published by mistake</td><td>History → Compare to find the right version → Restore → Publish.</td></tr>
     <tr><td>A draft is a mess</td><td>Discard changes. The live version is untouched.</td></tr>
     <tr><td>Something looks broken on the site</td><td>Undo the last publish from History, then tell an Admin what you changed (the activity log helps).</td></tr>
     <tr><td>Many items went wrong at once</td><td>An Owner restores the last backup <b>as drafts</b> and publishes what's right.</td></tr>
+    <tr><td>A picture is wrong everywhere</td><td>Media → the picture → Replace file.</td></tr>
+    <tr><td>An old link shows "not found"</td><td>Tools → Redirects → add one from the old address to the new page.</td></tr>
     <tr><td>You can't sign in</td><td>Use Forgot password? or Email me a sign-in link. Lost your phone? An Owner resets your two-step sign-in.</td></tr>
     <tr><td>Your role can't change a field</td><td>Ask an Editor (content), an Admin (prices, settings) or an Owner (people, backups).</td></tr>
+    <tr><td>You saved over someone's work</td><td>You can't by accident: the editor warns you first. If it happened, History has their version.</td></tr>
   </table>
   <div class="box tip"><p><b>Questions?</b> Ask an Owner: <b>mjazosupport@gmail.com</b>.</p></div>
 </section>
 
+<script>
+  // Numbered callouts on each screenshot, at the spots measured by shots.mjs.
+  for (const f of document.querySelectorAll("figure[data-shot]")) {
+    const s = (window.SHOTS || {})[f.dataset.shot]
+    if (!s) continue
+    for (const m of s.marks) {
+      if (m.missing) continue
+      const b = document.createElement("b")
+      b.className = "mk"
+      b.textContent = m.n
+      b.style.left = Math.min(98, Math.max(2, m.x)) + "%"
+      b.style.top = Math.min(98, Math.max(2, m.y)) + "%"
+      f.append(b)
+    }
+  }
+</script>
 </body>
 </html>

@@ -21,7 +21,7 @@ looking the same while making more of it editable.
 Both Owners (`CMS_OWNER_EMAIL`) can sign in, and the first has set up two-step sign-in. Locally,
 without Supabase variables in `.env.local`, edits still go to `.data/` on the developer's computer.
 
-The team handbook for editors is `docs/Mjazo-CMS-Team-Handbook.pdf` (10 pages). Its source is
+The team handbook for editors is `docs/Mjazo-CMS-Team-Handbook.pdf`: 20 pages, one topic per page, each built around a real screenshot of the admin with numbered callouts. Its source is
 `docs/handbook/handbook.html`; reprint it with `node docs/handbook/print.mjs`.
 
 ---
@@ -40,7 +40,7 @@ The team handbook for editors is `docs/Mjazo-CMS-Team-Handbook.pdf` (10 pages). 
 **Still to do (owner):**
 
 1. **Rotate the pasted secrets.** The `sb_secret_` key and the database password were pasted into a chat. Create a new secret key (Supabase → Project Settings → API Keys), put it in Vercel as `SUPABASE_SERVICE_ROLE_KEY`, delete the old one, and reset the database password (the site never uses it).
-2. **Scheduled publishing and the weekly SEO check:** set `CRON_SECRET` in Vercel (a long random string). Then point a 5-minute pinger (for example cron-job.org) at `GET /api/cron/cms-publish` with the header `Authorization: Bearer <CRON_SECRET>`. The weekly SEO check needs no pinger: `vercel.json` schedules it and Vercel sends the secret. Until then, a scheduled publish doesn't go out by itself.
+2. **Scheduled publishing and the weekly SEO check:** run `node scripts/setup-supabase.mjs --cron`. It makes a random `CRON_SECRET` on the owner's computer, stores it in Vercel as a Secret, and shows it once with the pinger steps. Then set up a 5-minute pinger (cron-job.org) at `GET /api/cron/cms-publish` and `GET /api/cron/safety` with the header `Authorization: Bearer <CRON_SECRET>`, and redeploy. The weekly SEO check needs no pinger: `vercel.json` schedules it and Vercel sends the secret. Until then, a scheduled publish doesn't go out by itself.
 3. **Email for invites:** Supabase's built-in email only sends a few messages an hour. Before inviting the whole team, add an SMTP sender under Supabase → Authentication → Emails.
 4. **Optional:** set `PAGESPEED_API_KEY` for more PageSpeed audits per day.
 5. **Deploys:** `npx vercel deploy --prod` from `website/`, after checking `npx vercel whoami` shows thehashirsukhera-8511.
@@ -302,7 +302,7 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
   - Build time: about 2 minutes on Vercel (compile 31 s, static pages 51 s); 5 to 6.5 minutes on this PC.
   - Page size: the catalogue the layout sends to the browser was 58.5 KB of each page's data (48 KB of it catalogue). Category FAQs and "not included" lists are only shown by server-rendered pages, so `browserCatalog()` leaves them out: now 44.9 KB. Compressed, that saves only about 1 KB, because the repeated FAQs compressed well. Home page data is now 88 KB (22 KB gzipped).
   - Cache tags: every page carries the catalogue and settings tags (the header, search and footer use them), so a price change refreshes every page. A page edit refreshes only its own tag (for example `cms:page-about`). Pages rebuild on their next visit, not all at once.
-- **Team handbook:** `docs/Mjazo-CMS-Team-Handbook.pdf`, 10 A4 pages in the brand style. It covers signing in and roles, the admin map and statuses, editing and publishing, history and backups, block pages, media, Urdu, SEO and redirects, placeholders, house style and what to do when something goes wrong.
+- **Team handbook:** `docs/Mjazo-CMS-Team-Handbook.pdf`, 20 A4 pages in the brand style, each built around a real screenshot with numbered callouts and a legend. It covers signing in and two-step sign-in, roles and invites, the dashboard and menu, lists and statuses, the editor, saving and live preview, publishing and scheduling, history and the activity log, backups, block pages and the 13 blocks, media, Urdu, SEO (editor and dashboard), redirects and placeholders, house style, and what to do when something goes wrong. `docs/handbook/shots.mjs` retakes the screenshots from the local dev server: it hides the local-only banner and shows the local Owner as the support account. `node docs/handbook/print.mjs` reprints the PDF.
 
 **Left**
 
