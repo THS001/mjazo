@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 5 October 2026._
+_Last updated 5 October 2026 (CMS phase 7 done, Supabase connected)._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -23,13 +23,13 @@ accounts, and what's left.
 | AI features (Concierge, Ghar Scan, Home Pulse, Glam Mirror, Shaadi Orchestrator) | Built and live; verified with the real API key |
 | Staff tools (`/ops` console, `/pro` app, recruiting interviews) | Built and live, but switched off until their passcodes are set |
 | CMS phase 1: foundation | Done, live |
-| CMS phase 2: every page editable | Done; the deploy ran but I couldn't confirm it went live |
-| CMS phase 3: media library | Done, not deployed |
-| CMS phase 4: Urdu site | Done, not deployed |
-| CMS phase 5: SEO | Done, not deployed |
-| CMS phase 6: page builder and live preview | Done, not deployed |
-| CMS phase 7: hardening and team handbook | Not started |
-| Supabase (database and file storage) | **Not connected yet.** Needed before anything saved in `/admin` is kept, and for cross-page flows on the live site |
+| CMS phase 2: every page editable | Done, live |
+| CMS phase 3: media library | Done, live |
+| CMS phase 4: Urdu site | Done, live (the Urdu site stays hidden until switched on) |
+| CMS phase 5: SEO | Done, live |
+| CMS phase 6: page builder and live preview | Done, live |
+| CMS phase 7: hardening and team handbook | Done; the last fixes go out with the next deploy |
+| Supabase (database and file storage) | **Connected (5 Oct 2026).** CMS content, media, bookings and staff data are now stored durably |
 
 ---
 
@@ -47,6 +47,8 @@ accounts, and what's left.
 | 4 Oct 2026 | CMS phase 2 finished, phases 3 and 4 done, phase 5 well under way. A git repository was created and the code pushed to GitHub |
 | 5 Oct 2026 | **CMS phase 5 finished:** SEO dashboard, redirects screen, SEO previews in the editor, weekly SEO check, plus tests |
 | 5 Oct 2026 | **CMS phase 6 finished:** block pages from 13 blocks, live preview beside every editor, click-to-edit. Also fixed new items returning 404 after a deploy |
+| 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
+| 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 
 ---
 
@@ -157,7 +159,7 @@ The team and the client can edit everything on the site without code changes. Fu
 - **Defaults and fallback:** each type's built-in content is the default, and the site falls back to it if the database is down.
 - **Catalogue and settings:** the full catalogue and the site settings (contact, policy values, Plus, referral, feature switches) are editable.
 
-### Phase 2: Editors. Done (deploy not confirmed)
+### Phase 2: Editors. Done, live
 
 - **Every page** has its own editable content type.
 - **Shared templates** for world, category, service and area pages, using per-item placeholders like `{{area}}`.
@@ -166,7 +168,7 @@ The team and the client can edit everything on the site without code changes. Fu
 - **Placeholders** keep prices and policy numbers in sync, e.g. `{{policy.redoHours}}`.
 - **Preview drafts** on the real site.
 
-### Phase 3: Media. Done, not deployed
+### Phase 3: Media. Done, live
 
 - **Media library:**
   - drag-and-drop uploads straight to Supabase Storage
@@ -177,7 +179,7 @@ The team and the client can edit everything on the site without code changes. Fu
 - **Photos** for categories, services, world tiles, blog covers and 14 page headings. The home video and 3D models for world pages come from the library too.
 - **Optimised images** through Next's image component.
 
-### Phase 4: Urdu. Done, not deployed
+### Phase 4: Urdu. Done, live
 
 - **Addresses:** the Urdu site lives at `/ur/...`, with right-to-left layout and Nastaliq type.
 - **Links** stay in Urdu once you're on the Urdu site.
@@ -185,7 +187,7 @@ The team and the client can edit everything on the site without code changes. Fu
 - **AI translation:** per entry, or "translate everything missing" across the whole site. Every AI translation is flagged until a person reviews it.
 - **A switch keeps the Urdu site hidden from search engines** until you turn it on.
 
-### Phase 5: SEO. Done, not deployed
+### Phase 5: SEO. Done, live
 
 - **SEO fields** on every page and item: search title, description, focus keyword, share image, hide from search, canonical address.
 - **SEO settings:** title patterns in English and Urdu, defaults, robots rules, verification codes.
@@ -208,7 +210,7 @@ The team and the client can edit everything on the site without code changes. Fu
 
 **Checked locally:** 379 of 383 pages audited in the dashboard (average 86, none under 50). The other 4 hit dev-server errors and load fine on their own. Redirects were tested end to end: English, Urdu, query strings, loop refusal, edit and delete.
 
-### Phase 6: Page builder and live preview. Done, not deployed
+### Phase 6: Page builder and live preview. Done, live
 
 - **Block pages (Pages → Block pages):** new pages at any free address, like `/eid-sale` or `/campaigns/eid-sale`, with their own SEO. They're in the sitemap and the SEO dashboard, have Urdu at `/ur/…`, and get a redirect when their address changes. Addresses that belong to the site's own sections are refused.
 - **13 blocks,** built from the site's own components:
@@ -223,15 +225,22 @@ The team and the client can edit everything on the site without code changes. Fu
 
 **Checked:** a 13-block page was built in the admin, previewed and published, and checked at desktop and phone width. Its address change added the redirect, and a production build served it (and 404s for unknown addresses) correctly.
 
-### Phase 7: Hardening. Not started
+### Phase 7: Hardening. Done
 
-- tests for every role against every action
-- a permission audit
-- JSON backup export and import
-- two-step sign-in (MFA) for Owners and Admins
-- a side-by-side comparison in version history
-- performance checks
-- a short team handbook PDF in the brand style
+- **Tests for every role against every action** (31 actions × 6 roles) through the real server actions. They found one bug, now fixed: the SEO role couldn't save built-in items without an SEO group.
+- **Permission audit fixes:**
+  - drafts only for existing entries
+  - a schedule is cancelled when someone who can't publish edits the entry
+  - the SEO role discards SEO changes only
+  - new items are checked field by field
+  - the SEO tools only accept the site's own paths
+- **Backup (Team → Backup):** Owners and Admins download everything as one file. Owners restore it as drafts or exactly; nothing is deleted, and entries that already match are left alone.
+- **Two-step sign-in** with an authenticator app, required for Owners and Admins. Owners can reset it for others.
+- **History compare:** any version against the form or the live version, word by word, then restore it.
+- **Saving:** Ctrl+S keeps a version in History. Content that's back to the live version no longer shows as "Unpublished changes".
+- **Several Owners:** `CMS_OWNER_EMAIL` takes several emails, and an Owner's first emailed sign-in link creates their account.
+- **Performance:** about 2 minutes to build on Vercel. Every page's data is 13.5 KB smaller (category FAQs no longer go to the browser). Cache tags were checked: a page edit refreshes only that page.
+- **Team handbook:** `docs/Mjazo-CMS-Team-Handbook.pdf` (10 pages, brand style; source in `docs/handbook/`).
 
 ---
 
@@ -245,7 +254,9 @@ The team and the client can edit everything on the site without code changes. Fu
 - **GitHub:** https://github.com/THS001/mjazo, branch `main`. Commits are authored as THS001 <thehashirsukhera@gmail.com>.
 - **Local development:** run `npm run dev` in `website/`. Without Supabase, CMS edits and form submissions are saved in `.data/` on that computer.
 
-### Database (Supabase): not connected yet
+### Database (Supabase): connected
+
+Project `xjyafabyscamelebzrsb` (https://xjyafabyscamelebzrsb.supabase.co), set up on 5 October 2026 with `node scripts/setup-supabase.mjs`. The script runs every migration, checks the keys and adds the settings to Vercel. The owner types the password and keys into it, and they're never saved to a file.
 
 | Migration | Tables |
 |---|---|
@@ -254,8 +265,8 @@ The team and the client can edit everything on the site without code changes. Fu
 | `0003_ops.sql` | `ops_docs` (jobs, pros, applicants, complaints, wedding plans, ratings, audit) |
 | `0004_cms.sql` | `cms_entries`, `cms_versions`, `cms_users`, `cms_media`, `cms_redirects`, `cms_seo_reports`, `cms_audit`, plus the `media` storage bucket |
 
-Without Supabase on Vercel, every API route has its own temporary storage. So these flows can't
-work end to end on the live site: apply → interview link, booking → ops console, complaint → Trust Desk.
+With Supabase connected, the cross-page flows (apply → interview link, booking → ops console,
+complaint → Trust Desk) can now work end to end on the live site. They haven't been re-tested live yet.
 
 ### Settings (environment variables)
 
@@ -264,9 +275,10 @@ All are listed with explanations in [.env.example](.env.example).
 | Setting | Needed for | Status |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | All AI features, AI translation, alt text, SEO suggestions | Set (production) |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Saving anything durably | Not set |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | CMS sign-in and media uploads | Not set |
-| `CMS_OWNER_EMAIL` | The first CMS Owner | Not set |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Saving anything durably | Set (production; rotate the secret key, see section 7) |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | CMS sign-in and media uploads | Set (production) |
+| `CMS_OWNER_EMAIL` | The CMS Owners | Set: mjazosupport@gmail.com, thehashirsukhera@gmail.com |
+| `CMS_MFA_REQUIRED` | Two-step sign-in for Owners and Admins (on unless `false`) | Not set (on) |
 | `OPS_PASSCODE`, `SESSION_SECRET` | Turning on `/ops` and `/pro` | Not set |
 | `CRON_SECRET` (plus a 5-minute pinger) | Safety Guardian, scheduled publishing and the weekly SEO check | Not set |
 | `RESEND_API_KEY`, `OPS_EMAIL`, `OPS_FROM` | Emailing every submission to the team | Not set |
@@ -278,13 +290,13 @@ All are listed with explanations in [.env.example](.env.example).
 
 ## 7. Setup checklist for the owner
 
-1. Create a Supabase project and add the four Supabase settings to Vercel.
-2. Run migrations `0001` to `0004` in the Supabase SQL editor.
-3. Set `CMS_OWNER_EMAIL`, sign in at `/admin`, and invite the team from People & roles.
+1. ~~Supabase project, migrations, settings in Vercel, Owners, sign-in URLs, deploy~~ Done on 5 October 2026.
+2. **Rotate the pasted secrets:** create a new Supabase secret key, put it in Vercel as `SUPABASE_SERVICE_ROLE_KEY` and delete the old one. Also reset the database password; the site doesn't use it.
+3. Add an SMTP sender in Supabase (Authentication → Emails) before inviting the team: the built-in email only sends a few an hour. Then invite the team from People & roles and share the handbook PDF.
 4. Set `OPS_PASSCODE` and `SESSION_SECRET` to turn on the staff tools.
 5. Set `CRON_SECRET`. Point an external 5-minute pinger at `/api/cron/safety` and `/api/cron/cms-publish`. The weekly SEO check runs by itself (a Vercel cron in `vercel.json`), once `CRON_SECRET` is set.
 6. Optionally set `RESEND_API_KEY` and the `OPS_*` emails, the WhatsApp Cloud API settings, `STT_API_KEY` and `PAGESPEED_API_KEY`.
-7. Deploy (`npx vercel deploy --prod` from `website/`). Phases 3 to 6 of the CMS aren't live yet.
+7. Deploy (`npx vercel deploy --prod` from `website/`) after checking `npx vercel whoami`.
 8. In `/admin/translate`, run "Translate everything missing". Have someone review the Urdu, then switch on the Urdu site under Settings → Feature switches.
 
 ---
@@ -312,12 +324,12 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
 
 ## 9. What's left, in order
 
-1. **CMS phase 7:** tests, the permission audit, backup export and import, MFA, the history comparison, performance checks and the team handbook.
+1. **Owner setup:** section 7 (rotate secrets, SMTP, `CRON_SECRET` and pingers, staff tool passcodes).
 2. **Interface text still in code:**
    - inside the AI tools (Ghar Scan, Home Pulse, Glam Mirror, Shaadi planner, Concierge)
    - account screens, offer buttons and the partner flow
    - move it into "Buttons & labels", with Urdu
-3. **Owner setup:** section 7 (Supabase, settings, pingers, deploy).
+3. **Re-test the live flows** that need Supabase: booking → ops console, apply → interview, complaint → Trust Desk.
 4. **Urdu content:** the AI translation pass, a human review, then switching on the Urdu site.
 5. **Founder confirmations:** section 8 (contact details, prices, policies, legal text).
 6. **Brand:** the open decisions in section 4.
@@ -342,4 +354,6 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - Compiling hundreds of routes at once (e.g. "Audit all" on a fresh dev server) can briefly corrupt the dev server's own manifests, giving 500s with JSON errors. Restart it. The production build isn't affected.
   - In Git Bash, set `MSYS_NO_PATHCONV=1` when passing `/paths` to scripts.
 - **Shell heredocs strip backslashes and backticks** in code. Edit code with an editor or a script file, never a heredoc.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (134 tests), then `npx next build` (827 pages, plus two per published block page).
+- **Browser catalogue:** the layout sends `browserCatalog(catalog)` to `CmsProvider`, without category FAQs and "not included" lists. Client components that need them must get them from the server (`getCatalog()`).
+- **Saving:** autosave and Ctrl+S go through `saveEdits()`, which clears a draft that's back to the live version. Publish and schedule still use `saveDraft()`.
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (191 tests), then `npx next build` (828 pages, plus two per published block page).

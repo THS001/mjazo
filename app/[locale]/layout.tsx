@@ -11,7 +11,7 @@ import { PreviewBar } from "@/components/cms/preview-bar"
 import { PreviewBridge } from "@/components/cms/preview-bridge"
 import { SITE_URL } from "@/lib/site"
 import { dirOf, LOCALES, OG_LOCALE } from "@/lib/i18n"
-import { getCatalogData, getNav, getSeoSettings, getSettings, getUi, isPreview } from "@/lib/cms/read"
+import { browserCatalog, getCatalogData, getNav, getSeoSettings, getSettings, getUi, isPreview } from "@/lib/cms/read"
 import { pageLocale } from "@/lib/cms/locale"
 import { CmsProvider } from "@/components/cms/provider"
 import { fontVars } from "../fonts"
@@ -81,7 +81,7 @@ export default async function RootLayout({ children, params }: Readonly<{ childr
       <body className="font-sans antialiased bg-background text-foreground">
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }} />
-        <CmsProvider locale={locale} catalog={catalog} settings={settings} nav={{ header: nav.header, tabs: nav.tabs }} ui={ui}>
+        <CmsProvider locale={locale} catalog={browserCatalog(catalog)} settings={settings} nav={{ header: nav.header, tabs: nav.tabs }} ui={ui}>
           <SiteOnly>
             <SmoothScroll />
             <Header />

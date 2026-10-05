@@ -247,6 +247,34 @@ export async function saveDraft(user: CmsUser, type: string, id: string, data: D
   return saved
 }
 
+/** JSON with object keys sorted, so equal content compares equal whatever order its keys were set in. */
+const stable = (v: unknown) => JSON.stringify(v, (_k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : 1))) : x))
+
+/** The live version as the editor shows it (built-in content with its shipped Urdu, as in loadEntry); null when hidden or never published. */
+function liveAsEdited(t: ContentType<unknown, unknown>, id: string, row: EntryRow | null): Data | null {
+  const def = defaultsOf(t).get(id)
+  const live = row?.published ?? (row?.status === "archived" ? null : (def ?? null))
+  return live && def ? withDefaultUrdu(t.fields, { ...def, ...live }, def) : live
+}
+
+/**
+ * Autosave and Ctrl+S. Content that's back to exactly the live version isn't a change: the draft is
+ * cleared (and a schedule left with nothing to publish is cancelled) instead of keeping a copy that
+ * would show as "Unpublished changes".
+ */
+export async function saveEdits(user: CmsUser, type: string, id: string, data: Data, version: number, manual = false) {
+  const t = mustType(type)
+  const row = await getRow(type, id)
+  const live = liveAsEdited(t, id, row)
+  if (!live || stable(live) !== stable(data)) return void (await saveDraft(user, type, id, data, version, { manual }))
+  checkTypeAccess(t, user)
+  const before = await loadEntry(type, id)
+  if (!before) throw new ValidationError(["This item doesn't exist (any more). Reload the page."])
+  checkFieldPerms(t, user, before.data, data)
+  if (!row || (!row.draft && row.status !== "scheduled")) return
+  await writeRow({ ...baseRow(type, id, row), draft: null, review: false, updated_by: user.name, ...(row.status === "scheduled" ? { status: row.published ? "published" : "draft", publish_at: null } : {}) }, version)
+}
+
 export async function publish(user: CmsUser, type: string, id: string, version: number, inServerAction = true) {
   const t = mustType(type)
   checkTypeAccess(t, user)

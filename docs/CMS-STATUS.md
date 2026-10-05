@@ -1,6 +1,6 @@
 # Mjazo CMS: build status
 
-_Last updated 5 October 2026 (phase 6). Code: https://github.com/THS001/mjazo (branch `main`)._
+_Last updated 5 October 2026 (phase 7, all phases done). Code: https://github.com/THS001/mjazo (branch `main`)._
 
 The CMS at `/admin` lets the team and the client edit everything on mjazo.vercel.app without code
 changes: text, prices, images, menus, SEO, and the Urdu site. It is built into the Next.js site and
@@ -10,35 +10,40 @@ looking the same while making more of it editable.
 | Phase | What it covers | Status |
 |---|---|---|
 | 1. Foundation | Accounts and roles, the admin shell, drafts, publishing, history, the catalogue | Done, deployed |
-| 2. Editors | Every page, page templates, menus, blog, help, legal | Done (deploy not confirmed) |
-| 3. Media | Media library, image slots, hero video, 3D models | Done, not deployed |
-| 4. Urdu | `/ur` site, right-to-left layout, translation tools | Done, not deployed |
-| 5. SEO | SEO fields, metadata, redirects, SEO score, dashboard | Done, not deployed |
-| 6. Page builder | New pages from blocks, live preview, click-to-edit | Done, not deployed |
-| 7. Hardening | Tests, permission audit, backup, performance, team handbook | Not started |
+| 2. Editors | Every page, page templates, menus, blog, help, legal | Done, deployed |
+| 3. Media | Media library, image slots, hero video, 3D models | Done, deployed |
+| 4. Urdu | `/ur` site, right-to-left layout, translation tools | Done, deployed |
+| 5. SEO | SEO fields, metadata, redirects, SEO score, dashboard | Done, deployed |
+| 6. Page builder | New pages from blocks, live preview, click-to-edit | Done, deployed |
+| 7. Hardening | Tests, permission audit, backup, two-step sign-in, performance, team handbook | Done; the last fixes go out with the next deploy |
 
-Until Supabase is connected, nothing saved in `/admin` is kept on the live site: the site shows
-its built-in content, and the admin says so at the top. Locally, edits are saved to `.data/` on the
-developer's computer.
+**Supabase is connected (5 October 2026).** Content saved in `/admin` now persists on the live site.
+Both Owners (`CMS_OWNER_EMAIL`) can sign in, and the first has set up two-step sign-in. Locally,
+without Supabase variables in `.env.local`, edits still go to `.data/` on the developer's computer.
+
+The team handbook for editors is `docs/Mjazo-CMS-Team-Handbook.pdf` (10 pages). Its source is
+`docs/handbook/handbook.html`; reprint it with `node docs/handbook/print.mjs`.
 
 ---
 
-## Before anything persists: setup the owner must do
+## Setup
 
-These need the owner's accounts and keys. The code is ready for all of them.
+**Done (5 October 2026):**
 
-1. **Create a Supabase project** and add these to Vercel (Project → Settings → Environment Variables):
-   - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
-   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-2. **Run the database migrations** in the Supabase SQL editor, in order: `supabase/migrations/0001` to `0004`.
-   - `0004_cms.sql` creates the CMS tables (entries, versions, users, media, redirects, SEO reports, audit log).
-   - It also creates the public `media` storage bucket.
-3. **Set `CMS_OWNER_EMAIL`**. That person signs in first, then invites everyone else from `/admin/people`.
-4. **Scheduled publishing and the weekly SEO check:** set `CRON_SECRET`. Point a 5-minute pinger at `/api/cron/cms-publish`, using the same secret as the Safety Guardian pinger. The weekly SEO check needs no pinger: `vercel.json` schedules it, and Vercel sends the secret.
-5. **Optional:** set `PAGESPEED_API_KEY` for more PageSpeed audits per day.
-6. **Deploy** with `npx vercel deploy --prod` from `website/`, after checking the right Vercel account with `npx vercel whoami`.
-   - Phases 3 to 6 are not live yet.
-   - Claude's production deploys are blocked by its safety system, so the owner deploys.
+1. **Supabase project** `xjyafabyscamelebzrsb`. `node scripts/setup-supabase.mjs` ran migrations `0001` to `0004`, checked both keys and added the variables to Vercel production. The owner typed the database password and keys into the script; they're in no file. The script is safe to run again.
+   - Vercel has `SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the `sb_publishable_` key) and `SUPABASE_SERVICE_ROLE_KEY` (the `sb_secret_` key, stored as Secret).
+   - `0004_cms.sql` created the CMS tables and the public `media` storage bucket.
+2. **`CMS_OWNER_EMAIL`** = `mjazosupport@gmail.com,thehashirsukhera@gmail.com`. An Owner's first "Email me a sign-in link" creates their sign-in account, so nobody makes logins in Supabase.
+3. **Supabase → Authentication → URL Configuration:** Site URL `https://mjazo.vercel.app`, Redirect URL `https://mjazo.vercel.app/**`.
+4. **Deployed** to production with Supabase, and checked: `/admin` asks for sign-in, the backup download is refused when signed out, and an Owner signed in and set up two-step sign-in.
+
+**Still to do (owner):**
+
+1. **Rotate the pasted secrets.** The `sb_secret_` key and the database password were pasted into a chat. Create a new secret key (Supabase → Project Settings → API Keys), put it in Vercel as `SUPABASE_SERVICE_ROLE_KEY`, delete the old one, and reset the database password (the site never uses it).
+2. **Scheduled publishing and the weekly SEO check:** set `CRON_SECRET` in Vercel (a long random string). Then point a 5-minute pinger (for example cron-job.org) at `GET /api/cron/cms-publish` with the header `Authorization: Bearer <CRON_SECRET>`. The weekly SEO check needs no pinger: `vercel.json` schedules it and Vercel sends the secret. Until then, a scheduled publish doesn't go out by itself.
+3. **Email for invites:** Supabase's built-in email only sends a few messages an hour. Before inviting the whole team, add an SMTP sender under Supabase → Authentication → Emails.
+4. **Optional:** set `PAGESPEED_API_KEY` for more PageSpeed audits per day.
+5. **Deploys:** `npx vercel deploy --prod` from `website/`, after checking `npx vercel whoami` shows thehashirsukhera-8511.
 
 `ANTHROPIC_API_KEY` is already set on Vercel (production). It powers the AI translation, alt text
 and SEO suggestions in the admin. `.env.example` lists every variable with a comment.
@@ -268,29 +273,47 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 
 ---
 
-## Phase 7: Hardening. Not started
+## Phase 7: Hardening. Done
 
-1. **Tests:**
-   - the full permission matrix (every role against every action). Which fields each role may change is already tested (`lib/cms/field-perms.test.ts`).
-   - export and import round trip, scheduled publishing
-   - the read-layer fallbacks for every type
-   - (Slug-change redirects were tested in phase 5.)
-2. **Permission audit:** every server action and route handler re-checked, including media upload, preview, cron and the SEO actions.
-3. **Backup:** a full JSON export of all content, media records and redirects, and an import (Owner only) recorded in history.
-4. **Two-step sign-in (MFA)** for Owners and Admins, carried over from phase 1.
-5. **History diff view**, carried over from phase 2.
-6. **Performance:**
-   - check build time with both languages (827 pages now)
-   - check the page size the catalogue adds to each page
-   - check cache tags refresh only what changed
-7. **Team handbook:** a short PDF in the Mjazo brand style on how to edit, publish, translate, add media, read the SEO score and manage redirects.
+**What it does**
+
+- **Permission matrix tests** (`lib/cms/permissions.test.ts`): 31 actions × 6 roles, run against an in-memory store through the real server actions and routes. Also covers two-step sign-in, scheduling, saving and the hardening fixes below.
+- **Permission audit:** every server action and route handler was re-checked. Fixed:
+  - saving a draft needs an existing entry (new ones go through Create, which checks ids, slugs and addresses)
+  - an edit by someone who can't publish it cancels a pending schedule, so it isn't published for them
+  - the SEO role can only discard SEO changes
+  - new items are checked field by field, like edits
+  - reordering ignores unknown ids
+  - the translation list respects type access
+  - the SEO tools only accept paths on the site
+  - a bug the matrix found: the SEO role couldn't save built-in items that had no SEO group yet
+- **Backup** (Team → Backup, `lib/cms/backup.ts`, `/api/cms/backup`):
+  - Owners and Admins download one JSON file: every saved entry (all statuses), media records and redirects.
+  - Owners restore it **as drafts** (the live site doesn't change) or **exactly** (live content, schedules and hidden items too). Nothing is deleted. Each restored entry gets an "imported" version in its History, and entries that already match are left alone. Both downloads and restores go in the activity log.
+- **Two-step sign-in** (`lib/cms/mfa.ts`, `/admin/two-step`): authenticator-app codes through Supabase Auth.
+  - Required for Owners and Admins, optional for everyone else (Account).
+  - Every admin page, server action and the preview route checks it.
+  - Owners and Admins can reset it for others from People & roles (Admins can't reset Owners).
+  - `CMS_MFA_REQUIRED=false` turns the requirement off during setup.
+- **History compare** (`lib/cms/diff.ts`): any version against the form or the live version, field by field and word by word, then restore it.
+- **Saving:** Ctrl+S (⌘S) saves now and keeps a version in History. Content that's back to exactly the live version clears the draft (`saveEdits`), so it no longer shows as "Unpublished changes".
+- **Owners and setup:** `CMS_OWNER_EMAIL` takes several emails, and an Owner's first emailed sign-in link creates their account. `scripts/setup-supabase.mjs` sets up a Supabase project (migrations, key checks, Vercel variables).
+- **Performance** (production build, 828 pages):
+  - Build time: about 2 minutes on Vercel (compile 31 s, static pages 51 s); 5 to 6.5 minutes on this PC.
+  - Page size: the catalogue the layout sends to the browser was 58.5 KB of each page's data (48 KB of it catalogue). Category FAQs and "not included" lists are only shown by server-rendered pages, so `browserCatalog()` leaves them out: now 44.9 KB. Compressed, that saves only about 1 KB, because the repeated FAQs compressed well. Home page data is now 88 KB (22 KB gzipped).
+  - Cache tags: every page carries the catalogue and settings tags (the header, search and footer use them), so a price change refreshes every page. A page edit refreshes only its own tag (for example `cms:page-about`). Pages rebuild on their next visit, not all at once.
+- **Team handbook:** `docs/Mjazo-CMS-Team-Handbook.pdf`, 10 A4 pages in the brand style. It covers signing in and roles, the admin map and statuses, editing and publishing, history and backups, block pages, media, Urdu, SEO and redirects, placeholders, house style and what to do when something goes wrong.
+
+**Left**
+
+- **Two-step sign-in in local development:** it can't be tried without Supabase. It was checked live by the first Owner, but its screen wasn't checked at phone width. The Backup screen was (375 px, no sideways scrolling).
 
 ---
 
 ## Checks and tests
 
 - `npx tsc --noEmit`: clean.
-- `npm test`: 134 tests pass. They cover:
+- `npm test`: 191 tests in 17 files pass. They cover:
   - every content type's built-in content validating against its fields, and round-tripping unchanged
   - shipped Urdu
   - media type and content checks, size limits and image lookup
@@ -300,8 +323,11 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
   - what each role may change and publish, including the SEO role (`field-perms.test.ts`)
   - the blocks field through every layer, block page addresses, and every block's starting content (`blocks.test.ts`)
   - click-to-edit matching (`click-to-edit.test.ts`)
-  - catalogue helpers and roles
-- `npx next build`: passes (5 October 2026, end of phase 6). 827 pages, plus two per published block page (English and Urdu).
+  - catalogue helpers and roles, including several Owner emails (`roles.test.ts`)
+  - the permission matrix for every role, two-step sign-in, scheduling and saving (`permissions.test.ts`)
+  - two-step sign-in rules (`mfa.test.ts`), backups (`backup.test.ts`) and the history compare (`diff.test.ts`)
+  - built-in content as the fallback for every type when an entry is invalid or the database is down (`read.test.ts`)
+- `npx next build`: passes (5 October 2026, phase 7). 828 pages, plus two per published block page (English and Urdu).
 
 ## Commits
 
@@ -316,3 +342,5 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 | Progress | `PROGRESS.md` for the whole project |
 | Phase 5 | SEO dashboard, redirects screen, editor SEO previews, weekly check, tests |
 | Phase 6 | Block pages, 13 blocks, live preview, click-to-edit; new items no longer 404 after a deploy |
+| Phase 7 (part 1) | Permission fixes and matrix tests, backup, two-step sign-in, history compare, several Owners, Supabase setup script |
+| Phase 7 | Team handbook, smaller browser catalogue, Ctrl+S versions, drafts equal to live are cleared, docs |

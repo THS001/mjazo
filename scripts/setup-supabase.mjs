@@ -31,17 +31,15 @@ const fail = (s) => {
 /** Asks in the terminal; with `hidden`, nothing typed or pasted is shown. */
 function ask(question, hidden = false) {
   return new Promise((resolve) => {
+    // The question is written first, so it shows even when everything typed after it is hidden.
+    process.stdout.write(question)
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true })
-    let muted = false
-    rl._writeToOutput = (s) => {
-      if (!muted) process.stdout.write(s)
-    }
-    rl.question(question, (answer) => {
+    if (hidden) rl._writeToOutput = () => {}
+    rl.question("", (answer) => {
       rl.close()
       if (hidden) process.stdout.write(" (received)\n")
       resolve(answer.trim())
     })
-    muted = hidden
   })
 }
 

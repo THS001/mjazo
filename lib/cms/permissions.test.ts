@@ -209,6 +209,22 @@ describe("scheduled publishing", () => {
   })
 })
 
+describe("saving", () => {
+  it("treats edits that are back to the live version as no change, and Ctrl+S keeps real changes", async () => {
+    reset()
+    const orig = await load("service", SERVICE)
+    const changed = await draft("service", SERVICE, (x) => (x.short.en = "Changed"))
+    expect(changed.state).toBe("changed")
+    expect(await A.saveDraftAction("service", SERVICE, orig.data, changed.version, true)).toMatchObject({ ok: true, data: { state: "default" } })
+    expect(mem.versions).toEqual([])
+    // Nothing waiting: saving the live content again changes nothing.
+    const now = await load("service", SERVICE)
+    expect(await A.saveDraftAction("service", SERVICE, now.data, now.version, true)).toMatchObject({ ok: true, data: { state: "default", version: now.version } })
+    expect(await A.saveDraftAction("service", SERVICE, edit(now.data, (x) => (x.short.en = "Kept")), now.version, true)).toMatchObject({ ok: true, data: { state: "changed" } })
+    expect(mem.versions).toEqual([expect.objectContaining({ kind: "saved" })])
+  })
+})
+
 describe("hardening", () => {
   it("won't save to an entry that doesn't exist (new ones go through Create)", async () => {
     reset()

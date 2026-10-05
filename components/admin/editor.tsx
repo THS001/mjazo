@@ -119,7 +119,9 @@ export function Editor({ meta, entry, refs, perms, previewPath }: Props) {
         const r = await saveDraftAction(meta.type, entry!.id, dataRef.current, version.current, manual)
         if (apply(r)) {
           dirty.current = false
-          setSave({ kind: "saved", at: new Date().toISOString() })
+          // Back to exactly what's live: nothing is waiting to publish, and nothing new went into History.
+          const same = r.ok && (r.data?.state === "live" || r.data?.state === "default")
+          setSave({ kind: "saved", at: new Date().toISOString(), message: same ? "No changes: this is what's live" : manual ? "Saved, and kept in History" : undefined })
           return true
         }
         return false
@@ -133,6 +135,17 @@ export function Editor({ meta, entry, refs, perms, previewPath }: Props) {
     const t = setTimeout(() => void saveNow(false), 1500)
     return () => clearTimeout(t)
   }, [data, isNew, saveNow])
+
+  // Ctrl+S (⌘S on a Mac) saves now and keeps this version in History, to come back to later.
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "s") return
+      e.preventDefault()
+      void saveNow(true)
+    }
+    window.addEventListener("keydown", h)
+    return () => window.removeEventListener("keydown", h)
+  }, [saveNow])
 
   // Warn before leaving with unsaved changes.
   useEffect(() => {
@@ -561,7 +574,7 @@ function HistoryPanel({ type, id, fields, current, live, onClose, onRestore, can
           </div>
         ) : (
           <>
-            <p className="mb-4 text-sm text-zinc-500">Every publish and every manual save is kept. Compare a version with what you have now, or restore it as a draft and publish it to make it live.</p>
+            <p className="mb-4 text-sm text-zinc-500">Every publish is kept, and every save you make with Ctrl+S (⌘S on a Mac). Compare a version with what you have now, or restore it as a draft and publish it to make it live.</p>
             {!rows && !error && <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />}
             {rows?.length === 0 && <p className="text-sm text-zinc-500">No versions yet. The built-in content is shown until the first publish.</p>}
             <ol className="space-y-2">

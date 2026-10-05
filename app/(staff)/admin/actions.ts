@@ -20,7 +20,7 @@ const reload = async (type: string, id: string) => (await w.loadEntry(type, id))
 
 export async function saveDraftAction(type: string, id: string, data: Data, version: number, manual = false) {
   return run("view", async (u) => {
-    await w.saveDraft(u, type, id, data, version, { manual })
+    await w.saveEdits(u, type, id, data, version, manual)
     return reload(type, id)
   })
 }

@@ -1,7 +1,7 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { SITE_URL } from "@/lib/site"
-import { getCatalogData, getNav, getSettings, getUi } from "@/lib/cms/read"
+import { browserCatalog, getCatalogData, getNav, getSettings, getUi } from "@/lib/cms/read"
 import { setRequestLocale } from "@/lib/cms/locale"
 import { CmsProvider } from "@/components/cms/provider"
 import { fontVars } from "../fonts"
@@ -18,7 +18,7 @@ export default async function StaffLayout({ children }: Readonly<{ children: Rea
   return (
     <html lang="en" dir="ltr" className={fontVars}>
       <body className="font-sans antialiased bg-background text-foreground">
-        <CmsProvider locale="en" catalog={catalog} settings={settings} nav={{ header: nav.header, tabs: nav.tabs }} ui={ui}>
+        <CmsProvider locale="en" catalog={browserCatalog(catalog)} settings={settings} nav={{ header: nav.header, tabs: nav.tabs }} ui={ui}>
           {children}
         </CmsProvider>
       </body>

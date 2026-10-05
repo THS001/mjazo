@@ -218,4 +218,13 @@ export const getCatalogData = cache(async (locale: Locale = requestLocale()) => 
   }
 })
 
+/**
+ * The catalogue for the browser (CmsProvider), sent with every page. Category FAQs and "not
+ * included" lists are only shown by server-rendered pages, so they're left out: about a quarter of
+ * the catalogue. Client components read them as empty lists; use getCatalog() on the server instead.
+ */
+export function browserCatalog<C extends { categories: { faqs: unknown[]; excludes: unknown[] }[] }>(data: C): C {
+  return { ...data, categories: data.categories.map((c) => ({ ...c, faqs: [], excludes: [] })) }
+}
+
 export const getCatalog = cache(async (locale: Locale = requestLocale()) => buildCatalog(await getCatalogData(locale)))
