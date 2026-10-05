@@ -262,6 +262,33 @@ export async function finishUpload(user: Actor, up: { id: string; path: string; 
   return row
 }
 
+/**
+ * Backups: adds media records the library doesn't have yet (existing ones are left alone). The files
+ * themselves aren't in a backup; each record's address is rebuilt for this site's storage.
+ */
+export async function importMediaRecords(rows: MediaRow[]): Promise<number> {
+  const valid = rows
+    .filter((r) => r && typeof r.id === "string" && typeof r.path === "string" && /^\d{4}\/\d{2}\/[a-z0-9]+-[a-z0-9-]+\.[a-z0-9]+$/.test(r.path) && MEDIA_TYPES[r.mime])
+    .map((r) => ({ ...r, url: publicUrl(r.path) }))
+  if (db) {
+    const { data, error } = await db.from("cms_media").select("id")
+    if (error) throw error
+    const have = new Set((data as { id: string }[]).map((x) => x.id))
+    const fresh = valid.filter((r) => !have.has(r.id))
+    if (fresh.length) {
+      const { error: e2 } = await db.from("cms_media").insert(fresh)
+      if (e2) throw e2
+    }
+    return fresh.length
+  }
+  return local((all) => {
+    const have = new Set(all.map((r) => r.id))
+    const fresh = valid.filter((r) => !have.has(r.id))
+    all.push(...fresh)
+    return fresh.length
+  }, true)
+}
+
 // ---------------------------------------------------------------------------
 // Editing
 // ---------------------------------------------------------------------------

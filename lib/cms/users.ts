@@ -16,8 +16,21 @@ export async function listUsers(): Promise<CmsUserRow[]> {
   return data as CmsUserRow[]
 }
 
+/** Who has two-step sign-in on (a confirmed authenticator), by user id. */
+export async function twoStepOn(ids: string[]): Promise<Record<string, boolean>> {
+  if (!db) return {}
+  const out: Record<string, boolean> = {}
+  await Promise.all(
+    ids.map(async (id) => {
+      const { data } = await db!.auth.admin.mfa.listFactors({ userId: id })
+      out[id] = (data?.factors ?? []).some((f) => f.status === "verified")
+    }),
+  )
+  return out
+}
+
 /** Only Owners may create or change Owners; nobody can demote or deactivate themselves. */
-function guard(actor: CmsUser, role: Role, targetId?: string) {
+export function guard(actor: CmsUser, role: Role, targetId?: string) {
   if (!ROLES.includes(role)) throw new CmsAuthError("Unknown role.")
   if (role === "owner" && actor.role !== "owner") throw new CmsAuthError("Only an Owner can make someone an Owner.")
   if (targetId && targetId === actor.id) throw new CmsAuthError("You can't change your own role or access. Ask another Owner.")

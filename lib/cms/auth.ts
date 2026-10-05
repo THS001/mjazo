@@ -4,13 +4,15 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { createServerClient } from "@supabase/ssr"
 import { db } from "@/lib/server/store"
-import { can, ROLES, type Perm, type Role } from "./roles"
+import { can, ownerEmails, ROLES, type Perm, type Role } from "./roles"
+import { mfaState, type MfaState } from "./mfa"
 
 // Who is signed in to /admin. Production uses Supabase Auth (email + password or a magic link)
 // with roles in the cms_users table. In local development without Supabase, a "local owner"
 // session lets you build and test the CMS; it is never accepted in production.
 
-export type CmsUser = { id: string; email: string; name: string; role: Role }
+/** `mfa`: whether two-step sign-in is complete for this session (lib/cms/mfa.ts); missing means not needed. */
+export type CmsUser = { id: string; email: string; name: string; role: Role; mfa?: MfaState }
 
 const PUBLIC_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -42,25 +44,26 @@ export const getCmsUser = cache(async (): Promise<CmsUser | null> => {
   const mode = authMode()
   if (mode === "dev") {
     const v = (await cookies()).get(DEV_COOKIE)?.value
-    return v ? { id: "local-owner", email: "owner@localhost", name: "Local owner", role: "owner" } : null
+    return v ? { id: "local-owner", email: "owner@localhost", name: "Local owner", role: "owner", mfa: "ok" } : null
   }
   if (mode !== "supabase") return null
-  const { data } = await (await supabaseAuth()).auth.getUser()
+  const sb = await supabaseAuth()
+  const { data } = await sb.auth.getUser()
   const u = data.user
   if (!u?.email) return null
   const email = u.email.toLowerCase()
   let { data: row } = await db!.from("cms_users").select("*").eq("id", u.id).maybeSingle()
   if (!row) {
-    // First sign-in of the Owner named in CMS_OWNER_EMAIL creates their account.
-    const owner = process.env.CMS_OWNER_EMAIL?.toLowerCase().trim()
-    if (owner && email === owner) {
+    // First sign-in of an Owner named in CMS_OWNER_EMAIL creates their account.
+    if (ownerEmails().includes(email)) {
       const created = await db!.from("cms_users").upsert({ id: u.id, email, name: u.user_metadata?.name ?? email.split("@")[0], role: "owner", active: true }).select().single()
       row = created.data
     }
   }
   if (!row?.active || !ROLES.includes(row.role)) return null
   void db!.from("cms_users").update({ last_seen: new Date().toISOString() }).eq("id", u.id).then(() => {})
-  return { id: u.id, email, name: row.name || email.split("@")[0], role: row.role }
+  const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel().catch(() => ({ data: null }))
+  return { id: u.id, email, name: row.name || email.split("@")[0], role: row.role, mfa: mfaState(row.role, aal) }
 })
 
 export class CmsAuthError extends Error {
@@ -76,13 +79,26 @@ export class CmsAuthError extends Error {
 export async function pageUser(): Promise<CmsUser> {
   const u = await getCmsUser()
   if (!u) redirect("/admin/login")
+  if (u.mfa && u.mfa !== "ok") redirect("/admin/two-step")
+  return u
+}
+
+/** Signed in, whether or not two-step sign-in is done yet (for the two-step screen itself). */
+export async function requireSession(): Promise<CmsUser> {
+  const u = await getCmsUser()
+  if (!u) throw new CmsAuthError("Please sign in again.")
+  return u
+}
+
+/** Whether this person may use the admin for `perm`: signed in, two-step done, and their role allows it. Throws why not. */
+export function allow(u: CmsUser | null, perm: Perm): CmsUser {
+  if (!u) throw new CmsAuthError("Please sign in again.")
+  if (u.mfa && u.mfa !== "ok") throw new CmsAuthError("Finish two-step sign-in first: reload the page.")
+  if (!can(u.role, perm)) throw new CmsAuthError()
   return u
 }
 
 /** The signed-in user if they hold `perm`; throws otherwise. Call at the top of every server action. */
 export async function requireCms(perm: Perm = "view"): Promise<CmsUser> {
-  const u = await getCmsUser()
-  if (!u) throw new CmsAuthError("Please sign in again.")
-  if (!can(u.role, perm)) throw new CmsAuthError()
-  return u
+  return allow(await getCmsUser(), perm)
 }

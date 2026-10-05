@@ -5,6 +5,7 @@ import { CmsAuthError } from "@/lib/cms/auth"
 import { entryCoverage } from "@/lib/cms/coverage"
 import { getType } from "@/lib/cms/registry"
 import { can } from "@/lib/cms/roles"
+import { typeAccessError } from "@/lib/cms/field-perms"
 import type { Data } from "@/lib/cms/store"
 import { translateData } from "@/lib/cms/translate"
 import * as w from "@/lib/cms/write"
@@ -31,7 +32,8 @@ export async function coverageAction() {
  */
 export async function translateNextAction(skip: string[], publish: boolean) {
   return run("edit", async (u) => {
-    const pending = (await entryCoverage()).filter((e) => e.done < e.total && !skip.includes(`${e.type}/${e.id}`))
+    // Only entries this person may change, so no AI translation is paid for and then thrown away.
+    const pending = (await entryCoverage()).filter((e) => e.done < e.total && !skip.includes(`${e.type}/${e.id}`) && !typeAccessError(getType(e.type)!, u.role))
     const next = pending[0]
     if (!next) return { key: null, remaining: 0 }
     const key = `${next.type}/${next.id}`

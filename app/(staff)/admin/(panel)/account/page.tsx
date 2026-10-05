@@ -1,7 +1,7 @@
 import { authMode, pageUser } from "@/lib/cms/auth"
 import { ROLE_INFO } from "@/lib/cms/roles"
 import { Card } from "@/components/admin/ui"
-import { PasswordForm } from "@/components/admin/account"
+import { PasswordForm, TwoStepStatus } from "@/components/admin/account"
 
 export const metadata = { title: "Your account" }
 
@@ -22,8 +22,15 @@ export default async function AccountPage() {
           <p className="mb-3 text-xs text-zinc-500">Set or change the password you sign in with. At least 10 characters.</p>
           <PasswordForm />
         </Card>
+      ) : null}
+      {authMode() === "supabase" ? (
+        <Card className="p-5">
+          <p className="font-medium">Two-step sign-in</p>
+          <p className="mb-3 text-xs text-zinc-500">A code from an authenticator app on your phone, asked for at every sign-in. Owners and Admins must use it.</p>
+          <TwoStepStatus />
+        </Card>
       ) : (
-        <Card className="p-5 text-sm text-zinc-500">You're signed in as the local development Owner. Passwords arrive with Supabase.</Card>
+        <Card className="p-5 text-sm text-zinc-500">You're signed in as the local development Owner. Passwords and two-step sign-in arrive with Supabase.</Card>
       )}
     </div>
   )

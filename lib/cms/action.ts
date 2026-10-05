@@ -1,5 +1,5 @@
 import "server-only"
-import { CmsAuthError, requireCms, type CmsUser } from "./auth"
+import { CmsAuthError, requireCms, requireSession, type CmsUser } from "./auth"
 import { MediaError } from "./media"
 import type { Perm } from "./roles"
 import { ConflictError } from "./store"
@@ -17,8 +17,17 @@ export class ValidationError extends Error {
 }
 
 export async function run<T>(perm: Perm, fn: (user: CmsUser) => Promise<T>): Promise<Result<T>> {
+  return wrap(() => requireCms(perm), fn)
+}
+
+/** Like run(), for the two-step sign-in screen: signed in, but two-step may not be done yet. */
+export async function runSession<T>(fn: (user: CmsUser) => Promise<T>): Promise<Result<T>> {
+  return wrap(requireSession, fn)
+}
+
+async function wrap<T>(who: () => Promise<CmsUser>, fn: (user: CmsUser) => Promise<T>): Promise<Result<T>> {
   try {
-    const user = await requireCms(perm)
+    const user = await who()
     return { ok: true, data: await fn(user) }
   } catch (e) {
     if (e instanceof ValidationError) return { ok: false, error: "Please fix the highlighted problems.", issues: e.issues }

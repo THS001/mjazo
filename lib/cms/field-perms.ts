@@ -31,8 +31,11 @@ export function withoutSeo(fields: Fields, data: unknown): unknown {
   for (const [k, fd] of Object.entries(fields)) {
     const v = (data as Data)[k]
     if (fd.perm === "seo") continue
-    if (fd.kind === "group") out[k] = withoutSeo(fd.fields, v)
-    else if (fd.kind === "list" && Array.isArray(v)) out[k] = fd.of.kind === "group" ? v.map((x) => withoutSeo((fd.of as Extract<Field, { kind: "group" }>).fields, x)) : v
+    if (fd.kind === "group") {
+      // A group that's missing (built-in content without SEO yet) and one holding only SEO fields are the same.
+      const inner = withoutSeo(fd.fields, v ?? {})
+      if (JSON.stringify(inner) !== "{}") out[k] = inner
+    } else if (fd.kind === "list" && Array.isArray(v)) out[k] = fd.of.kind === "group" ? v.map((x) => withoutSeo((fd.of as Extract<Field, { kind: "group" }>).fields, x)) : v
     else if (fd.kind === "blocks" && Array.isArray(v)) out[k] = v.map((x) => (blockFields(fd, x) ? { ...(withoutSeo(blockFields(fd, x)!, x) as Data), _type: (x as Data)._type, _key: (x as Data)._key } : x))
     else out[k] = v
   }

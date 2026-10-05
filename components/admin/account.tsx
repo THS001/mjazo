@@ -1,8 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import { ShieldCheck } from "lucide-react"
+import { mfaStatusAction } from "@/app/(staff)/admin/mfa-actions"
 import { browserSupabase } from "./supabase-browser"
-import { Btn, Notice } from "./ui"
+import { Btn, Notice, when } from "./ui"
 
 export function PasswordForm() {
   const [pw, setPw] = useState("")
@@ -34,5 +37,35 @@ export function PasswordForm() {
         Save password
       </Btn>
     </form>
+  )
+}
+
+/** Your account: whether two-step sign-in is on, and a way to turn it on. */
+export function TwoStepStatus() {
+  const [s, setS] = useState<{ required: boolean; factors: { id: string; name: string; created: string }[] } | null>(null)
+  const [error, setError] = useState("")
+  useEffect(() => {
+    void mfaStatusAction().then((r) => (r.ok ? setS(r.data) : setError(r.error)))
+  }, [])
+  if (error) return <Notice tone="error">{error}</Notice>
+  if (!s) return <p className="text-sm text-zinc-500">Checking…</p>
+  return (
+    <div className="text-sm">
+      {s.factors.length ? (
+        <p className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-emerald-600" /> On. Authenticator added {when(s.factors[0].created)}.
+        </p>
+      ) : (
+        <p className="text-zinc-600">Off. {s.required ? "Your role must use it: you'll be asked to set it up." : "You can turn it on for extra safety."}</p>
+      )}
+      <p className="mt-2 text-xs text-zinc-500">
+        {s.factors.length ? "Lost your phone? Ask an Owner to reset it from People & roles, then set it up again." : ""}
+        {!s.factors.length && (
+          <Link href="/admin/two-step?setup=1" className="font-medium text-foreground underline underline-offset-2">
+            Set up two-step sign-in
+          </Link>
+        )}
+      </p>
+    </div>
   )
 }

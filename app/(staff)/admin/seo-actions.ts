@@ -13,7 +13,7 @@ import { deleteRedirect, listRedirects, saveRedirect } from "@/lib/cms/redirects
 import { BUILTIN } from "@/lib/cms/redirect-match"
 import { latestReports } from "@/lib/cms/seo/reports"
 import { APP_PATHS, sitePages } from "@/lib/cms/seo/pages"
-import { AUDITS_AT_ONCE, auditPage, pagespeedAvailable, pagespeedTarget, pool, runPageSpeed } from "@/lib/cms/seo/audit"
+import { AUDITS_AT_ONCE, auditPage, pagespeedAvailable, pagespeedTarget, pool, runPageSpeed, sitePath } from "@/lib/cms/seo/audit"
 import { analyse } from "@/lib/cms/seo/score"
 import { SITE_URL } from "@/lib/site"
 
@@ -73,6 +73,7 @@ export async function checkLinksAction(paths: string[]) {
     const out: { path: string; status: number; location: string | null }[] = []
     for (const p of paths.slice(0, 40)) {
       try {
+        sitePath(p)
         const r = await fetch(`${base}${p}`, { method: "GET", redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(20_000) })
         const loc = r.headers.get("location")
         out.push({ path: p, status: r.status, location: loc ? new URL(loc, base).pathname : null })
@@ -87,6 +88,7 @@ export async function checkLinksAction(paths: string[]) {
 /** What the editor's SEO panel shows: the page as it is live now, the title ending, and the latest report. */
 export async function seoPanelAction(path: string, locale: Locale = "en") {
   return run("view", async () => {
+    sitePath(path)
     const base = await origin()
     const [settings, reports] = await Promise.all([getSeoSettings(locale), latestReports()])
     let live: { title: string; description: string; image: string | null } | null = null

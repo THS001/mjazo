@@ -4,7 +4,8 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { authMode, DEV_COOKIE, supabaseAuth } from "@/lib/cms/auth"
 import { run, type Result } from "@/lib/cms/action"
-import type { Role } from "@/lib/cms/roles"
+import { ownerEmails, type Role } from "@/lib/cms/roles"
+import { db } from "@/lib/server/store"
 import type { Data } from "@/lib/cms/store"
 import { getVersion, listVersions } from "@/lib/cms/store"
 import { inviteUser, updateUser } from "@/lib/cms/users"
@@ -41,7 +42,8 @@ export async function publishAction(type: string, id: string, data: Data, versio
 }
 
 export async function discardAction(type: string, id: string, version: number) {
-  return run("edit", async (u) => {
+  // "view": the SEO role may discard its own SEO changes; write.ts checks the rest.
+  return run("view", async (u) => {
     await w.discardDraft(u, type, id, version)
     return w.loadEntry(type, id)
   })
@@ -122,6 +124,18 @@ export async function devLoginAction() {
   if (authMode() !== "dev") return
   ;(await cookies()).set(DEV_COOKIE, "1", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 12 })
   redirect("/admin")
+}
+
+/**
+ * Before an emailed link (sign-in or password reset): an Owner named in CMS_OWNER_EMAIL gets their
+ * sign-in account the first time, so nobody has to create it in Supabase. Everyone else is invited
+ * from People. Says nothing either way, so it can't be used to find out who the Owners are.
+ */
+export async function prepareSignInAction(email: string) {
+  const clean = String(email).trim().toLowerCase()
+  if (authMode() !== "supabase" || !db || !ownerEmails().includes(clean)) return
+  // Fails harmlessly when the account already exists.
+  await db.auth.admin.createUser({ email: clean, email_confirm: true }).catch(() => null)
 }
 
 export async function signOutAction() {

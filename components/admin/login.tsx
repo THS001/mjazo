@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
-import { devLoginAction } from "@/app/(staff)/admin/actions"
+import { devLoginAction, prepareSignInAction } from "@/app/(staff)/admin/actions"
 import { browserSupabase } from "./supabase-browser"
 import { Btn, Notice } from "./ui"
 
@@ -29,6 +29,7 @@ export function LoginForm({ mode, linkError }: { mode: "supabase" | "dev" | "off
     const sb = browserSupabase()
     if (!sb || !email) return setMsg({ tone: "error", text: "Enter your email first." })
     setBusy("magic")
+    await prepareSignInAction(email).catch(() => {})
     const { error } = await sb.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: callback(), shouldCreateUser: false } })
     setBusy("")
     setMsg(error ? { tone: "error", text: error.message } : { tone: "ok", text: `Check ${email} for a sign-in link.` })
@@ -37,6 +38,7 @@ export function LoginForm({ mode, linkError }: { mode: "supabase" | "dev" | "off
     const sb = browserSupabase()
     if (!sb || !email) return setMsg({ tone: "error", text: "Enter your email first." })
     setBusy("reset")
+    await prepareSignInAction(email).catch(() => {})
     const { error } = await sb.auth.resetPasswordForEmail(email.trim(), { redirectTo: callback("/admin/account") })
     setBusy("")
     setMsg(error ? { tone: "error", text: error.message } : { tone: "ok", text: `If ${email} has an account, a reset link is on its way.` })

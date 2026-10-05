@@ -19,7 +19,7 @@ export default async function Dashboard() {
   const be = backend()
   const setup = [
     { done: be === "supabase", label: "Supabase connected", hint: "Add SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel, then run migration 0004_cms.sql." },
-    { done: Boolean(process.env.CMS_OWNER_EMAIL), label: "First Owner set", hint: "Add CMS_OWNER_EMAIL in Vercel: that person signs in first and invites the team." },
+    { done: Boolean(process.env.CMS_OWNER_EMAIL), label: "First Owner set", hint: "Add CMS_OWNER_EMAIL in Vercel (one email, or several separated by commas). They sign in first with an emailed link and invite the team." },
     { done: Boolean(process.env.CRON_SECRET), label: "Scheduled publishing", hint: "Add CRON_SECRET and point a 5-minute pinger at /api/cron/cms-publish." },
   ]
   return (

@@ -1,8 +1,8 @@
 import "server-only"
 import { revalidateTag, updateTag } from "next/cache"
-import { blockFields, resolveObject, zodObject, type BlocksField, type Field, type Fields } from "./fields"
+import { blockFields, emptyObject, resolveObject, zodObject, type BlocksField, type Field, type Fields } from "./fields"
 import { allTypes, getType, type ContentType } from "./registry"
-import { fieldPermError, publishPermError, typeAccessError } from "./field-perms"
+import { fieldPermError, onlySeoChanged, publishPermError, seoOnly, typeAccessError } from "./field-perms"
 import { CmsAuthError, type CmsUser } from "./auth"
 import { ValidationError } from "./action"
 import { storedDefaults, withDefaultUrdu } from "./defaults"
@@ -228,13 +228,22 @@ const baseRow = (type: string, id: string, row: EntryRow | null): Base => ({
 export async function saveDraft(user: CmsUser, type: string, id: string, data: Data, version: number, opts: { manual?: boolean; review?: boolean } = {}) {
   const t = mustType(type)
   checkTypeAccess(t, user)
+  // Only existing entries: new ones go through createEntry (ids, slugs and addresses are checked there).
   const before = await loadEntry(type, id)
-  checkFieldPerms(t, user, before?.data, data)
+  if (!before) throw new ValidationError(["This item doesn't exist (any more). Reload the page."])
+  checkFieldPerms(t, user, before.data, data)
   validate(t, data)
   const row = await getRow(type, id)
-  const saved = await writeRow({ ...baseRow(type, id, row), draft: data, review: opts.review ?? row?.review ?? false, updated_by: user.name }, version)
+  // A scheduled publish goes out as the person who scheduled it. Someone who couldn't publish this
+  // change themselves cancels the schedule by editing, so their edit isn't published on their behalf.
+  const cancel = row?.status === "scheduled" && publishPermError(t.fields, user.role, before.data, data) !== null
+  const saved = await writeRow(
+    { ...baseRow(type, id, row), draft: data, review: opts.review ?? row?.review ?? false, updated_by: user.name, ...(cancel ? { status: row!.published ? "published" : "draft", publish_at: null } : {}) },
+    version,
+  )
   if (opts.manual) await addVersion({ type, entry_id: id, version: saved.version, kind: "saved", data, note: null, user_id: user.id, user_name: user.name })
-  if (opts.manual || opts.review) await audit(user, opts.review ? "submitted for review" : "saved", t, id, titleOf(t, data, id), `Changed: ${changedKeys(before?.data, data).join(", ") || "nothing"}`)
+  if (opts.manual || opts.review) await audit(user, opts.review ? "submitted for review" : "saved", t, id, titleOf(t, data, id), `Changed: ${changedKeys(before.data, data).join(", ") || "nothing"}`)
+  if (cancel) await audit(user, "cancelled the scheduled publish (edited by someone who can't publish it)", t, id, titleOf(t, data, id))
   return saved
 }
 
@@ -272,6 +281,8 @@ export async function discardDraft(user: CmsUser, type: string, id: string, vers
   const row = await getRow(type, id)
   if (!row) return null
   const isDefault = defaultsOf(t).has(id)
+  // The SEO role may throw away SEO changes only.
+  if (seoOnly(user.role) && row.draft && !onlySeoChanged(t.fields, row.published ?? defaultsOf(t).get(id) ?? null, row.draft)) throw new CmsAuthError("Your role can discard SEO changes only. Ask an Editor.")
   if (!row.published && !isDefault && row.status !== "archived") {
     await deleteRow(type, id)
     await audit(user, "deleted draft", t, id, titleOf(t, row.draft, id))
@@ -309,7 +320,8 @@ export async function createEntry(user: CmsUser, type: string, data: Data) {
   const t = mustType(type)
   if (t.kind !== "collection") throw new Error("Only collections have new items.")
   checkTypeAccess(t, user)
-  checkFieldPerms(t, user, undefined, data)
+  // Compared with an empty item: an Editor may add a service "on request" (price 0), an Author a post with empty SEO fields.
+  checkFieldPerms(t, user, emptyObject(t.fields), data)
   validate(t, data)
   const id = t.newId ? t.newId(data) : String(data.slug ?? "")
   if (!id) throw new ValidationError([t.newId ? `Give it ${t.unique ? `an ${t.unique.label.toLowerCase()}` : "a name"} first.` : "Give it a slug first."])
@@ -353,6 +365,9 @@ export async function reorder(user: CmsUser, type: string, ids: string[]) {
   const t = mustType(type)
   checkTypeAccess(t, user)
   const existing = new Set((await listRows(type)).map((r) => r.id))
+  const defaults = defaultsOf(t)
+  // Only items that exist: built-in ones get a row to hold their position.
+  ids = ids.filter((id) => existing.has(id) || defaults.has(id))
   for (const id of ids) if (!existing.has(id)) await writeRow({ ...baseRow(type, id, null), status: "published", updated_by: user.name }, 0).catch(() => {})
   await setPositions(type, ids.map((id, i) => ({ id, position: i })))
   expire(type)

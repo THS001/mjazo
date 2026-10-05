@@ -103,6 +103,39 @@ describe("getCollection / getCatalog", () => {
     }
   })
 
+  it("falls back to built-in content for every type, when an entry is invalid and when the database is down", async () => {
+    const { getCollection, getSingleton } = await import("./read")
+    const { allTypes } = await import("./registry")
+    const { storedDefaults } = await import("./defaults")
+    const read = (t: { type: string; kind: string }) => (t.kind === "collection" ? getCollection(t.type, "en") : getSingleton(t.type, "en"))
+    for (const t of allTypes()) {
+      const expected = await read(t)
+      // Break one field so the entry no longer fits its type.
+      const [id, base] = [...storedDefaults(t as never)][0] ?? ["new-item", {}]
+      // The first simple field, looking inside groups: a boolean becomes "yes", a number "lots", text a number.
+      const corrupt = (fields: typeof t.fields, v: Record<string, unknown>): Record<string, unknown> | null => {
+        for (const [k, fd] of Object.entries(fields)) {
+          if (fd.kind === "group") {
+            const inner = corrupt(fd.fields, (v[k] ?? {}) as Record<string, unknown>)
+            if (inner) return { ...v, [k]: inner }
+          } else if (["text", "textarea", "boolean", "number", "price", "select"].includes(fd.kind))
+            return { ...v, [k]: fd.kind === "boolean" ? "yes" : fd.kind === "number" || fd.kind === "price" ? "lots" : fd.kind === "select" ? "__nope" : 12345 }
+        }
+        // Only lists: a list that isn't one.
+        const list = Object.entries(fields).find(([, fd]) => fd.kind === "list" || fd.kind === "blocks")
+        return list ? { ...v, [list[0]]: "not a list" } : null
+      }
+      const broken = corrupt(t.fields, base as Record<string, unknown>)
+      expect(broken, `${t.type} has a field to break`).not.toBeNull()
+      rows[t.type] = [row(id, broken!)]
+      expect(await read(t), `${t.type}: invalid entry`).toEqual(expected)
+      delete rows[t.type]
+      failing = true
+      expect(await read(t), `${t.type}: database down`).toEqual(expected)
+      failing = false
+    }
+  })
+
   it("shows shipped Urdu for Urdu pages and English where there is none", async () => {
     const { getSingleton } = await import("./read")
     const nav = await getSingleton<{ header: { services: string; login: string }; footer: { tagline: string } }>("nav", "ur")

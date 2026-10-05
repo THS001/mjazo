@@ -2,14 +2,15 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { UserPlus } from "lucide-react"
+import { ShieldCheck, UserPlus } from "lucide-react"
 import { ROLE_INFO, ROLES, type Role } from "@/lib/cms/roles"
 import type { CmsUserRow } from "@/lib/cms/users"
 import { inviteAction, updateUserAction } from "@/app/(staff)/admin/actions"
+import { mfaResetAction } from "@/app/(staff)/admin/mfa-actions"
 import { Btn, Card, Notice, ago } from "./ui"
 import { Switch } from "./fields"
 
-export function People({ users, me, myRole, enabled }: { users: CmsUserRow[]; me: string; myRole: Role; enabled: boolean }) {
+export function People({ users, twoStep, me, myRole, enabled }: { users: CmsUserRow[]; twoStep: Record<string, boolean>; me: string; myRole: Role; enabled: boolean }) {
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
@@ -37,10 +38,19 @@ export function People({ users, me, myRole, enabled }: { users: CmsUserRow[]; me
     router.refresh()
   }
 
+  const reset = async (u: CmsUserRow) => {
+    if (!confirm(`Reset two-step sign-in for ${u.email}? They'll set up their authenticator again at their next sign-in.`)) return
+    setBusy(u.id)
+    const r = await mfaResetAction(u.id)
+    setBusy("")
+    setMsg(r.ok ? { tone: "ok", text: `Two-step sign-in reset for ${u.email}.` } : { tone: "error", text: r.error })
+    router.refresh()
+  }
+
   return (
     <div className="space-y-6">
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
-      {!enabled && <Notice tone="warn">Inviting people needs Supabase. Once it's connected, the Owner named in CMS_OWNER_EMAIL signs in first and invites everyone else here.</Notice>}
+      {!enabled && <Notice tone="warn">Inviting people needs Supabase. Once it's connected, the Owners named in CMS_OWNER_EMAIL sign in first (with &ldquo;Email me a sign-in link&rdquo;) and invite everyone else here.</Notice>}
 
       <Card className="p-5">
         <p className="font-medium">Invite someone</p>
@@ -68,6 +78,7 @@ export function People({ users, me, myRole, enabled }: { users: CmsUserRow[]; me
               <th className="px-4 py-2.5 font-medium">Person</th>
               <th className="px-4 py-2.5 font-medium">Role</th>
               <th className="px-4 py-2.5 font-medium">Last seen</th>
+              <th className="px-4 py-2.5 font-medium">Two-step</th>
               <th className="px-4 py-2.5 font-medium">Access</th>
             </tr>
           </thead>
@@ -93,6 +104,22 @@ export function People({ users, me, myRole, enabled }: { users: CmsUserRow[]; me
                     </select>
                   </td>
                   <td className="px-4 py-2.5 text-xs text-zinc-500">{u.last_seen ? ago(u.last_seen) : "Not yet"}</td>
+                  <td className="px-4 py-2.5 text-xs">
+                    {twoStep[u.id] ? (
+                      <span className="flex items-center gap-2">
+                        <span className="flex items-center gap-1 text-emerald-700">
+                          <ShieldCheck className="h-3.5 w-3.5" /> On
+                        </span>
+                        {!self && !(u.role === "owner" && myRole !== "owner") && (
+                          <button type="button" onClick={() => reset(u)} disabled={busy === u.id} className="text-zinc-500 underline-offset-2 hover:text-foreground hover:underline">
+                            Reset
+                          </button>
+                        )}
+                      </span>
+                    ) : (
+                      <span className={u.role === "owner" || u.role === "admin" ? "text-brand-ink" : "text-zinc-400"}>{u.role === "owner" || u.role === "admin" ? "Not set up yet" : "Off"}</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5">
                     <span className="flex items-center gap-2 text-xs text-zinc-500">
                       <Switch checked={u.active} disabled={locked || busy === u.id} onChange={(active) => update(u.id, { active })} />

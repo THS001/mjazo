@@ -3,15 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, CalendarClock, Check, ChevronRight, Eye, EyeOff, History, Languages, Loader2, PanelRight, RotateCcw, Send, Sparkles, X } from "lucide-react"
+import { AlertTriangle, ArrowLeft, CalendarClock, Check, ChevronRight, Diff, Eye, EyeOff, History, Languages, Loader2, PanelRight, RotateCcw, Send, Sparkles, X } from "lucide-react"
 import { approveAll, coverage } from "@/lib/cms/fields"
 import { findField } from "@/lib/cms/click-to-edit"
+import { diffData, wordDiff } from "@/lib/cms/diff"
 import { translateEntryAction } from "@/app/(staff)/admin/translate-actions"
 import { cn } from "@/lib/utils"
 import type { TypeMeta } from "@/lib/cms/meta"
 import type { Loaded } from "@/lib/cms/write"
 import type { Data, VersionRow } from "@/lib/cms/store"
-import { archiveAction, createAction, discardAction, publishAction, restoreAction, saveDraftAction, scheduleAction, submitForReviewAction, unarchiveAction, unscheduleAction, versionsAction, type Result } from "@/app/(staff)/admin/actions"
+import { archiveAction, createAction, discardAction, publishAction, restoreAction, saveDraftAction, scheduleAction, submitForReviewAction, unarchiveAction, unscheduleAction, versionDataAction, versionsAction, type Result } from "@/app/(staff)/admin/actions"
 import { FieldsForm, emptyObject, revealField, type FormCtx } from "./fields"
 import { PreviewPanel, type Pick } from "./preview-panel"
 import { Btn, Card, Notice, StateBadge, ago, when } from "./ui"
@@ -411,6 +412,9 @@ export function Editor({ meta, entry, refs, perms, previewPath }: Props) {
         <HistoryPanel
           type={meta.type}
           id={entry!.id}
+          fields={meta.fields}
+          current={data}
+          live={(loaded?.live as Data | null | undefined) ?? null}
           onClose={() => setHistory(false)}
           canRestore={perms.canEdit && !readOnly}
           onRestore={(seq) =>
@@ -462,47 +466,131 @@ function ScheduleForm({ onPick, onCancel, busy }: { onPick: (iso: string) => voi
   )
 }
 
-function HistoryPanel({ type, id, onClose, onRestore, canRestore }: { type: string; id: string; onClose: () => void; onRestore: (seq: number) => void; canRestore: boolean }) {
-  const [rows, setRows] = useState<Omit<VersionRow, "data">[] | null>(null)
+type VersionMeta = Omit<VersionRow, "data">
+const KIND: Record<string, string> = { saved: "Saved", published: "Published", restored: "Restored", imported: "Imported" }
+
+function HistoryPanel({ type, id, fields, current, live, onClose, onRestore, canRestore }: { type: string; id: string; fields: TypeMeta["fields"]; current: Data; live: Data | null; onClose: () => void; onRestore: (seq: number) => void; canRestore: boolean }) {
+  const [rows, setRows] = useState<VersionMeta[] | null>(null)
   const [error, setError] = useState("")
+  // Comparing: the version, its data, and what it's compared with (this draft or the live version).
+  const [compare, setCompare] = useState<{ v: VersionMeta; data: Data | null } | null>(null)
+  const [against, setAgainst] = useState<"draft" | "live">("draft")
   useEffect(() => {
     void versionsAction(type, id).then((r) => (r.ok ? setRows(r.data) : setError(r.error)))
   }, [type, id])
-  const KIND: Record<string, string> = { saved: "Saved", published: "Published", restored: "Restored", imported: "Imported" }
+  const open = async (v: VersionMeta) => {
+    setCompare({ v, data: null })
+    const r = await versionDataAction(v.seq)
+    if (r.ok) setCompare({ v, data: (r.data as Data) ?? {} })
+    else setError(r.error)
+  }
+  const changes = compare?.data ? diffData(fields, compare.data, against === "live" && live ? live : current) : null
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <aside className="relative h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-serif text-2xl">History</h2>
+      <aside className={cn("relative h-full w-full overflow-y-auto bg-white p-6 shadow-2xl", compare ? "max-w-2xl" : "max-w-md")}>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          {compare ? (
+            <button onClick={() => setCompare(null)} className="inline-flex items-center gap-1.5 text-sm text-zinc-600 hover:text-foreground">
+              <ArrowLeft className="h-4 w-4" /> All versions
+            </button>
+          ) : (
+            <h2 className="font-serif text-2xl">History</h2>
+          )}
           <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full hover:bg-zinc-100" aria-label="Close">
             <X className="w-5 h-5" />
           </button>
         </div>
-        <p className="mb-4 text-sm text-zinc-500">Every publish and every manual save is kept. Restoring a version puts it back as a draft; publish it to make it live.</p>
         {error && <Notice tone="error">{error}</Notice>}
-        {!rows && !error && <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />}
-        {rows?.length === 0 && <p className="text-sm text-zinc-500">No versions yet. The built-in content is shown until the first publish.</p>}
-        <ol className="space-y-2">
-          {rows?.map((v) => (
-            <li key={v.seq} className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 px-3 py-2.5">
-              <div className="min-w-0 text-sm">
-                <p className="font-medium">
-                  {KIND[v.kind] ?? v.kind} <span className="font-normal text-zinc-400">· v{v.version}</span>
-                </p>
-                <p className="truncate text-xs text-zinc-500">
-                  {when(v.created_at)} · {v.user_name ?? "Someone"}
-                  {v.note ? ` · ${v.note}` : ""}
-                </p>
-              </div>
-              {canRestore && (
-                <Btn size="sm" onClick={() => onRestore(v.seq)}>
-                  <RotateCcw className="w-3.5 h-3.5" /> Restore
+
+        {compare ? (
+          <div>
+            <h2 className="font-serif text-2xl">
+              Changes since v{compare.v.version}
+              <span className="block text-sm font-normal text-zinc-500">
+                {KIND[compare.v.kind] ?? compare.v.kind} {when(compare.v.created_at)} by {compare.v.user_name ?? "someone"}
+              </span>
+            </h2>
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-zinc-500">Compared with</span>
+              {(
+                [
+                  ["draft", "what's in the form now"],
+                  ["live", "the live version"],
+                ] as const
+              ).map(([k, label]) => (
+                <button key={k} type="button" disabled={k === "live" && !live} onClick={() => setAgainst(k)} className={cn("rounded-full border px-3 py-1 disabled:opacity-40", against === k ? "border-foreground bg-foreground text-background" : "border-zinc-300 hover:border-foreground")}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {!changes ? (
+              <Loader2 className="mt-6 h-5 w-5 animate-spin text-zinc-400" />
+            ) : changes.length === 0 ? (
+              <p className="mt-6 text-sm text-zinc-500">No differences: they&apos;re the same.</p>
+            ) : (
+              <ul className="mt-5 space-y-3">
+                {changes.map((c, i) => (
+                  <li key={i} className="rounded-xl border border-zinc-200 p-3 text-sm">
+                    <p className="mb-1.5 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                      <span className="font-medium text-foreground">{c.label}</span>
+                      {c.lang && <span className="rounded bg-zinc-100 px-1.5 py-0.5">{c.lang === "ur" ? "اردو" : "English"}</span>}
+                      {c.kind !== "changed" && <span className={c.kind === "added" ? "text-emerald-700" : "text-red-700"}>{c.kind === "added" ? "added" : "removed"}</span>}
+                    </p>
+                    <p className={cn("whitespace-pre-wrap break-words leading-relaxed", c.lang === "ur" && "font-urdu text-[15px] leading-loose")} dir={c.lang === "ur" ? "rtl" : undefined}>
+                      {wordDiff(c.before ?? "", c.after ?? "").map((p, j, all) => (
+                        // A gap after removed words that are straight away replaced, so the two don't read as one word.
+                        <span key={j} className={cn(p.kind === "del" ? "rounded px-0.5 bg-red-50 text-red-800 line-through decoration-red-300" : p.kind === "ins" ? "rounded px-0.5 bg-emerald-50 text-emerald-900" : "", p.kind === "del" && all[j + 1]?.kind === "ins" && "me-1")}>
+                          {p.text}
+                        </span>
+                      ))}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canRestore && (
+              <div className="mt-6 border-t border-zinc-100 pt-4">
+                <Btn onClick={() => onRestore(compare.v.seq)}>
+                  <RotateCcw className="w-3.5 h-3.5" /> Restore v{compare.v.version} as a draft
                 </Btn>
-              )}
-            </li>
-          ))}
-        </ol>
+                <p className="mt-2 text-xs text-zinc-500">Struck-out words are in v{compare.v.version}; highlighted words are newer. Restoring brings back v{compare.v.version}.</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            <p className="mb-4 text-sm text-zinc-500">Every publish and every manual save is kept. Compare a version with what you have now, or restore it as a draft and publish it to make it live.</p>
+            {!rows && !error && <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />}
+            {rows?.length === 0 && <p className="text-sm text-zinc-500">No versions yet. The built-in content is shown until the first publish.</p>}
+            <ol className="space-y-2">
+              {rows?.map((v) => (
+                <li key={v.seq} className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 px-3 py-2.5">
+                  <div className="min-w-0 text-sm">
+                    <p className="font-medium">
+                      {KIND[v.kind] ?? v.kind} <span className="font-normal text-zinc-400">· v{v.version}</span>
+                    </p>
+                    <p className="truncate text-xs text-zinc-500">
+                      {when(v.created_at)} · {v.user_name ?? "Someone"}
+                      {v.note ? ` · ${v.note}` : ""}
+                    </p>
+                  </div>
+                  <span className="flex shrink-0 gap-1">
+                    <Btn size="sm" onClick={() => open(v)}>
+                      <Diff className="w-3.5 h-3.5" /> Compare
+                    </Btn>
+                    {canRestore && (
+                      <Btn size="sm" onClick={() => onRestore(v.seq)}>
+                        <RotateCcw className="w-3.5 h-3.5" /> Restore
+                      </Btn>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </>
+        )}
       </aside>
     </div>
   )

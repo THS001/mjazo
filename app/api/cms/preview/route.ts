@@ -16,7 +16,8 @@ export async function GET(req: Request) {
     dm.disable()
     redirect(path)
   }
-  if (!(await getCmsUser())) return NextResponse.json({ error: "Sign in to the CMS to preview." }, { status: 401 })
+  const user = await getCmsUser()
+  if (!user || (user.mfa && user.mfa !== "ok")) return NextResponse.json({ error: "Sign in to the CMS to preview." }, { status: 401 })
   dm.enable()
   redirect(path)
 }
