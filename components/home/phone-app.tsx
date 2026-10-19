@@ -6,16 +6,17 @@
 // scaled into the device frame, so everything stays crisp and inside the screen.
 
 import Link from "@/components/site/locale-link"
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import { useRouter } from "@/components/site/locale-link"
 import { AnimatePresence, motion } from "framer-motion"
 import { Check, ChevronLeft, ChevronRight, Clock, Home, Loader2, MapPin, Minus, Plus, Search, ShoppingBag, User } from "lucide-react"
-import { formatDuration, formatPKR, proLabel, type Category, type Service } from "@/lib/catalog"
+import { formatDuration, formatPKR, type Category, type Service } from "@/lib/catalog"
 import { cartCount, cartTotal, useCart, useLocation } from "@/lib/store"
 import { submit, track } from "@/lib/site"
 import { cn } from "@/lib/utils"
 import { Icon } from "@/components/site/primitives"
-import { useCatalog } from "@/components/cms/provider"
+import { fill, useCatalog, useT } from "@/components/cms/provider"
+import { PHONE_TEXT, type PhoneText } from "@/lib/cms/types/tool-text/phone-app"
 
 export const SCREEN_W = 390
 export const SCREEN_H = 844
@@ -34,10 +35,24 @@ type Nav = { push: (s: Screen) => void; back: () => void; tab: (t: Tab) => void;
 
 const PK_PHONE = /^(\+92|0092|0)?3\d{9}$/
 
+// The phone's own text (Pages → Home page → Hero phone app); everything else comes from useT().
+const PhoneT = createContext<PhoneText>(PHONE_TEXT)
+const usePhoneT = () => useContext(PhoneT)
+
 // ---------------------------------------------------------------------------
 // Shell
 // ---------------------------------------------------------------------------
-export function PhoneApp() {
+export function PhoneApp({ t = PHONE_TEXT }: { t?: PhoneText }) {
+  return (
+    <PhoneT.Provider value={t}>
+      <PhoneShell />
+    </PhoneT.Provider>
+  )
+}
+
+function PhoneShell() {
+  const p = usePhoneT()
+  const ui = useT()
   const [stack, setStack] = useState<Screen[]>([{ name: "home" }])
   const [toast, setToast] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
@@ -45,8 +60,8 @@ export function PhoneApp() {
   useEffect(() => setMounted(true), [])
   useEffect(() => {
     if (!toast) return
-    const t = setTimeout(() => setToast(null), 1800)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setToast(null), 1800)
+    return () => clearTimeout(timer)
   }, [toast])
 
   const current = stack[stack.length - 1]
@@ -92,7 +107,7 @@ export function PhoneApp() {
             onClick={() => nav.tab("cart")}
             className="absolute bottom-[100px] left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-full bg-[#111] text-white pl-3 pr-4 h-10 text-[13px] shadow-xl whitespace-nowrap"
           >
-            <Check className="w-4 h-4 text-[var(--brand)]" /> {toast} added · <span className="underline">View cart</span>
+            <Check className="w-4 h-4 text-[var(--brand)]" /> {fill(p.browse.added, { name: toast })} · <span className="underline">{ui.cart.viewCart}</span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -117,11 +132,12 @@ function StatusBar() {
 }
 
 function TabBar({ active, count, onTab }: { active: Tab; count: number; onTab: (t: Tab) => void }) {
+  const p = usePhoneT()
   const tabs: { id: Tab; label: string; icon: typeof Home }[] = [
-    { id: "home", label: "Home", icon: Home },
-    { id: "search", label: "Search", icon: Search },
-    { id: "cart", label: "Cart", icon: ShoppingBag },
-    { id: "profile", label: "Profile", icon: User },
+    { id: "home", label: p.tabs.home, icon: Home },
+    { id: "search", label: p.tabs.search, icon: Search },
+    { id: "cart", label: p.tabs.cart, icon: ShoppingBag },
+    { id: "profile", label: p.tabs.profile, icon: User },
   ]
   return (
     <div className="absolute inset-x-0 bottom-0 h-[84px] z-20 bg-white/95 backdrop-blur border-t border-black/5">
@@ -140,10 +156,11 @@ function TabBar({ active, count, onTab }: { active: Tab; count: number; onTab: (
 }
 
 function Header({ title, onBack, right }: { title: string; onBack?: () => void; right?: ReactNode }) {
+  const p = usePhoneT()
   return (
     <div className="sticky top-0 z-10 bg-[#fbfaf7]/95 backdrop-blur flex items-center gap-2 px-[16px] h-[52px]">
       {onBack && (
-        <button onClick={onBack} aria-label="Back" className="w-[36px] h-[36px] -ml-[6px] rounded-full flex items-center justify-center hover:bg-black/5">
+        <button onClick={onBack} aria-label={p.tabs.back} className="w-[36px] h-[36px] -ml-[6px] rounded-full flex items-center justify-center hover:bg-black/5">
           <ChevronLeft className="w-[22px] h-[22px]" />
         </button>
       )}
@@ -169,6 +186,7 @@ function useAdd(nav: Nav) {
 }
 
 function ServiceRow({ category, service, nav }: { category: Category; service: Service; nav: Nav }) {
+  const ui = useT()
   const add = useAdd(nav)
   const live = category.status === "live"
   const quick = live && service.price > 0 && !service.variants?.length
@@ -178,17 +196,17 @@ function ServiceRow({ category, service, nav }: { category: Category; service: S
         <p className="text-[15px] font-medium leading-snug">{service.name}</p>
         <p className="text-[12px] text-[#777] mt-[2px] line-clamp-2">{service.short}</p>
         <p className="text-[12px] mt-[6px] flex items-center gap-2">
-          <span className="font-medium">{service.price > 0 ? formatPKR(service.price) : "On request"}</span>
-          <span className="text-[#999] flex items-center gap-[3px]"><Clock className="w-[11px] h-[11px]" />{formatDuration(service.duration)}</span>
+          <span className="font-medium">{service.price > 0 ? formatPKR(service.price) : ui.common.priceOnRequest}</span>
+          <span className="text-[#999] flex items-center gap-[3px]"><Clock className="w-[11px] h-[11px]" />{formatDuration(service.duration, ui.duration)}</span>
         </p>
       </button>
       {quick ? (
         <button onClick={() => add(category, service)} className="shrink-0 h-[34px] px-[12px] rounded-full border border-black/15 text-[13px] flex items-center gap-1 active:scale-95 transition-transform">
-          <Plus className="w-[14px] h-[14px]" /> Add
+          <Plus className="w-[14px] h-[14px]" /> {ui.common.add}
         </button>
       ) : (
         <button onClick={() => nav.push({ name: "service", cat: category.slug, svc: service.slug })} className="shrink-0 h-[34px] px-[12px] rounded-full border border-black/15 text-[13px]">
-          {live ? "Options" : "View"}
+          {live ? ui.common.options : ui.common.view}
         </button>
       )}
     </div>
@@ -202,8 +220,10 @@ function HomeScreen({ nav, mounted }: { nav: Nav; mounted: boolean }) {
   const { allServices, getArea, getWorld, worlds, worldStatus } = useCatalog()
   const { area, subArea } = useLocation()
   const add = useAdd(nav)
+  const p = usePhoneT()
+  const ui = useT()
   const popular = allServices.filter((x) => x.category.status === "live" && x.service.popular).slice(0, 8)
-  const areaLabel = mounted && area ? `${getArea(area)?.name ?? ""}${subArea ? ` · ${subArea}` : ""}` : "Set your area"
+  const areaLabel = mounted && area ? `${getArea(area)?.name ?? ""}${subArea ? ` · ${subArea}` : ""}` : p.home.setArea
   return (
     <div className="pb-6">
       <div className="flex items-center justify-between px-[20px] pt-[6px]">
@@ -212,10 +232,10 @@ function HomeScreen({ nav, mounted }: { nav: Nav; mounted: boolean }) {
           <MapPin className="w-[13px] h-[13px] shrink-0" /> <span className="truncate">{areaLabel}</span>
         </button>
       </div>
-      <h3 className="font-serif text-[40px] leading-[1.02] px-[20px] mt-[18px]">Ghar ka har kaam. Pakka.</h3>
-      <p className="text-[14px] text-[#777] px-[20px] mt-[6px]">What do you need today?</p>
+      <h3 className="font-serif text-[40px] leading-[1.02] px-[20px] mt-[18px]" dir="auto">{ui.login.tagline}</h3>
+      <p className="text-[14px] text-[#777] px-[20px] mt-[6px]" dir="auto">{p.home.today}</p>
       <button onClick={() => nav.tab("search")} className="mx-[20px] mt-[16px] w-[350px] h-[48px] rounded-full bg-white border border-black/10 flex items-center gap-2 px-[16px] text-[14px] text-[#999] shadow-[0_6px_20px_-12px_rgba(0,0,0,0.3)]">
-        <Search className="w-[17px] h-[17px]" /> Search waxing, facial, AC…
+        <Search className="w-[17px] h-[17px]" /> {p.home.search}
       </button>
 
       <div className="grid grid-cols-4 gap-x-[10px] gap-y-[14px] px-[20px] mt-[22px]">
@@ -231,8 +251,8 @@ function HomeScreen({ nav, mounted }: { nav: Nav; mounted: boolean }) {
       </div>
 
       <div className="flex items-center justify-between px-[20px] mt-[24px] mb-[10px]">
-        <p className="text-[17px] font-semibold">Most booked</p>
-        <button onClick={() => nav.push({ name: "world", slug: "beauty-wellness" })} className="text-[13px] text-[#777]">See all</button>
+        <p className="text-[17px] font-semibold">{ui.common.mostBooked}</p>
+        <button onClick={() => nav.push({ name: "world", slug: "beauty-wellness" })} className="text-[13px] text-[#777]">{p.home.seeAll}</button>
       </div>
       <div className="flex gap-[10px] overflow-x-auto no-scrollbar px-[20px] snap-x" data-lenis-prevent>
         {popular.map(({ category, service }) => (
@@ -246,7 +266,7 @@ function HomeScreen({ nav, mounted }: { nav: Nav; mounted: boolean }) {
             <div className="flex items-center justify-between px-[12px] pb-[12px] pt-[4px]">
               <span className="text-[12px] font-medium">{formatPKR(service.price)}</span>
               <button
-                aria-label={`Add ${service.name}`}
+                aria-label={fill(p.home.addItem, { name: service.name })}
                 onClick={() => (service.variants?.length ? nav.push({ name: "service", cat: category.slug, svc: service.slug }) : add(category, service))}
                 className="w-[30px] h-[30px] rounded-full bg-[#111] text-white flex items-center justify-center active:scale-90 transition-transform"
               >
@@ -259,10 +279,10 @@ function HomeScreen({ nav, mounted }: { nav: Nav; mounted: boolean }) {
 
       <button onClick={() => nav.push({ name: "category", slug: "womens-salon" })} className="relative mx-[20px] mt-[20px] w-[350px] rounded-[24px] bg-[#111] text-white p-[20px] text-left overflow-hidden">
         <span className="absolute -right-10 -top-10 w-[160px] h-[160px] rounded-full bg-[var(--brand)] opacity-30 blur-2xl" />
-        <span className="relative inline-block rounded-full bg-[var(--brand)] text-[#111] text-[11px] px-[10px] py-[3px]">Hero bundle</span>
-        <span className="relative block font-serif text-[26px] mt-[10px]">The Full Glow</span>
-        <span className="relative block text-[13px] text-white/70 mt-[2px]">Full body wax + brightening facial</span>
-        <span className="relative inline-flex items-center gap-1 mt-[14px] text-[13px]">Explore <ChevronRight className="w-[14px] h-[14px]" /></span>
+        <span className="relative inline-block rounded-full bg-[var(--brand)] text-[#111] text-[11px] px-[10px] py-[3px]">{p.home.bundleBadge}</span>
+        <span className="relative block font-serif text-[26px] mt-[10px]">{p.home.bundleName}</span>
+        <span className="relative block text-[13px] text-white/70 mt-[2px]">{p.home.bundleSub}</span>
+        <span className="relative inline-flex items-center gap-1 mt-[14px] text-[13px]">{p.home.explore} <ChevronRight className="w-[14px] h-[14px]" /></span>
       </button>
     </div>
   )
@@ -270,6 +290,7 @@ function HomeScreen({ nav, mounted }: { nav: Nav; mounted: boolean }) {
 
 function WorldScreen({ slug, nav }: { slug: string; nav: Nav }) {
   const { categoriesOf, getWorld, worldStatus } = useCatalog()
+  const p = usePhoneT()
   const world = getWorld(slug)
   if (!world) return null
   const live = worldStatus(slug) === "live"
@@ -280,7 +301,7 @@ function WorldScreen({ slug, nav }: { slug: string; nav: Nav }) {
         <span className="w-[54px] h-[54px] rounded-[16px] bg-white/60 flex items-center justify-center"><Icon name={world.icon} className="w-[28px] h-[28px]" strokeWidth={1.4} /></span>
         <div>
           <p className="text-[15px] font-medium">{world.short}</p>
-          <p className="text-[12px] text-black/60 mt-[2px]">Available across Karachi</p>
+          <p className="text-[12px] text-black/60 mt-[2px]">{p.browse.acrossKarachi}</p>
         </div>
       </div>
       <div className="px-[16px] mt-[10px]">
@@ -288,7 +309,7 @@ function WorldScreen({ slug, nav }: { slug: string; nav: Nav }) {
           <button key={c.slug} onClick={() => nav.push({ name: "category", slug: c.slug })} className="w-full flex items-center gap-[12px] py-[14px] border-b border-black/5 text-left">
             <span className="w-[44px] h-[44px] rounded-[14px] bg-white border border-black/5 flex items-center justify-center"><Icon name={c.icon} className="w-[22px] h-[22px]" strokeWidth={1.4} /></span>
             <span className="flex-1 min-w-0">
-              <span className="flex items-center gap-2 text-[15px] font-medium">{c.name}{c.status !== "live" && <span className="text-[10px] font-normal rounded-full bg-black/5 px-[7px] py-[1px] text-[#777]">Soon</span>}</span>
+              <span className="flex items-center gap-2 text-[15px] font-medium">{c.name}{c.status !== "live" && <span className="text-[10px] font-normal rounded-full bg-black/5 px-[7px] py-[1px] text-[#777]">{p.browse.soon}</span>}</span>
               <span className="block text-[12px] text-[#777] truncate">{c.tagline}</span>
             </span>
             <ChevronRight className="w-[18px] h-[18px] text-[#bbb]" />
@@ -300,13 +321,14 @@ function WorldScreen({ slug, nav }: { slug: string; nav: Nav }) {
 }
 
 function NotifyInline({ category }: { category: Category }) {
+  const ui = useT()
   const { area } = useLocation()
   const [phone, setPhone] = useState("")
   const [state, setState] = useState<"idle" | "loading" | "done">("idle")
   const [error, setError] = useState("")
   const go = async () => {
     const p = phone.replace(/[\s-]/g, "")
-    if (!PK_PHONE.test(p)) return setError("Enter a mobile number like 0300 1234567")
+    if (!PK_PHONE.test(p)) return setError(ui.notify.errPhone)
     setError("")
     setState("loading")
     try {
@@ -318,13 +340,13 @@ function NotifyInline({ category }: { category: Category }) {
       setError((e as Error).message)
     }
   }
-  if (state === "done") return <p className="flex items-center gap-2 text-[13px] text-[var(--brand-ink)]"><Check className="w-4 h-4" /> You're on the list. We'll WhatsApp you.</p>
+  if (state === "done") return <p className="flex items-center gap-2 text-[13px] text-[var(--brand-ink)]"><Check className="w-4 h-4" /> {ui.notify.done}</p>
   return (
     <div>
       <div className="flex gap-2">
-        <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="WhatsApp number" aria-label="WhatsApp number" className="flex-1 min-w-0 h-[42px] rounded-full border border-black/15 bg-white px-[14px] text-[16px] outline-none focus:border-black" />
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder={ui.notify.phone} aria-label={ui.notify.phone} className="flex-1 min-w-0 h-[42px] rounded-full border border-black/15 bg-white px-[14px] text-[16px] outline-none focus:border-black" />
         <button onClick={go} disabled={state === "loading"} className="h-[42px] px-[16px] rounded-full bg-[#111] text-white text-[13px] flex items-center">
-          {state === "loading" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Notify me"}
+          {state === "loading" ? <Loader2 className="w-4 h-4 animate-spin" /> : ui.common.notifyMe}
         </button>
       </div>
       {error && <p className="text-[11px] text-red-600 mt-[6px]">{error}</p>}
@@ -334,6 +356,8 @@ function NotifyInline({ category }: { category: Category }) {
 
 function CategoryScreen({ slug, nav }: { slug: string; nav: Nav }) {
   const { MIN_ORDER, areas, getArea, getCategory, getService, getWorld, searchServices } = useCatalog()
+  const p = usePhoneT()
+  const ui = useT()
   const category = getCategory(slug)
   if (!category) return null
   const live = category.status === "live"
@@ -343,16 +367,16 @@ function CategoryScreen({ slug, nav }: { slug: string; nav: Nav }) {
       <div className="px-[16px]">
         <p className="font-serif text-[28px] leading-tight">{category.heroLine}</p>
         <div className="flex flex-wrap gap-[6px] mt-[10px]">
-          <span className="rounded-full bg-black/5 px-[10px] py-[4px] text-[11px]">{proLabel[category.proType]}</span>
+          <span className="rounded-full bg-black/5 px-[10px] py-[4px] text-[11px]">{ui.pro[category.proType]}</span>
           {live ? (
-            <span className="rounded-full bg-[var(--brand-soft)] text-[var(--brand-ink)] px-[10px] py-[4px] text-[11px]">Available across Karachi</span>
+            <span className="rounded-full bg-[var(--brand-soft)] text-[var(--brand-ink)] px-[10px] py-[4px] text-[11px]">{p.browse.acrossKarachi}</span>
           ) : (
-            <span className="rounded-full bg-black/5 text-[#777] px-[10px] py-[4px] text-[11px]">Coming soon</span>
+            <span className="rounded-full bg-black/5 text-[#777] px-[10px] py-[4px] text-[11px]">{ui.common.comingSoon}</span>
           )}
         </div>
         {!live && (
           <div className="mt-[14px] rounded-[20px] bg-white border border-black/5 p-[14px]">
-            <p className="text-[13px] mb-[10px]">Want {category.name.toLowerCase()} in your area? Join the waitlist: we open where it's loudest.</p>
+            <p className="text-[13px] mb-[10px]">{fill(p.browse.waitlist, { category: category.name.toLowerCase() })}</p>
             <NotifyInline category={category} />
           </div>
         )}
@@ -370,6 +394,8 @@ function ServiceScreen({ cat, svc, nav }: { cat: string; svc: string; nav: Nav }
   const { getService, getWorld } = useCatalog()
   const found = getService(cat, svc)
   const add = useAdd(nav)
+  const p = usePhoneT()
+  const ui = useT()
   const [picks, setPicks] = useState<number[]>(() => found?.service.variants?.map(() => 0) ?? [])
   const [addOns, setAddOns] = useState<string[]>([])
   if (!found) return null
@@ -391,8 +417,8 @@ function ServiceScreen({ cat, svc, nav }: { cat: string; svc: string; nav: Nav }
         <p className="text-[22px] font-semibold leading-tight mt-[2px]">{service.name}</p>
         <p className="text-[14px] text-[#666] mt-[6px]">{service.short}</p>
         <p className="text-[13px] mt-[10px] flex items-center gap-3">
-          <span className="font-medium">{service.price > 0 ? formatPKR(price) : "Price on request"}</span>
-          <span className="text-[#999] flex items-center gap-1"><Clock className="w-[12px] h-[12px]" />{formatDuration(service.duration)}</span>
+          <span className="font-medium">{service.price > 0 ? formatPKR(price) : ui.common.priceOnRequest}</span>
+          <span className="text-[#999] flex items-center gap-1"><Clock className="w-[12px] h-[12px]" />{formatDuration(service.duration, ui.duration)}</span>
         </p>
 
         {service.variants?.map((v, vi) => (
@@ -414,7 +440,7 @@ function ServiceScreen({ cat, svc, nav }: { cat: string; svc: string; nav: Nav }
 
         {service.addOns?.length ? (
           <div className="mt-[18px]">
-            <p className="text-[13px] font-medium mb-[8px]">Add-ons</p>
+            <p className="text-[13px] font-medium mb-[8px]">{ui.purchase.addOns}</p>
             {service.addOns.map((a) => {
               const on = addOns.includes(a.id)
               return (
@@ -431,7 +457,7 @@ function ServiceScreen({ cat, svc, nav }: { cat: string; svc: string; nav: Nav }
         ) : null}
 
         <div className="mt-[18px] rounded-[18px] bg-white border border-black/5 p-[14px]">
-          <p className="text-[13px] font-medium mb-[6px]">Every visit includes</p>
+          <p className="text-[13px] font-medium mb-[6px]">{p.browse.includes}</p>
           {category.includes.slice(0, 4).map((x) => (
             <p key={x} className="text-[12px] text-[#666] flex gap-2 py-[2px]"><Check className="w-[13px] h-[13px] mt-[2px] shrink-0 text-[var(--brand-ink)]" />{x}</p>
           ))}
@@ -439,7 +465,7 @@ function ServiceScreen({ cat, svc, nav }: { cat: string; svc: string; nav: Nav }
 
         {!live && (
           <div className="mt-[14px] rounded-[18px] bg-white border border-black/5 p-[14px]">
-            <p className="text-[13px] mb-[10px]">Coming soon. Get a WhatsApp the day it opens in your area.</p>
+            <p className="text-[13px] mb-[10px]">{p.browse.comingSoon}</p>
             <NotifyInline category={category} />
           </div>
         )}
@@ -451,7 +477,7 @@ function ServiceScreen({ cat, svc, nav }: { cat: string; svc: string; nav: Nav }
             onClick={() => add(category, service, service.variants?.map((v, i) => v.options[picks[i] ?? 0].label) ?? [], chosenAddOns, price)}
             className="w-full h-[50px] rounded-full bg-[#111] text-white text-[15px] font-medium flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
           >
-            Add to cart · {formatPKR(price)}
+            {fill(p.browse.addPrice, { price: formatPKR(price) })}
           </button>
         </div>
       )}
@@ -461,26 +487,28 @@ function ServiceScreen({ cat, svc, nav }: { cat: string; svc: string; nav: Nav }
 
 function SearchScreen({ nav }: { nav: Nav }) {
   const { searchServices } = useCatalog()
+  const p = usePhoneT()
+  const ui = useT()
   const [q, setQ] = useState("")
   const results = useMemo(() => searchServices(q).slice(0, 12), [q])
   return (
     <div className="pb-6">
       <div className="sticky top-0 z-10 bg-[#fbfaf7]/95 backdrop-blur px-[16px] pt-[6px] pb-[10px]">
-        <p className="text-[28px] font-semibold tracking-tight mb-[10px]">Search</p>
+        <p className="text-[28px] font-semibold tracking-tight mb-[10px]">{p.tabs.search}</p>
         <div className="h-[46px] rounded-full bg-white border border-black/10 flex items-center gap-2 px-[14px]">
           <Search className="w-[17px] h-[17px] text-[#999]" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Waxing, facial, AC service…" aria-label="Search services" className="flex-1 bg-transparent outline-none text-[16px]" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={ui.search.placeholder} aria-label={ui.search.title} className="flex-1 bg-transparent outline-none text-[16px]" />
         </div>
       </div>
       <div className="px-[16px]">
         {!q && (
           <div className="flex flex-wrap gap-[8px] mt-[6px]">
-            {["Waxing", "Facial", "Mehndi", "Massage", "Keratin", "AC service", "Deep cleaning"].map((s) => (
+            {ui.search.popularTerms.map((s) => (
               <button key={s} onClick={() => setQ(s)} className="rounded-full border border-black/10 bg-white px-[12px] h-[34px] text-[13px]">{s}</button>
             ))}
           </div>
         )}
-        {q && results.length === 0 && <p className="text-[14px] text-[#777] mt-[20px] text-center">No match for “{q}”.</p>}
+        {q && results.length === 0 && <p className="text-[14px] text-[#777] mt-[20px] text-center">{fill(ui.search.noMatch, { q })}</p>}
         {results.map((r) => {
           const [, , cat, svc] = r.href.split("/")
           return (
@@ -489,7 +517,7 @@ function SearchScreen({ nav }: { nav: Nav }) {
                 <span className="block text-[15px]">{r.title}</span>
                 <span className="block text-[12px] text-[#777]">{r.subtitle}</span>
               </span>
-              {r.status === "live" ? <span className="text-[11px] rounded-full bg-[var(--brand-soft)] text-[var(--brand-ink)] px-[8px] py-[2px]">Live</span> : <span className="text-[11px] rounded-full bg-black/5 text-[#777] px-[8px] py-[2px]">Soon</span>}
+              {r.status === "live" ? <span className="text-[11px] rounded-full bg-[var(--brand-soft)] text-[var(--brand-ink)] px-[8px] py-[2px]">{ui.common.live}</span> : <span className="text-[11px] rounded-full bg-black/5 text-[#777] px-[8px] py-[2px]">{p.browse.soon}</span>}
             </button>
           )
         })}
@@ -500,19 +528,21 @@ function SearchScreen({ nav }: { nav: Nav }) {
 
 function CartScreen({ nav, mounted }: { nav: Nav; mounted: boolean }) {
   const { MIN_ORDER } = useCatalog()
+  const p = usePhoneT()
+  const ui = useT()
   const router = useRouter()
   const { items, setQty } = useCart()
   const list = mounted ? items : []
   const total = cartTotal(list)
   return (
     <div className="min-h-full flex flex-col">
-      <div className="px-[16px] pt-[6px]"><p className="text-[28px] font-semibold tracking-tight">Cart</p></div>
+      <div className="px-[16px] pt-[6px]"><p className="text-[28px] font-semibold tracking-tight">{p.tabs.cart}</p></div>
       {list.length === 0 ? (
         <div className="flex flex-col items-center text-center mt-[80px] px-[30px]">
           <ShoppingBag className="w-[44px] h-[44px] text-[#ccc]" strokeWidth={1} />
-          <p className="text-[15px] mt-[12px]">Your cart is empty</p>
-          <p className="text-[13px] text-[#777] mt-[4px]">Add a service and it shows up here, and on the real site too.</p>
-          <button onClick={() => nav.push({ name: "world", slug: "beauty-wellness" })} className="mt-[18px] h-[42px] px-[18px] rounded-full bg-[#111] text-white text-[14px]">Browse beauty</button>
+          <p className="text-[15px] mt-[12px]">{ui.checkout.emptyTitle}</p>
+          <p className="text-[13px] text-[#777] mt-[4px]">{p.cart.emptySub}</p>
+          <button onClick={() => nav.push({ name: "world", slug: "beauty-wellness" })} className="mt-[18px] h-[42px] px-[18px] rounded-full bg-[#111] text-white text-[14px]">{ui.cart.browse}</button>
         </div>
       ) : (
         <div className="px-[16px]">
@@ -522,9 +552,9 @@ function CartScreen({ nav, mounted }: { nav: Nav; mounted: boolean }) {
                 <p className="text-[14px] font-medium">{i.name}</p>
                 {(i.options.length > 0 || i.addOns.length > 0) && <p className="text-[11px] text-[#888] mt-[2px] truncate">{[...i.options, ...i.addOns.map((a) => `+ ${a.name}`)].join(" · ")}</p>}
                 <div className="flex items-center mt-[8px] rounded-full border border-black/10 w-fit">
-                  <button aria-label="Decrease" onClick={() => setQty(i.key, i.qty - 1)} className="w-[30px] h-[28px] flex items-center justify-center"><Minus className="w-[13px] h-[13px]" /></button>
+                  <button aria-label={ui.cart.decrease} onClick={() => setQty(i.key, i.qty - 1)} className="w-[30px] h-[28px] flex items-center justify-center"><Minus className="w-[13px] h-[13px]" /></button>
                   <span className="text-[13px] w-[18px] text-center">{i.qty}</span>
-                  <button aria-label="Increase" onClick={() => setQty(i.key, i.qty + 1)} className="w-[30px] h-[28px] flex items-center justify-center"><Plus className="w-[13px] h-[13px]" /></button>
+                  <button aria-label={ui.cart.increase} onClick={() => setQty(i.key, i.qty + 1)} className="w-[30px] h-[28px] flex items-center justify-center"><Plus className="w-[13px] h-[13px]" /></button>
                 </div>
               </div>
               <p className="text-[14px] font-medium">{formatPKR(i.unitPrice * i.qty)}</p>
@@ -533,24 +563,24 @@ function CartScreen({ nav, mounted }: { nav: Nav; mounted: boolean }) {
           <div className="mt-[14px]">
             {total < MIN_ORDER ? (
               <>
-                <p className="text-[12px] text-[#777] mb-[6px]">Add {formatPKR(MIN_ORDER - total)} more to reach the {formatPKR(MIN_ORDER)} minimum.</p>
+                <p className="text-[12px] text-[#777] mb-[6px]">{fill(ui.cart.addMore, { amount: formatPKR(MIN_ORDER - total), min: formatPKR(MIN_ORDER) })}</p>
                 <div className="h-[6px] rounded-full bg-black/5 overflow-hidden"><div className="h-full bg-[var(--brand)]" style={{ width: `${Math.min(100, (total / MIN_ORDER) * 100)}%` }} /></div>
               </>
             ) : (
-              <p className="text-[12px] text-[var(--brand-ink)]">Minimum order reached.</p>
+              <p className="text-[12px] text-[var(--brand-ink)]">{ui.cart.minReached}</p>
             )}
           </div>
         </div>
       )}
       {list.length > 0 && (
         <div className="sticky bottom-0 z-10 px-[16px] pb-[12px] pt-[18px] mt-auto bg-gradient-to-t from-[#fbfaf7] via-[#fbfaf7] to-transparent">
-          <div className="flex justify-between text-[15px] mb-[8px]"><span>Total</span><span className="font-semibold">{formatPKR(total)}</span></div>
+          <div className="flex justify-between text-[15px] mb-[8px]"><span>{ui.common.total}</span><span className="font-semibold">{formatPKR(total)}</span></div>
           <button
             disabled={total < MIN_ORDER}
             onClick={() => router.push("/checkout")}
             className="w-full h-[50px] rounded-full bg-[#111] text-white text-[15px] font-medium disabled:opacity-40"
           >
-            Checkout · pay after service
+            {p.cart.checkout}
           </button>
         </div>
       )}
@@ -560,15 +590,17 @@ function CartScreen({ nav, mounted }: { nav: Nav; mounted: boolean }) {
 
 function ProfileScreen({ mounted }: { mounted: boolean }) {
   const { areas, getArea } = useCatalog()
+  const p = usePhoneT()
+  const ui = useT()
   const loc = useLocation()
   const current = mounted ? loc.area : null
   const area = current ? getArea(current) : undefined
   return (
     <div className="pb-6 px-[16px]">
-      <p className="text-[28px] font-semibold tracking-tight pt-[6px]">Profile</p>
+      <p className="text-[28px] font-semibold tracking-tight pt-[6px]">{p.tabs.profile}</p>
       <div className="mt-[14px] rounded-[20px] bg-white border border-black/5 p-[16px]">
-        <p className="text-[15px] font-medium">Where should we come?</p>
-        <p className="text-[12px] text-[#777] mt-[2px]">We come to 8 neighbourhoods across Karachi.</p>
+        <p className="text-[15px] font-medium">{ui.location.title}</p>
+        <p className="text-[12px] text-[#777] mt-[2px]">{fill(p.profile.comeTo, { count: areas.length })}</p>
         <div className="grid grid-cols-2 gap-[8px] mt-[12px]">
           {areas.map((a) => (
             <button
@@ -581,7 +613,7 @@ function ProfileScreen({ mounted }: { mounted: boolean }) {
             >
               <span className="flex items-center justify-between">
                 {a.name}
-                {a.status === "live" ? <span className="w-[7px] h-[7px] rounded-full bg-[var(--brand)]" /> : <span className={cn("text-[10px]", current === a.slug ? "text-white/60" : "text-[#999]")}>soon</span>}
+                {a.status === "live" ? <span className="w-[7px] h-[7px] rounded-full bg-[var(--brand)]" /> : <span className={cn("text-[10px]", current === a.slug ? "text-white/60" : "text-[#999]")}>{p.profile.soon}</span>}
               </span>
             </button>
           ))}
@@ -596,11 +628,11 @@ function ProfileScreen({ mounted }: { mounted: boolean }) {
       </div>
       <div className="mt-[14px] rounded-[20px] bg-white border border-black/5 divide-y divide-black/5">
         {[
-          ["Your bookings", "/account/bookings"],
-          ["Saved details", "/account/addresses"],
-          ["Mjazo Plus", "/plus"],
-          ["Refer & earn", "/refer"],
-          ["Help & support", "/help"],
+          [ui.account.yourBookings, "/account/bookings"],
+          [ui.account.savedDetails, "/account/addresses"],
+          [ui.account.plus, "/plus"],
+          [ui.account.refer, "/refer"],
+          [p.profile.help, "/help"],
         ].map(([label, href]) => (
           <Link key={href} href={href} className="flex items-center justify-between px-[16px] h-[50px] text-[14px] hover:bg-black/[0.02]">
             {label}

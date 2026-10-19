@@ -6,6 +6,7 @@ import { AppShowcase } from "@/components/site/app-showcase"
 import { InstallApp } from "@/components/site/install-app"
 import { getPage } from "@/lib/cms/read"
 import type { AppContent } from "@/lib/cms/types/pages/commerce"
+import type { HomeContent } from "@/lib/cms/types/pages/home"
 import { pageLocale } from "@/lib/cms/locale"
 import { pageMetadata } from "@/lib/cms/seo/metadata"
 
@@ -18,7 +19,7 @@ const FEATURE_ICONS = [Zap, CalendarCheck, RefreshCw, MapPin, Bell, Smartphone]
 
 export default async function AppPage({ params }: { params: Promise<{ locale: string }> }) {
   await pageLocale(params)
-  const c = await getPage<AppContent>("app")
+  const [c, home] = await Promise.all([getPage<AppContent>("app"), getPage<HomeContent>("home")])
   return (
     <>
       <section className="relative overflow-hidden pt-32 sm:pt-36 pb-24" style={{ background: "radial-gradient(90% 70% at 50% 100%, oklch(0.9 0.08 75), oklch(0.985 0.01 85) 70%)" }}>
@@ -32,7 +33,7 @@ export default async function AppPage({ params }: { params: Promise<{ locale: st
               <InstallApp />
             </div>
           </div>
-          <AppShowcase />
+          <AppShowcase phone={home.phone} />
         </Container>
       </section>
       <section className="py-16 sm:py-24">

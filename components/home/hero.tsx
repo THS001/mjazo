@@ -29,7 +29,7 @@ function phoneWidth(vw: number) {
   return Math.min(300, vw - 48)
 }
 
-export function Hero({ content }: { content: HomeContent["hero"] }) {
+export function Hero({ content, phone }: { content: HomeContent["hero"]; phone?: HomeContent["phone"] }) {
   const { getArea } = useCatalog()
   const ui = useT()
   const reduce = useReducedMotion()
@@ -216,7 +216,7 @@ export function Hero({ content }: { content: HomeContent["hero"] }) {
           style={{ perspective: 1400 }}
         >
           <motion.div dir="ltr" style={{ rotateX: rx, rotateY: ry, transformStyle: "preserve-3d" }}>
-            <PhoneDevice width={width} />
+            <PhoneDevice width={width} t={phone} />
           </motion.div>
           <motion.p
             initial={{ opacity: 0 }}

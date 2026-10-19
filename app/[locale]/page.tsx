@@ -19,7 +19,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   const c = await getPage<HomeContent>("home")
   return (
     <>
-      <Hero content={c.hero} />
+      <Hero content={c.hero} phone={c.phone} />
       <Stats labels={c.stats} />
       <WorldsGrid content={c.worlds} />
       <MostBooked content={c.mostBooked} />

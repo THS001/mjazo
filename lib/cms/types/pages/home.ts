@@ -1,6 +1,8 @@
 import { f, type Img } from "../../fields"
 import { HOME_FAQ } from "@/lib/content"
 import { cta, faqs, head, lines, page, type Cta, type Faq, type Head } from "./blocks"
+import { stringFields } from "../strings"
+import { PHONE_TEXT, PHONE_TEXT_UR, type PhoneText } from "../tool-text/phone-app"
 
 export type HomeContent = {
   hero: { badge: string; title: string; search: string; find: string; video?: Img }
@@ -15,6 +17,7 @@ export type HomeContent = {
   promises: Head & { rowA: string[]; rowB: string[] }
   faq: { title: string; items: Faq[] }
   final: { title: string; sub: string; primary: Cta; secondary: Cta; notes: string[] }
+  phone: PhoneText
 }
 
 export const HOME_DEFAULTS: HomeContent = {
@@ -69,6 +72,7 @@ export const HOME_DEFAULTS: HomeContent = {
     secondary: { label: "Explore every service", href: "/services" },
     notes: ["No card needed", "Slots from 9am–9pm", "Verified pros"],
   },
+  phone: PHONE_TEXT,
 }
 
 page<HomeContent>("home", {
@@ -96,6 +100,8 @@ page<HomeContent>("home", {
     promises: f.group("Promises", { ...head("x").fields, rowA: lines("Top row"), rowB: lines("Bottom row") }),
     faq: f.group("FAQ", { title: f.text("Title"), items: faqs("Questions") }),
     final: f.group("Final call to action", { title: f.text("Title", { required: true }), sub: f.textarea("Text"), primary: cta("Main button"), secondary: cta("Second button"), notes: lines("Small print", { max: 3 }) }),
+    phone: f.group("Hero phone app", stringFields(PHONE_TEXT, { device: "Phone frame", tabs: "Tab bar", home: "App home screen", browse: "Services screens", cart: "Cart screen", profile: "Profile screen" }), { help: "Text inside the tappable app in the hero phone. Cart, search and waitlist words come from Buttons & labels." }),
   },
+  translations: { ur: () => ({ phone: PHONE_TEXT_UR }) },
   defaults: HOME_DEFAULTS,
 })

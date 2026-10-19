@@ -8,6 +8,7 @@ import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { Hand, X } from "lucide-react"
 import { PhoneApp, SCREEN_H, SCREEN_W } from "./phone-app"
+import { PHONE_TEXT, type PhoneText } from "@/lib/cms/types/tool-text/phone-app"
 
 export function phoneDims(width: number) {
   const bezel = Math.round(width * 0.034)
@@ -22,7 +23,7 @@ export function phoneDims(width: number) {
  * On touchscreens the phone starts "locked" behind a Tap-to-try overlay, so swiping over it
  * scrolls the page instead of the mini app. Tap to use the app; tap Done to hand scrolling back.
  */
-export function PhoneDevice({ width }: { width: number }) {
+export function PhoneDevice({ width, t = PHONE_TEXT }: { width: number; t?: PhoneText }) {
   const d = phoneDims(width)
   const [touch, setTouch] = useState(false)
   const [locked, setLocked] = useState(true)
@@ -32,7 +33,7 @@ export function PhoneDevice({ width }: { width: number }) {
     <div
       data-phone
       role="region"
-      aria-label="Interactive Mjazo app demo: tap around"
+      aria-label={t.device.demo}
       className="relative"
       style={{
         width,
@@ -46,7 +47,7 @@ export function PhoneDevice({ width }: { width: number }) {
     >
       {touch && !locked && (
         <button type="button" onClick={() => setLocked(true)} className="absolute -top-12 right-0 z-30 flex items-center gap-1.5 rounded-full bg-black text-white px-4 h-9 text-sm shadow-lg">
-          <X className="w-4 h-4" /> Done
+          <X className="w-4 h-4" /> {t.device.done}
         </button>
       )}
       {/* Side buttons */}
@@ -61,7 +62,7 @@ export function PhoneDevice({ width }: { width: number }) {
         style={{ width: d.screenW, height: d.screenH, borderRadius: d.screenRadius, clipPath: `inset(0 round ${d.screenRadius}px)` }}
       >
         <div style={{ width: SCREEN_W, height: SCREEN_H, transform: `scale(${d.scale})`, transformOrigin: "0 0" }}>
-          <PhoneApp />
+          <PhoneApp t={t} />
         </div>
         {/* Touch lock: lets the page scroll past the phone until the visitor chooses to use it */}
         <AnimatePresence>
@@ -74,10 +75,10 @@ export function PhoneDevice({ width }: { width: number }) {
               onClick={() => setLocked(false)}
               style={{ pointerEvents: locked ? "auto" : "none" }}
               className="absolute inset-0 z-20 flex items-end justify-center pb-[18%] bg-gradient-to-t from-black/25 via-transparent to-transparent"
-              aria-label="Tap to try the Mjazo app"
+              aria-label={t.device.tryIt}
             >
               <span className="flex items-center gap-2 rounded-full bg-black/85 text-white px-4 h-10 text-sm shadow-lg">
-                <Hand className="w-4 h-4" /> Tap to try the app
+                <Hand className="w-4 h-4" /> {t.device.tap}
               </span>
             </motion.button>
           )}
