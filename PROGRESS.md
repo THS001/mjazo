@@ -28,8 +28,8 @@ accounts, and what's left.
 | CMS phase 4: Urdu site | Done, live (the Urdu site stays hidden until switched on) |
 | CMS phase 5: SEO | Done, live |
 | CMS phase 6: page builder and live preview | Done, live |
-| CMS phase 7: hardening and team handbook | Done; the last fixes go out with the next deploy |
-| Interface text phase 2 (tools, chat, account, offers, ratings, hero phone, pro pages) | **Done 19 Oct 2026**, with Urdu; not deployed yet |
+| CMS phase 7: hardening and team handbook | Done, live |
+| Interface text phase 2 (tools, chat, account, offers, ratings, hero phone, pro pages) | **Done and live 19 Oct 2026**, with Urdu |
 | Supabase (database and file storage) | **Connected (5 Oct 2026).** CMS content, media, bookings and staff data are now stored durably |
 
 ---
@@ -244,7 +244,7 @@ The team and the client can edit everything on the site without code changes. Fu
 - **Performance:** about 2 minutes to build on Vercel. Every page's data is 13.5 KB smaller (category FAQs no longer go to the browser). Cache tags were checked: a page edit refreshes only that page.
 - **Team handbook:** `docs/Mjazo-CMS-Team-Handbook.pdf`: 20 pages in the brand style, each built around a real screenshot of the admin with numbered callouts. Source and screenshot script are in `docs/handbook/`.
 
-### Interface text, phase 2 (19 Oct 2026). Done, not deployed
+### Interface text, phase 2 (19 Oct 2026). Done, live
 
 - **Buttons & labels** has six new groups: the AI chat, account screens, offers/Plus/referrals, report a problem and ratings, installing the app, and the services menu and search.
 - **Each AI tool's page has a "Tool text" group** (Ghar Scan, Home Pulse, Glam Mirror, Shaadi Orchestrator). Home Pulse's includes the wording of every reminder; Shaadi's includes the look names, warnings and each person's WhatsApp summary.
@@ -307,7 +307,7 @@ All are listed with explanations in [.env.example](.env.example).
 4. Set `OPS_PASSCODE` and `SESSION_SECRET` to turn on the staff tools.
 5. Run `node scripts/setup-supabase.mjs --cron`: it makes `CRON_SECRET`, stores it in Vercel and shows the pinger steps. Point an external 5-minute pinger (cron-job.org) at `/api/cron/safety` and `/api/cron/cms-publish` with that secret, then redeploy. The weekly SEO check then runs by itself (a Vercel cron in `vercel.json`).
 6. Optionally set `RESEND_API_KEY` and the `OPS_*` emails, the WhatsApp Cloud API settings, `STT_API_KEY` and `PAGESPEED_API_KEY`.
-7. Deploy (`npx vercel deploy --prod` from `website/`) after checking `npx vercel whoami`. **On 19 Oct 2026 the Vercel CLI on this computer answered "Not authorized"**: run `npx vercel login` with the thehashirsukhera-8511 account first.
+7. Deploy (`npx vercel deploy --prod` from `website/`) after checking that `npx vercel teams ls` shows **thehashirsukhera-8511's projects**. `vercel login` signs in whichever Vercel account your browser is using, and that has picked another client's account before; approve the login in a window signed in as thehashirsukhera-8511. Run it in a normal (not administrator) PowerShell: the administrator window on this computer is another Windows user and keeps its own login.
 8. In `/admin/translate`, run "Translate everything missing". Have someone review the Urdu, then switch on the Urdu site under Settings → Feature switches.
 
 ---
@@ -335,7 +335,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
 
 ## 9. What's left, in order
 
-1. **Deploy** the work since 5 October (the phase 7 media fix and interface text phase 2). The Vercel CLI here needs `npx vercel login` first (section 7, step 7).
+1. ~~Deploy the work since 5 October~~: deployed on 19 October 2026 (the phase 7 media fix and interface text phase 2).
 2. **Owner setup:** section 7 (rotate secrets, SMTP, `CRON_SECRET` and pingers, staff tool passcodes).
 3. **Re-test the live flows** that need Supabase: booking → ops console, apply → interview, complaint → Trust Desk.
 4. **Urdu content:** the AI translation pass, a human review (including the new interface Urdu), then switching on the Urdu site.

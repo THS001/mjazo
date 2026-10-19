@@ -15,8 +15,8 @@ looking the same while making more of it editable.
 | 4. Urdu | `/ur` site, right-to-left layout, translation tools | Done, deployed |
 | 5. SEO | SEO fields, metadata, redirects, SEO score, dashboard | Done, deployed |
 | 6. Page builder | New pages from blocks, live preview, click-to-edit | Done, deployed |
-| 7. Hardening | Tests, permission audit, backup, two-step sign-in, performance, team handbook | Done; the last fixes go out with the next deploy |
-| Interface text, phase 2 | The text inside the AI tools, the chat, account screens, offers, ratings, the hero phone and the pro pages, with Urdu | Done 19 October 2026; not deployed yet |
+| 7. Hardening | Tests, permission audit, backup, two-step sign-in, performance, team handbook | Done, deployed |
+| Interface text, phase 2 | The text inside the AI tools, the chat, account screens, offers, ratings, the hero phone and the pro pages, with Urdu | Done and live 19 October 2026 |
 
 **Supabase is connected (5 October 2026).** Content saved in `/admin` now persists on the live site.
 Both Owners (`CMS_OWNER_EMAIL`) can sign in, and the first has set up two-step sign-in. Locally,
@@ -44,7 +44,7 @@ The team handbook for editors is `docs/Mjazo-CMS-Team-Handbook.pdf`: 20 pages, o
 2. **Scheduled publishing and the weekly SEO check:** run `node scripts/setup-supabase.mjs --cron`. It makes a random `CRON_SECRET` on the owner's computer, stores it in Vercel as a Secret, and shows it once with the pinger steps. Then set up a 5-minute pinger (cron-job.org) at `GET /api/cron/cms-publish` and `GET /api/cron/safety` with the header `Authorization: Bearer <CRON_SECRET>`, and redeploy. The weekly SEO check needs no pinger: `vercel.json` schedules it and Vercel sends the secret. Until then, a scheduled publish doesn't go out by itself.
 3. **Email for invites:** Supabase's built-in email only sends a few messages an hour. Before inviting the whole team, add an SMTP sender under Supabase → Authentication → Emails.
 4. **Optional:** set `PAGESPEED_API_KEY` for more PageSpeed audits per day.
-5. **Deploys:** `npx vercel deploy --prod` from `website/`, after checking `npx vercel whoami` shows thehashirsukhera-8511.
+5. **Deploys:** `npx vercel deploy --prod` from `website/`, after checking `npx vercel teams ls` shows thehashirsukhera-8511's projects. Approve `vercel login` in a browser signed in as thehashirsukhera-8511, from a normal (not administrator) PowerShell.
 
 `ANTHROPIC_API_KEY` is already set on Vercel (production). It powers the AI translation, alt text
 and SEO suggestions in the admin. `.env.example` lists every variable with a comment.
@@ -91,7 +91,7 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 
 ---
 
-## Phase 3: Media. Done, not deployed
+## Phase 3: Media. Done, live
 
 **What it does**
 
@@ -123,7 +123,7 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 
 ---
 
-## Phase 4: Urdu and right-to-left. Done, not deployed
+## Phase 4: Urdu and right-to-left. Done, live
 
 **What it does**
 
@@ -164,7 +164,7 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 
 ---
 
-## Phase 5: SEO. Done, not deployed
+## Phase 5: SEO. Done, live
 
 **What it does**
 
@@ -231,7 +231,7 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 
 ---
 
-## Phase 6: Block page builder and click-to-edit. Done, not deployed
+## Phase 6: Block page builder and click-to-edit. Done, live
 
 **What it does**
 
@@ -311,7 +311,7 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 
 ---
 
-## Interface text, phase 2. Done (19 October 2026), not deployed
+## Interface text, phase 2. Done and live (19 October 2026)
 
 Every button, label and message a visitor sees can now be edited in `/admin`, and ships with hand-written Urdu, so `/ur` no longer shows English inside the tools.
 
