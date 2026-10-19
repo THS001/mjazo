@@ -18,7 +18,7 @@ export function HelpSearch({ topics: helpTopics, labels }: { topics: HelpTopic[]
     <Container className="py-12">
       <div className="flex items-center gap-3 h-16 rounded-full border border-zinc-300 bg-white px-6 max-w-2xl -mt-20 relative shadow-[0_20px_40px_-25px_rgba(0,0,0,0.3)] focus-within:border-foreground">
         <Search className="w-5 h-5 text-zinc-400" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={labels.search} aria-label="Search help" className="flex-1 bg-transparent outline-none text-[16px] sm:text-lg" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={labels.search} aria-label={labels.search} className="flex-1 bg-transparent outline-none text-[16px] sm:text-lg" />
       </div>
 
       {q.trim().length >= 2 ? (

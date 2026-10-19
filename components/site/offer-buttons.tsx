@@ -7,11 +7,12 @@ import { type Bundle } from "@/lib/catalog"
 import { track } from "@/lib/site"
 import { useCart } from "@/lib/store"
 import { cn } from "@/lib/utils"
-import { useCatalog } from "@/components/cms/provider"
+import { useCatalog, useT } from "@/components/cms/provider"
 
 /** Adds a bundle to the cart as a single line at the bundle price. */
 export function AddBundleButton({ bundle, className }: { bundle: Bundle; className?: string }) {
   const { getService } = useCatalog()
+  const t = useT().offers
   const add = useCart((s) => s.add)
   const [added, setAdded] = useState(false)
   const parts = bundle.items.map((i) => getService(i.category, i.service)).filter(Boolean)
@@ -20,7 +21,7 @@ export function AddBundleButton({ bundle, className }: { bundle: Bundle; classNa
       onClick={() => {
         add({
           category: bundle.items[0].category,
-          categoryName: "Bundle",
+          categoryName: t.bundle,
           service: `bundle-${bundle.slug}`,
           name: bundle.name,
           options: parts.map((p) => p!.service.name),
@@ -34,13 +35,14 @@ export function AddBundleButton({ bundle, className }: { bundle: Bundle; classNa
       }}
       className={cn("h-12 rounded-full px-6 text-sm font-medium flex items-center gap-2 transition-colors", added ? "bg-white text-black" : "bg-brand text-black hover:bg-white", className)}
     >
-      {added ? <><Check className="w-4 h-4" /> Added</> : <><Plus className="w-4 h-4" /> Add bundle</>}
+      {added ? <><Check className="w-4 h-4" /> {t.added}</> : <><Plus className="w-4 h-4" /> {t.addBundle}</>}
     </button>
   )
 }
 
 /** Metallic membership card that tilts toward the pointer (±15°) with a moving sheen. */
 export function PlusCard() {
+  const t = useT().offers
   const ref = useRef<HTMLDivElement>(null)
   const mx = useMotionValue(0.5)
   const my = useMotionValue(0.5)
@@ -80,10 +82,10 @@ export function PlusCard() {
           <div className="w-12 h-9 rounded-md bg-gradient-to-br from-[#fff3c9] to-[#c79a3a] border border-black/10" />
           <div className="flex justify-between items-end">
             <div>
-              <p className="text-[10px] tracking-[0.2em] opacity-70">MEMBER</p>
-              <p className="font-medium tracking-wide">Plus member</p>
+              <p className="text-[10px] tracking-[0.2em] opacity-70">{t.cardMember}</p>
+              <p className="font-medium tracking-wide">{t.cardName}</p>
             </div>
-            <p className="text-[10px] tracking-[0.2em] opacity-70">KARACHI</p>
+            <p className="text-[10px] tracking-[0.2em] opacity-70">{t.cardCity}</p>
           </div>
         </div>
       </motion.div>

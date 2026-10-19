@@ -11,8 +11,9 @@ import { cartCount, useCart, useLocation, type CartItem } from "@/lib/store"
 import { saveBooking } from "@/lib/bookings"
 import { cn } from "@/lib/utils"
 import { isServiceDetail } from "@/components/site/chrome"
-import { useCatalog, useSite } from "@/components/cms/provider"
+import { fill, useCatalog, useLocale, useSite, useT } from "@/components/cms/provider"
 import { stripLocale } from "@/lib/i18n"
+import { formatBookingDate, windowLabel } from "@/lib/time"
 
 type Card = { category: string; service: string; name: string; categoryName: string; price: number; duration: number; short: string; hasOptions: boolean; url: string }
 type Msg = {
@@ -28,12 +29,8 @@ type Msg = {
 }
 
 const KEY = "mjazo-concierge"
-const WELCOME: Msg = {
-  id: "welcome",
-  role: "assistant",
-  text: "Assalam o Alaikum! I'm Mjazo's AI assistant. Tell me what you need: type or speak in English, Urdu or Roman Urdu, or send a photo of the problem. A person from our team is always one tap away.",
-}
-const CHIPS = ["Waxing at home this week", "How much is an AC service?", "Kal shaam threading karwani hai", "Show you a photo"]
+// The welcome message's text always comes from the current language (Buttons & labels → AI chat).
+const WELCOME: Msg = { id: "welcome", role: "assistant", text: "" }
 const uid = () => Math.random().toString(36).slice(2)
 const hasUrdu = (s: string) => /[؀-ۿ]/.test(s)
 
@@ -78,8 +75,11 @@ function Rich({ text }: { text: string }) {
 }
 
 export function ConciergeWidget() {
-  const { getArea } = useCatalog()
+  const { getArea, getService } = useCatalog()
   const { whatsappLink } = useSite()
+  const ui = useT()
+  const t = ui.concierge
+  const locale = useLocale()
   const pathname = stripLocale(usePathname())
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState<Msg[]>([WELCOME])
@@ -87,7 +87,7 @@ export function ConciergeWidget() {
   const [images, setImages] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [listening, setListening] = useState(false)
-  const [lang, setLang] = useState<"en-PK" | "ur-PK">("en-PK")
+  const [lang, setLang] = useState<"en-PK" | "ur-PK">(locale === "ur" ? "ur-PK" : "en-PK")
   const [voiceOk, setVoiceOk] = useState(false)
   const [mounted, setMounted] = useState(false)
   const scroller = useRef<HTMLDivElement>(null)
@@ -116,9 +116,9 @@ export function ConciergeWidget() {
 
   const send = useCallback(
     async (text: string, imgs: string[] = []) => {
-      const t = text.trim()
-      if ((!t && !imgs.length) || busy) return
-      const userMsg: Msg = { id: uid(), role: "user", text: t || "What can you tell me from this photo?", images: imgs.length ? imgs : undefined }
+      const said = text.trim()
+      if ((!said && !imgs.length) || busy) return
+      const userMsg: Msg = { id: uid(), role: "user", text: said || t.photoQuestion, images: imgs.length ? imgs : undefined }
       const next = [...msgs, userMsg]
       setMsgs(next)
       setInput("")
@@ -151,21 +151,20 @@ export function ConciergeWidget() {
         subArea: loc.subArea ?? undefined,
         cart: items.map((i) => `${i.name}${i.options.length ? ` (${i.options.join(", ")})` : ""} x${i.qty}`),
         attribution: getAttribution(),
+        locale,
       }
 
       try {
         const res = await fetch("/api/concierge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ messages: apiMessages, context }) })
         const data = await res.json().catch(() => ({}))
         if (!res.ok) {
-          const offline = data.whatsapp ?? whatsappLink("Hi Mjazo! I'd like some help.")
-          const textOut =
-            data.error === "ai_unavailable"
-              ? "Our AI assistant is taking a break right now. Our team can help you straight away on WhatsApp."
-              : data.error ?? "Something went wrong. Please try again, or chat with the team on WhatsApp."
+          const offline = whatsappLink(t.waHelp)
+          const code = data.code as "offline" | "tooMany" | "busy" | "failed" | undefined
+          const textOut = code && code in t ? t[code] : t.error
           setMsgs((m) => [...m, { id: uid(), role: "assistant", text: textOut, offline }])
           return
         }
-        const reply: Msg = { id: uid(), role: "assistant", text: data.reply || "Done." }
+        const reply: Msg = { id: uid(), role: "assistant", text: data.reply || t.done }
         const added: string[] = []
         for (const a of data.ui ?? []) {
           if (a.type === "cards") reply.cards = [...(reply.cards ?? []), ...a.cards].filter((c, i, arr) => arr.findIndex((x) => x.service === c.service) === i).slice(0, 4)
@@ -191,12 +190,12 @@ export function ConciergeWidget() {
         if (added.length) reply.added = added
         setMsgs((m) => [...m, reply])
       } catch {
-        setMsgs((m) => [...m, { id: uid(), role: "assistant", text: "I couldn't reach the server. Check your connection and try again.", offline: whatsappLink("Hi Mjazo! I'd like some help.") }])
+        setMsgs((m) => [...m, { id: uid(), role: "assistant", text: t.noServer, offline: whatsappLink(t.waHelp) }])
       } finally {
         setBusy(false)
       }
     },
-    [busy, msgs, items, loc.area, loc.subArea, pathname, add, clear],
+    [busy, msgs, items, loc.area, loc.subArea, pathname, add, clear, t, locale, whatsappLink, getArea],
   )
 
   // Open from anywhere: window.dispatchEvent(new CustomEvent("mjazo:concierge", { detail: { prompt } }))
@@ -283,13 +282,13 @@ export function ConciergeWidget() {
               "fixed z-40 end-4 lg:bottom-6 flex items-center gap-2 h-14 ps-3 pe-3 min-[400px]:ps-4 min-[400px]:pe-5 rounded-full bg-foreground text-background shadow-[0_12px_30px_-8px_rgba(0,0,0,0.45)] hover:bg-black transition-[bottom,background-color] duration-300",
               isServiceDetail(pathname) || cartBar ? "bottom-[calc(8.75rem+env(safe-area-inset-bottom))]" : "bottom-[calc(5rem+env(safe-area-inset-bottom))]",
             )}
-            aria-label="Ask Mjazo, the AI assistant"
+            aria-label={t.launcherLabel}
           >
             <span className="relative w-8 h-8 rounded-full bg-brand flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-black" />
               <span className="absolute -top-0.5 -end-0.5 w-2.5 h-2.5 rounded-full bg-[#25D366] ring-2 ring-foreground" />
             </span>
-            <span className="text-sm font-medium hidden min-[400px]:inline">Ask Mjazo</span>
+            <span className="text-sm font-medium hidden min-[400px]:inline">{t.launcher}</span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -299,7 +298,7 @@ export function ConciergeWidget() {
         {open && (
           <motion.section
             role="dialog"
-            aria-label="Mjazo Concierge"
+            aria-label={t.title}
             initial={{ opacity: 0, y: 24, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.98 }}
@@ -310,14 +309,14 @@ export function ConciergeWidget() {
             <div className="flex items-center gap-3 px-4 h-16 border-b border-zinc-200 shrink-0">
               <span className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center"><Sparkles className="w-4 h-4 text-brand" /></span>
               <div className="flex-1 min-w-0">
-                <p className="font-medium leading-tight">Mjazo Concierge</p>
-                <p className="text-[11px] text-zinc-500">AI assistant · can make mistakes · a person is one tap away</p>
+                <p className="font-medium leading-tight">{t.title}</p>
+                <p className="text-[11px] text-zinc-500">{t.sub}</p>
               </div>
-              <a href={whatsappLink(`Hi Mjazo! ${lastUser}`.trim())} target="_blank" rel="noopener noreferrer" onClick={() => track("whatsapp_click", { placement: "concierge_header" })} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-zinc-100" aria-label="Chat with a person on WhatsApp" title="Chat with a person on WhatsApp">
+              <a href={whatsappLink(lastUser ? fill(t.waAbout, { message: lastUser }) : t.waHelp)} target="_blank" rel="noopener noreferrer" onClick={() => track("whatsapp_click", { placement: "concierge_header" })} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-zinc-100" aria-label={t.person} title={t.person}>
                 <MessageCircle className="w-5 h-5 text-[#128C7E]" />
               </a>
-              <button onClick={reset} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-zinc-100" aria-label="New conversation" title="New conversation"><RotateCcw className="w-4 h-4" /></button>
-              <button onClick={() => setOpen(false)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-zinc-100" aria-label="Close"><X className="w-5 h-5" /></button>
+              <button onClick={reset} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-zinc-100" aria-label={t.newChat} title={t.newChat}><RotateCcw className="w-4 h-4" /></button>
+              <button onClick={() => setOpen(false)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-zinc-100" aria-label={t.close}><X className="w-5 h-5" /></button>
             </div>
 
             {/* Messages */}
@@ -328,21 +327,25 @@ export function ConciergeWidget() {
                     <div className="flex gap-1.5">{m.images.map((src, i) => <img key={i} src={src} alt="" className="w-20 h-20 rounded-2xl object-cover border border-zinc-200" />)}</div>
                   ) : null}
                   <div className={cn("max-w-[88%] rounded-3xl px-4 py-3 text-[15px] leading-relaxed", m.role === "user" ? "bg-foreground text-background rounded-ee-lg" : "bg-zinc-100 text-foreground rounded-es-lg")}>
-                    {m.role === "assistant" ? <Rich text={m.text} /> : <p dir="auto" className="whitespace-pre-wrap">{m.text}</p>}
+                    {m.role === "assistant" ? <Rich text={m.id === "welcome" ? t.welcome : m.text} /> : <p dir="auto" className="whitespace-pre-wrap">{m.text}</p>}
                   </div>
                   {m.role === "assistant" && m.id !== "welcome" && !m.offline && (
-                    <button onClick={() => speak(m.text)} className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-black px-2"><Volume2 className="w-3.5 h-3.5" />Listen</button>
+                    <button onClick={() => speak(m.text)} className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-black px-2"><Volume2 className="w-3.5 h-3.5" />{t.listen}</button>
                   )}
                   {m.cards?.length ? (
                     <div className="w-full flex gap-2 overflow-x-auto no-scrollbar pb-1" data-lenis-prevent>
-                      {m.cards.map((c) => (
+                      {m.cards.map((card) => {
+                        // Names in the page's language, from this page's catalogue (the assistant works in English).
+                        const local = getService(card.category, card.service)
+                        const c = local ? { ...card, name: local.service.name, categoryName: local.category.name } : card
+                        return (
                         <div key={c.service} className="shrink-0 w-[200px] rounded-2xl border border-zinc-200 bg-white p-3 flex flex-col gap-1">
                           <p className="text-[11px] text-zinc-500">{c.categoryName}</p>
                           <Link href={c.url} className="text-sm font-medium leading-snug hover:underline" onClick={() => setOpen(false)}>{c.name}</Link>
-                          <p className="text-xs text-zinc-500">{c.price > 0 ? formatPKR(c.price) : "On request"} · {formatDuration(c.duration)}</p>
+                          <p className="text-xs text-zinc-500">{c.price > 0 ? formatPKR(c.price) : t.onRequest} · {formatDuration(c.duration, ui.duration)}</p>
                           <div className="mt-1.5">
                             {c.hasOptions || c.price <= 0 ? (
-                              <Link href={c.url} onClick={() => setOpen(false)} className="inline-flex h-8 items-center rounded-full border border-zinc-300 px-3 text-xs hover:border-black">Choose options</Link>
+                              <Link href={c.url} onClick={() => setOpen(false)} className="inline-flex h-8 items-center rounded-full border border-zinc-300 px-3 text-xs hover:border-black">{t.chooseOptions}</Link>
                             ) : (
                               <button
                                 onClick={() => {
@@ -351,41 +354,43 @@ export function ConciergeWidget() {
                                 }}
                                 className="inline-flex h-8 items-center rounded-full bg-foreground text-background px-3 text-xs"
                               >
-                                Add to cart
+                                {t.addToCart}
                               </button>
                             )}
                           </div>
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   ) : null}
                   {m.added?.length ? (
-                    <p className="flex items-center gap-1.5 text-xs text-brand-ink px-2"><Check className="w-3.5 h-3.5" />Added to cart: {m.added.join(", ")} · <Link href="/cart" onClick={() => setOpen(false)} className="underline">View cart</Link></p>
+                    <p className="flex items-center gap-1.5 text-xs text-brand-ink px-2"><Check className="w-3.5 h-3.5" />{fill(t.addedToCart, { items: m.added.join(locale === "ur" ? "، " : ", ") })} · <Link href="/cart" onClick={() => setOpen(false)} className="underline">{t.viewCart}</Link></p>
                   ) : null}
                   {m.booking && (
                     <div className="w-full rounded-2xl bg-brand-soft border border-brand/40 p-4">
-                      <p className="text-xs text-brand-ink">Booking request sent</p>
+                      <p className="text-xs text-brand-ink">{t.bookingSent}</p>
                       <p className="font-medium mt-0.5">{m.booking.id}</p>
-                      <p className="text-sm text-zinc-600">{m.booking.date} · {m.booking.window} · {formatPKR(m.booking.total)} · pay after</p>
-                      <Link href={`/booking/confirmed?id=${encodeURIComponent(m.booking.id)}`} onClick={() => setOpen(false)} className="inline-flex mt-3 h-9 items-center rounded-full bg-foreground text-background px-4 text-sm">View booking</Link>
+                      <p className="text-sm text-zinc-600">{fill(t.bookingLine, { date: formatBookingDate(m.booking.date, locale), window: windowLabel(m.booking.window, locale), total: formatPKR(m.booking.total) })}</p>
+                      <Link href={`/booking/confirmed?id=${encodeURIComponent(m.booking.id)}`} onClick={() => setOpen(false)} className="inline-flex mt-3 h-9 items-center rounded-full bg-foreground text-background px-4 text-sm">{t.viewBooking}</Link>
                     </div>
                   )}
                   {(m.handoff || m.offline) && (
-                    <a href={m.offline ?? whatsappLink(`Hi Mjazo! ${lastUser}`.trim())} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 h-10 rounded-full bg-[#25D366] text-foreground px-4 text-sm" onClick={() => track("whatsapp_click", { placement: "concierge_handoff" })}>
-                      <MessageCircle className="w-4 h-4" />Chat with a person on WhatsApp
+                    <a href={m.offline ?? whatsappLink(lastUser ? fill(t.waAbout, { message: lastUser }) : t.waHelp)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 h-10 rounded-full bg-[#25D366] text-foreground px-4 text-sm" onClick={() => track("whatsapp_click", { placement: "concierge_handoff" })}>
+                      <MessageCircle className="w-4 h-4" />{t.person}
                     </a>
                   )}
                 </div>
               ))}
               {msgs.length === 1 && (
                 <div className="flex flex-wrap gap-2">
-                  {CHIPS.map((c) => (
-                    <button key={c} onClick={() => (c === "Show you a photo" ? fileRef.current?.click() : send(c))} className="rounded-full border border-zinc-300 bg-white px-3.5 h-9 text-sm hover:border-black transition-colors" dir="auto">{c}</button>
+                  {t.chips.map((c) => (
+                    <button key={c} onClick={() => send(c)} className="rounded-full border border-zinc-300 bg-white px-3.5 h-9 text-sm hover:border-black transition-colors" dir="auto">{c}</button>
                   ))}
+                  <button onClick={() => fileRef.current?.click()} className="rounded-full border border-zinc-300 bg-white px-3.5 h-9 text-sm hover:border-black transition-colors" dir="auto">{t.photoChip}</button>
                 </div>
               )}
               {busy && (
-                <div className="flex items-center gap-2 text-sm text-zinc-500"><Loader2 className="w-4 h-4 animate-spin" />Thinking…</div>
+                <div className="flex items-center gap-2 text-sm text-zinc-500"><Loader2 className="w-4 h-4 animate-spin" />{t.thinking}</div>
               )}
             </div>
 
@@ -396,7 +401,7 @@ export function ConciergeWidget() {
                   {images.map((src, i) => (
                     <div key={i} className="relative">
                       <img src={src} alt="" className="w-14 h-14 rounded-xl object-cover border border-zinc-200" />
-                      <button onClick={() => setImages((im) => im.filter((_, j) => j !== i))} className="absolute -top-1.5 -end-1.5 w-5 h-5 rounded-full bg-black text-white flex items-center justify-center" aria-label="Remove photo"><X className="w-3 h-3" /></button>
+                      <button onClick={() => setImages((im) => im.filter((_, j) => j !== i))} className="absolute -top-1.5 -end-1.5 w-5 h-5 rounded-full bg-black text-white flex items-center justify-center" aria-label={t.removePhoto}><X className="w-3 h-3" /></button>
                     </div>
                   ))}
                 </div>
@@ -422,7 +427,7 @@ export function ConciergeWidget() {
                     track("concierge_photo", { count: files.length })
                   }}
                 />
-                <button type="button" onClick={() => fileRef.current?.click()} className="w-11 h-11 shrink-0 rounded-full border border-zinc-300 flex items-center justify-center hover:border-black" aria-label="Add a photo"><Camera className="w-5 h-5" /></button>
+                <button type="button" onClick={() => fileRef.current?.click()} className="w-11 h-11 shrink-0 rounded-full border border-zinc-300 flex items-center justify-center hover:border-black" aria-label={t.addPhoto}><Camera className="w-5 h-5" /></button>
                 <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
@@ -434,21 +439,21 @@ export function ConciergeWidget() {
                   }}
                   rows={1}
                   dir="auto"
-                  placeholder={listening ? "Listening…" : "Type, speak or send a photo"}
-                  aria-label="Message"
+                  placeholder={listening ? t.listening : t.placeholder}
+                  aria-label={t.message}
                   className="flex-1 min-w-0 max-h-32 resize-none rounded-3xl border border-zinc-300 bg-white px-4 py-2.5 text-[16px] sm:text-[15px] outline-none focus:border-foreground"
                 />
                 {voiceOk && !input.trim() && !images.length ? (
-                  <button type="button" onClick={listen} className={cn("w-11 h-11 shrink-0 rounded-full flex items-center justify-center transition-colors", listening ? "bg-red-500 text-white animate-pulse" : "bg-foreground text-background")} aria-label={listening ? "Stop listening" : "Speak"}>
+                  <button type="button" onClick={listen} className={cn("w-11 h-11 shrink-0 rounded-full flex items-center justify-center transition-colors", listening ? "bg-red-500 text-white animate-pulse" : "bg-foreground text-background")} aria-label={listening ? t.stopListening : t.speak}>
                     <Mic className="w-5 h-5" />
                   </button>
                 ) : (
-                  <button type="submit" disabled={busy || (!input.trim() && !images.length)} className="w-11 h-11 shrink-0 rounded-full bg-foreground text-background flex items-center justify-center disabled:opacity-40" aria-label="Send"><ArrowUp className="w-5 h-5" /></button>
+                  <button type="submit" disabled={busy || (!input.trim() && !images.length)} className="w-11 h-11 shrink-0 rounded-full bg-foreground text-background flex items-center justify-center disabled:opacity-40" aria-label={t.send}><ArrowUp className="w-5 h-5" /></button>
                 )}
               </form>
               {voiceOk && (
                 <div className="flex items-center justify-center gap-1 mt-2 text-[11px] text-zinc-500">
-                  Speak in
+                  {t.speakIn}
                   {(["en-PK", "ur-PK"] as const).map((l) => (
                     <button key={l} type="button" onClick={() => setLang(l)} className={cn("px-2 py-0.5 rounded-full", lang === l ? "bg-foreground text-background" : "hover:bg-zinc-100")}>{l === "en-PK" ? "English" : "اردو"}</button>
                   ))}

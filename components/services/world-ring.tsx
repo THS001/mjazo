@@ -10,10 +10,11 @@ import { useReducedMotion } from "framer-motion"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Icon } from "@/components/site/primitives"
 import { cn } from "@/lib/utils"
-import { useCatalog } from "@/components/cms/provider"
+import { fillNodes, useCatalog, useT } from "@/components/cms/provider"
 
 export function WorldRing() {
   const { worlds, worldStatus } = useCatalog()
+  const ui = useT()
   const STEP = 360 / worlds.length
   const reduce = useReducedMotion()
   const [angle, setAngle] = useState(0)
@@ -109,7 +110,7 @@ export function WorldRing() {
                 tabIndex={isFront ? 0 : -1}
               >
                 <div className="flex justify-between items-start">
-                  <span className={cn("text-[11px] rounded-full px-2.5 py-1", live ? "bg-white text-brand-ink" : "bg-white/60 text-zinc-600")}>{live ? "● Live now" : "Coming soon"}</span>
+                  <span className={cn("text-[11px] rounded-full px-2.5 py-1", live ? "bg-white text-brand-ink" : "bg-white/60 text-zinc-600")}>{live ? ui.worlds.liveNow : ui.common.comingSoon}</span>
                   <span className="text-xs text-black/40">0{i + 1}</span>
                 </div>
                 <div className="w-24 h-24 rounded-full bg-white/50 flex items-center justify-center self-center">
@@ -125,11 +126,11 @@ export function WorldRing() {
         </div>
       </div>
       <div className="flex items-center justify-center gap-4 mt-4">
-        <button onClick={() => nudge(-1)} className="w-11 h-11 rounded-full border border-zinc-300 flex items-center justify-center hover:bg-foreground hover:text-background transition-colors" aria-label="Previous world"><ChevronLeft className="w-4 h-4 rtl:-scale-x-100" /></button>
+        <button onClick={() => nudge(-1)} className="w-11 h-11 rounded-full border border-zinc-300 flex items-center justify-center hover:bg-foreground hover:text-background transition-colors" aria-label={ui.worlds.previous}><ChevronLeft className="w-4 h-4 rtl:-scale-x-100" /></button>
         <Link href={`/services/w/${worlds[front].slug}`} className="min-w-48 text-center text-sm py-3">
-          <span className="text-zinc-500">Open </span><span className="font-medium underline underline-offset-4">{worlds[front].name}</span>
+          {fillNodes(ui.worlds.open, { world: <span className="font-medium underline underline-offset-4">{worlds[front].name}</span> }, (s) => <span className="text-zinc-500">{s}</span>)}
         </Link>
-        <button onClick={() => nudge(1)} className="w-11 h-11 rounded-full border border-zinc-300 flex items-center justify-center hover:bg-foreground hover:text-background transition-colors" aria-label="Next world"><ChevronRight className="w-4 h-4 rtl:-scale-x-100" /></button>
+        <button onClick={() => nudge(1)} className="w-11 h-11 rounded-full border border-zinc-300 flex items-center justify-center hover:bg-foreground hover:text-background transition-colors" aria-label={ui.worlds.next}><ChevronRight className="w-4 h-4 rtl:-scale-x-100" /></button>
       </div>
     </div>
   )

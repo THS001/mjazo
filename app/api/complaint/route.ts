@@ -28,7 +28,7 @@ const body = z
   .refine((b) => (b.text?.trim().length ?? 0) >= 10 || b.audio, { message: "Please tell us a little more, or record a voice note", path: ["text"] })
 
 export async function POST(req: Request) {
-  if (rateLimited(`complaint:${clientIp(req)}`, 5, 10 * 60_000)) return NextResponse.json({ error: "Too many attempts. Please try again later or WhatsApp us." }, { status: 429 })
+  if (rateLimited(`complaint:${clientIp(req)}`, 5, 10 * 60_000)) return NextResponse.json({ code: "tooMany", error: "Too many attempts. Please try again later or WhatsApp us." }, { status: 429 })
   return handle(async () => {
     const b = body.parse(await readJson(req))
     const bookingId = b.bookingId.trim().toUpperCase()
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       await syncJobs()
       job = await getJob(bookingId)
     }
-    if (!job || normalisePhone(job.customer.phone) !== normalisePhone(b.phone)) return NextResponse.json({ error: "We couldn't match that booking ID and phone number. Check both, or WhatsApp us." }, { status: 404 })
+    if (!job || normalisePhone(job.customer.phone) !== normalisePhone(b.phone)) return NextResponse.json({ code: "noMatch", error: "We couldn't match that booking ID and phone number. Check both, or WhatsApp us." }, { status: 404 })
     let transcript: string | undefined
     if (b.audio) {
       const mime = b.audio.slice(5, b.audio.indexOf(";"))

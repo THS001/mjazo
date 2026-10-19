@@ -11,7 +11,7 @@ import { MapPin, Search } from "lucide-react"
 import { useLocation } from "@/lib/store"
 import { EASE, SplitText } from "@/components/site/primitives"
 import { PhoneDevice } from "./phone-device"
-import { useCatalog } from "@/components/cms/provider"
+import { useCatalog, useT } from "@/components/cms/provider"
 import type { HomeContent } from "@/lib/cms/types/pages/home"
 
 // Template hero video (coastal sunset). TODO: self-host a compressed copy + poster, or
@@ -31,6 +31,7 @@ function phoneWidth(vw: number) {
 
 export function Hero({ content }: { content: HomeContent["hero"] }) {
   const { getArea } = useCatalog()
+  const ui = useT()
   const reduce = useReducedMotion()
   const [p, setP] = useState(0)
   const [width, setWidth] = useState(340)
@@ -113,7 +114,7 @@ export function Hero({ content }: { content: HomeContent["hero"] }) {
     rx.set(-((e.clientY - r.top) / r.height - 0.5) * 6)
   }
 
-  const areaLabel = mounted && area ? `${getArea(area)?.name}${subArea ? `, ${subArea}` : ""}` : "Choose area"
+  const areaLabel = mounted && area ? `${getArea(area)?.name}${subArea ? `, ${subArea}` : ""}` : ui.worlds.chooseArea
 
   return (
     <section

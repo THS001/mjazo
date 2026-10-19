@@ -20,7 +20,7 @@ const body = z.object({
 })
 
 export async function POST(req: Request) {
-  if (rateLimited(`rate:${clientIp(req)}`, 10, 10 * 60_000)) return NextResponse.json({ error: "Too many attempts. Please try again later." }, { status: 429 })
+  if (rateLimited(`rate:${clientIp(req)}`, 10, 10 * 60_000)) return NextResponse.json({ code: "tooMany", error: "Too many attempts. Please try again later." }, { status: 429 })
   return handle(async () => {
     const b = body.parse(await readJson(req))
     const id = b.bookingId.trim().toUpperCase()
@@ -29,9 +29,9 @@ export async function POST(req: Request) {
       await syncJobs()
       job = await getJob(id)
     }
-    if (!job || normalisePhone(job.customer.phone) !== normalisePhone(b.phone)) return NextResponse.json({ error: "We couldn't match that booking ID and phone number." }, { status: 404 })
-    if (job.status === "cancelled") return NextResponse.json({ error: "This booking was cancelled." }, { status: 400 })
-    if (job.status !== "completed" && job.date >= karachiNow().date) return NextResponse.json({ error: "You can rate the visit once it's done." }, { status: 400 })
+    if (!job || normalisePhone(job.customer.phone) !== normalisePhone(b.phone)) return NextResponse.json({ code: "noMatch", error: "We couldn't match that booking ID and phone number." }, { status: 404 })
+    if (job.status === "cancelled") return NextResponse.json({ code: "cancelled", error: "This booking was cancelled." }, { status: 400 })
+    if (job.status !== "completed" && job.date >= karachiNow().date) return NextResponse.json({ code: "notYet", error: "You can rate the visit once it's done." }, { status: 400 })
     const tags = (b.tags ?? []).filter((t) => TAGS.includes(t))
     const rated = await updateJob(id, (j) => {
       if (j.rating) throw new OpsError("This visit is already rated. Thank you!")

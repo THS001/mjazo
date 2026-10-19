@@ -44,7 +44,7 @@ export async function buildSystem(context: ConciergeContext) {
   ].filter(Boolean)
   return [
     { type: "text" as const, text: `${rules(site, cat.MIN_ORDER)}\n\nCatalogue (category slugs in brackets)\n${catalogueBrief(cat)}\n\nAreas: ${cat.areas.map((a) => `${a.name} [${a.slug}]`).join(", ")}\nArrival windows: ${WINDOW_LABELS.join(", ")}`, cache_control: { type: "ephemeral" as const } },
-    { type: "text" as const, text: `Now in Karachi: ${now.date}, ${Math.floor(now.hour)}:${String(Math.round((now.hour % 1) * 60)).padStart(2, "0")}. Bookable dates: ${days}.\nChannel: ${context.channel}.${known.length ? `\nWhat we know about this customer (confirm before using): ${known.join(" | ")}` : ""}` },
+    { type: "text" as const, text: `Now in Karachi: ${now.date}, ${Math.floor(now.hour)}:${String(Math.round((now.hour % 1) * 60)).padStart(2, "0")}. Bookable dates: ${days}.\nChannel: ${context.channel}.${context.locale === "ur" ? "\nThe customer is on the Urdu site: until they write in another language, reply in Urdu script." : ""}${known.length ? `\nWhat we know about this customer (confirm before using): ${known.join(" | ")}` : ""}` },
   ]
 }
 
@@ -57,6 +57,8 @@ export type ConciergeContext = {
   address?: string
   cart?: string[]
   attribution?: Record<string, unknown>
+  /** The site language the customer is on (web only). */
+  locale?: "en" | "ur"
 }
 
 export type ConciergeResult = { reply: string; ui: UiAction[]; messages: Anthropic.MessageParam[] }

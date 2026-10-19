@@ -18,13 +18,15 @@ const body = z.object({
       address: z.string().max(200).optional(),
       cart: z.array(z.string().max(200)).max(20).optional(),
       attribution: z.record(z.string(), z.unknown()).optional(),
+      locale: z.enum(["en", "ur"]).optional(),
     })
     .optional(),
 })
 
 export async function POST(req: Request) {
-  if (!aiEnabled()) return NextResponse.json({ error: "ai_unavailable", whatsapp: await whatsappLink("Hi Mjazo! I'd like some help booking.") }, { status: 503 })
-  if (rateLimited(`concierge:${clientIp(req)}`, 20)) return NextResponse.json({ error: "Too many messages. Please wait a minute." }, { status: 429 })
+  // `code` picks the customer's message on the site (Buttons & labels → AI chat); `error` is for other callers.
+  if (!aiEnabled()) return NextResponse.json({ code: "offline", error: "ai_unavailable", whatsapp: await whatsappLink("Hi Mjazo! I'd like some help booking.") }, { status: 503 })
+  if (rateLimited(`concierge:${clientIp(req)}`, 20)) return NextResponse.json({ code: "tooMany", error: "Too many messages. Please wait a minute." }, { status: 429 })
 
   const parsed = body.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
@@ -35,9 +37,9 @@ export async function POST(req: Request) {
     const { reply, ui } = await runConcierge(history, { channel: "web", ...parsed.data.context })
     return NextResponse.json({ reply, ui })
   } catch (e) {
-    if (e instanceof Anthropic.RateLimitError) return NextResponse.json({ error: "The assistant is busy. Try again in a moment." }, { status: 429 })
+    if (e instanceof Anthropic.RateLimitError) return NextResponse.json({ code: "busy", error: "The assistant is busy. Try again in a moment." }, { status: 429 })
     if (e instanceof Anthropic.APIError) console.error("[concierge] API error", e.status, e.message)
     else console.error("[concierge] failed", e)
-    return NextResponse.json({ error: "The assistant couldn't answer just now.", whatsapp: await whatsappLink("Hi Mjazo! I'd like some help booking.") }, { status: 502 })
+    return NextResponse.json({ code: "failed", error: "The assistant couldn't answer just now.", whatsapp: await whatsappLink("Hi Mjazo! I'd like some help booking.") }, { status: 502 })
   }
 }

@@ -10,7 +10,7 @@ import { ServiceCard } from "@/components/site/service-card"
 import { LiquidGlow } from "@/components/site/liquid-glow"
 import { MapCanvas } from "@/components/three"
 import { cn } from "@/lib/utils"
-import { useCatalog } from "@/components/cms/provider"
+import { useCatalog, useT } from "@/components/cms/provider"
 import type { HomeContent } from "@/lib/cms/types/pages/home"
 import { CmsImage, isImage } from "@/components/cms/image"
 
@@ -252,6 +252,7 @@ export function HowItWorks({ content: c }: { content: HomeContent["how"] }) {
 // Live booking tracker card (replaces the template's realtime dashboard)
 // ---------------------------------------------------------------------------
 function TrackerCard({ t }: { t: HomeContent["trust"]["tracker"] }) {
+  const ui = useT()
   const CHECKS = t.checks
   const [eta, setEta] = useState(14)
   const [done, setDone] = useState(2)
@@ -280,7 +281,7 @@ function TrackerCard({ t }: { t: HomeContent["trust"]["tracker"] }) {
         </div>
         <div className="text-end">
           <motion.p key={eta} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="text-2xl font-light">{eta}</motion.p>
-          <p className="text-[11px] text-zinc-500 uppercase">min away</p>
+          <p className="text-[11px] text-zinc-500 uppercase">{ui.worlds.minAway}</p>
         </div>
       </div>
       <div className="h-1.5 rounded-full bg-zinc-100 overflow-hidden mb-5"><div className="h-full bg-brand transition-all duration-1000" style={{ width: `${((14 - eta) / 14) * 100}%` }} /></div>
