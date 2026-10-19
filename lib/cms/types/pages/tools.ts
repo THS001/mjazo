@@ -3,6 +3,8 @@ import { cards, cta, faqs, head, lines, page, type CardItem, type Cta, type Faq,
 import { toolText } from "../strings"
 import { GHAR_SCAN_TEXT, GHAR_SCAN_TEXT_UR, type GharScanText } from "../tool-text/ghar-scan"
 import { HOME_PULSE_TEXT, HOME_PULSE_TEXT_UR, type HomePulseText } from "../tool-text/home-pulse"
+import { GLAM_MIRROR_TEXT, GLAM_MIRROR_TEXT_UR, type GlamMirrorText } from "../tool-text/glam-mirror"
+import { SHAADI_TEXT, SHAADI_TEXT_UR, type ShaadiText } from "../tool-text/shaadi"
 
 // Weddings and the AI tool pages (Shaadi Orchestrator, Ghar Scan, Home Pulse, Glam Mirror).
 // Only the page text is here; the tools' own buttons and messages stay in the code for now.
@@ -115,12 +117,14 @@ page<WeddingsContent>("weddings", {
 export type ToolHero = { eyebrow: string; title: string; sub: string }
 const toolHero = () => f.group("Hero", { eyebrow: f.text("Eyebrow"), title: f.text("Headline", { required: true, help: accentHelp }), sub: f.textarea("Intro") })
 
-export type PlannerContent = { hero: ToolHero }
+export type PlannerContent = { hero: ToolHero; tool: ShaadiText }
 page<PlannerContent>("shaadi-planner", {
   label: "Shaadi Orchestrator",
   path: "/weddings/planner",
-  fields: { hero: toolHero() },
+  fields: { hero: toolHero(), tool: toolText(SHAADI_TEXT, { composer: "AI assistant box", editor: "Plan editor", view: "Live plan", share: "Sharing with the family", submit: "Send to the coordinator", errors: "Errors and messages", words: "Plan wording" }) },
+  translations: { ur: () => ({ tool: SHAADI_TEXT_UR }) },
   defaults: {
+    tool: SHAADI_TEXT,
     hero: {
       eyebrow: "Shaadi Orchestrator · AI",
       title: "Everyone ready, *together*, for every photo.",
@@ -176,12 +180,18 @@ page<HomePulseContent>("home-pulse", {
   },
 })
 
-export type GlamContent = { hero: ToolHero; tabs: { mehndi: string; makeup: string } }
+export type GlamContent = { hero: ToolHero; tabs: { mehndi: string; makeup: string }; tool: GlamMirrorText }
 page<GlamContent>("glam-mirror", {
   label: "Glam Mirror",
   path: "/glam-mirror",
-  fields: { hero: toolHero(), tabs: f.group("Mode tabs", { mehndi: f.text("Mehndi tab", { width: "half" }), makeup: f.text("Makeup tab", { width: "half" }) }) },
+  fields: {
+    hero: toolHero(),
+    tabs: f.group("Mode tabs", { mehndi: f.text("Mehndi tab", { width: "half" }), makeup: f.text("Makeup tab", { width: "half" }) }),
+    tool: toolText(GLAM_MIRROR_TEXT, { page: "Privacy note", mehndi: "Mehndi studio", designs: "Mehndi designs", styles: "Design styles", makeup: "Makeup studio", shades: "Shade names", card: "Look Card" }),
+  },
+  translations: { ur: () => ({ tool: GLAM_MIRROR_TEXT_UR }) },
   defaults: {
+    tool: GLAM_MIRROR_TEXT,
     hero: {
       eyebrow: "Glam Mirror · on your phone",
       title: "See the look *before* you book it.",

@@ -50,6 +50,49 @@ export const PREP: Record<string, Svc & { window: [number, number] }> = {
 
 const ROLE_RANK: Record<Role, number> = { bride: 3, mother: 2, family: 1, guest: 0 }
 export const ROLE_LABEL: Record<Role, string> = { bride: "Bride", mother: "Mother", family: "Family", guest: "Guest" }
+
+/**
+ * The words the engine produces: labels, warnings, change notes and the WhatsApp summary
+ * ({{tokens}} filled in). The family's browser passes the CMS copy (Pages → Shaadi Orchestrator →
+ * Tool text → Plan wording); the server and the ops console use this English.
+ */
+export const SHAADI_WORDS = {
+  looks: Object.fromEntries(Object.entries(LOOKS).map(([k, v]) => [k, v.label])) as Record<keyof typeof LOOKS, string>,
+  prep: Object.fromEntries(Object.entries(PREP).map(([k, v]) => [k, v.label])) as Record<keyof typeof PREP, string>,
+  roles: { ...ROLE_LABEL },
+  bridalMakeup: "Bridal makeup",
+  bridalHair: "Bridal hair",
+  pools: { glam: "glam", mehndi: "mehndi" },
+  defaultBranch: "Family",
+  warnings: {
+    tooMany: "Too many looks for the time: with {{max}} {{pool}} pros the first starts at {{time}}. Start earlier or trim looks.",
+    underMin: "Under the {{min}} minimum per visit: add a service or merge with another day.",
+    late: "Some services are later than ideal because the event is close.",
+    tooSoon: "{{event}} is on {{date}}: that's too soon to plan here, please WhatsApp us.",
+    event: "{{event}}: {{warning}}",
+    prep: "Prep on {{date}}: {{warning}}",
+  },
+  changes: {
+    added: "{{person}}: {{label}}{{event}} added, {{when}}",
+    moved: "{{person}}: {{label}}{{event}} moved from {{from}} to {{to}}",
+    removed: "{{person}}: {{label}} removed",
+    event: " ({{event}})",
+  },
+  message: {
+    hello: "Assalam o Alaikum {{name}}! Your Mjazo glam plan for {{title}}:",
+    prep: "• {{date}}, {{window}}: {{items}} (at home)",
+    event: "• {{event}}, {{date}}: please be ready to start at {{start}} ({{looks}}). Done by {{end}}, photos at {{photos}}.",
+    share: "Your share: {{amount}}, paid after each visit.",
+    shareQuoted: "Your share: {{amount}} + {{quoted}} (quoted), paid after each visit.",
+    footer: "Times are confirmed by the Mjazo wedding coordinator.",
+  },
+}
+export type ShaadiWords = typeof SHAADI_WORDS
+type WordOpts = { words?: ShaadiWords; locale?: "en" | "ur" }
+const put = (s: string, vars: Record<string, string | number>) => s.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m))
+const lookLabel = (w: ShaadiWords, k: string) => w.looks[k] ?? LOOKS[k]?.label ?? k
+const prepLabel = (w: ShaadiWords, k: string) => w.prep[k] ?? PREP[k]?.label ?? k
+const pkr = (n: number) => `PKR ${n.toLocaleString("en-PK")}`
 const CHANGEOVER = 10 // minutes between clients for the same pro
 const ARRIVE_EARLY = 15 // pros arrive before their first client
 const MAX_PROS = 8
@@ -122,7 +165,7 @@ function fit(chains: Chain[], deadline: number, earliest: number, k: number) {
   return start >= earliest ? { tracks: tracks.filter((t) => t.blocks.length), start } : null
 }
 
-function eventChains(plan: ShaadiPlan, e: ShaadiEvent, pool: "glam" | "mehndi", cat: ShaadiCatalog): Chain[] {
+function eventChains(plan: ShaadiPlan, e: ShaadiEvent, pool: "glam" | "mehndi", cat: ShaadiCatalog, w: ShaadiWords): Chain[] {
   const out: Chain[] = []
   for (const p of plan.people) {
     const keys = (p.looks[e.id] ?? []).filter((k) => LOOKS[k]?.pool === pool)
@@ -130,18 +173,18 @@ function eventChains(plan: ShaadiPlan, e: ShaadiEvent, pool: "glam" | "mehndi", 
     const has = (k: string) => keys.includes(k)
     let segments: Seg[] = []
     let parallel = false
-    if (pool === "mehndi") segments = keys.map((k) => ({ key: k, label: LOOKS[k].label, minutes: svcInfo(LOOKS[k], cat).minutes }))
+    if (pool === "mehndi") segments = keys.map((k) => ({ key: k, label: lookLabel(w, k), minutes: svcInfo(LOOKS[k], cat).minutes }))
     else if (has("bridal")) {
       segments = [
-        { key: "bridal", label: "Bridal makeup", minutes: 120 },
-        { key: "bridal", label: "Bridal hair", minutes: 75 },
+        { key: "bridal", label: w.bridalMakeup, minutes: 120 },
+        { key: "bridal", label: w.bridalHair, minutes: 75 },
       ]
       parallel = true
-      if (has("draping")) segments.push({ key: "draping", label: "Dupatta draping", minutes: svcInfo(LOOKS.draping, cat).minutes })
+      if (has("draping")) segments.push({ key: "draping", label: lookLabel(w, "draping"), minutes: svcInfo(LOOKS.draping, cat).minutes })
     } else {
       // Makeup first, then hair, then draping, on one pro.
       const ordered = ["combo", "party-makeup", "soft-glam", "hair", "draping"].filter(has).filter((k) => !(k === "hair" && has("combo")))
-      segments = ordered.map((k) => ({ key: k, label: LOOKS[k].label, minutes: svcInfo(LOOKS[k], cat).minutes }))
+      segments = ordered.map((k) => ({ key: k, label: lookLabel(w, k), minutes: svcInfo(LOOKS[k], cat).minutes }))
       if (p.role === "bride" && segments.length >= 2 && (has("party-makeup") || has("soft-glam")) && has("hair")) parallel = true
     }
     out.push({ personId: p.id, person: p.name, rank: ROLE_RANK[p.role], segments, parallel })
@@ -149,7 +192,7 @@ function eventChains(plan: ShaadiPlan, e: ShaadiEvent, pool: "glam" | "mehndi", 
   return out
 }
 
-export function scheduleEvent(plan: ShaadiPlan, e: ShaadiEvent, cat: ShaadiCatalog): EventSchedule {
+export function scheduleEvent(plan: ShaadiPlan, e: ShaadiEvent, cat: ShaadiCatalog, w: ShaadiWords = SHAADI_WORDS): EventSchedule {
   const ready = toMin(e.readyBy)
   const earliest = e.earliestStart ? toMin(e.earliestStart) : ready - 270
   const tracks: Track[] = []
@@ -157,16 +200,16 @@ export function scheduleEvent(plan: ShaadiPlan, e: ShaadiEvent, cat: ShaadiCatal
   let start = ready
   let warning: string | undefined
   for (const pool of ["glam", "mehndi"] as const) {
-    const chains = eventChains(plan, e, pool, cat)
+    const chains = eventChains(plan, e, pool, cat, w)
     if (!chains.length) continue
     // Mehndi needs drying time before photos.
-    const deadline = pool === "glam" ? ready - 10 : ready - (chains.some((c) => c.segments.some((s) => s.label.includes("full"))) ? 240 : 120)
+    const deadline = pool === "glam" ? ready - 10 : ready - (chains.some((c) => c.segments.some((s) => s.key === "mehndi-full")) ? 240 : 120)
     let got: ReturnType<typeof fit> = null
     let k = 1
     for (; k <= MAX_PROS && !got; k++) got = fit(chains, deadline, pool === "glam" ? earliest : earliest - 180, k)
     if (!got) {
       got = fit(chains, deadline, -Infinity, MAX_PROS)!
-      warning = `Too many looks for the time: with ${MAX_PROS} ${pool} pros the first starts at ${to12h(toHHMM(got.start))}. Start earlier or trim looks.`
+      warning = put(w.warnings.tooMany, { max: MAX_PROS, pool: w.pools[pool], time: to12h(toHHMM(got.start)) })
       k = MAX_PROS + 1
     }
     pros[pool] = k - 1
@@ -185,7 +228,7 @@ export function scheduleEvent(plan: ShaadiPlan, e: ShaadiEvent, cat: ShaadiCatal
 }
 
 /** Groups everyone's prep into as few household visits as possible, each inside its ideal window. */
-export function schedulePrep(plan: ShaadiPlan, today: string, cat: ShaadiCatalog): PrepVisit[] {
+export function schedulePrep(plan: ShaadiPlan, today: string, cat: ShaadiCatalog, w: ShaadiWords = SHAADI_WORDS): PrepVisit[] {
   const eventDays = new Set(plan.events.map((e) => e.date))
   const firstEvent = (p: Person) =>
     [...plan.events].filter((e) => (p.looks[e.id] ?? []).length).sort((a, b) => a.date.localeCompare(b.date))[0] ?? [...plan.events].sort((a, b) => a.date.localeCompare(b.date))[0]
@@ -232,32 +275,32 @@ export function schedulePrep(plan: ShaadiPlan, today: string, cat: ShaadiCatalog
         pros: Math.max(1, Math.ceil(minutes / PREP_VISIT_MAX)),
         minutes,
         total,
-        items: ts.map((t) => ({ personId: t.personId, person: t.person, key: t.key, label: PREP[t.key].label, ideal: t.ideal })),
-        warning: total < cat.MIN_ORDER ? `Under the PKR ${cat.MIN_ORDER.toLocaleString("en-PK")} minimum per visit: add a service or merge with another day.` : ts.some((t) => !t.ideal) ? "Some services are later than ideal because the event is close." : undefined,
+        items: ts.map((t) => ({ personId: t.personId, person: t.person, key: t.key, label: prepLabel(w, t.key), ideal: t.ideal })),
+        warning: total < cat.MIN_ORDER ? put(w.warnings.underMin, { min: pkr(cat.MIN_ORDER) }) : ts.some((t) => !t.ideal) ? w.warnings.late : undefined,
       }
     })
 }
 
-export function computeSchedule(input: ShaadiPlan, today: string, cat: ShaadiCatalog): Schedule {
+export function computeSchedule(input: ShaadiPlan, today: string, cat: ShaadiCatalog, { words: w = SHAADI_WORDS }: WordOpts = {}): Schedule {
   const warnings: string[] = []
   // Events still being typed in (no date or time yet) are left out until they're complete.
   const plan = { ...input, events: input.events.filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date) && /^\d{2}:\d{2}$/.test(e.readyBy)) }
-  const events = [...plan.events].sort((a, b) => a.date.localeCompare(b.date) || a.readyBy.localeCompare(b.readyBy)).map((e) => scheduleEvent(plan, e, cat))
-  const prep = schedulePrep(plan, today, cat)
-  for (const e of plan.events) if (e.date < shift(today, 1)) warnings.push(`${e.name} is on ${e.date}: that's too soon to plan here, please WhatsApp us.`)
-  for (const e of events) if (e.warning) warnings.push(`${e.name}: ${e.warning}`)
-  for (const v of prep) if (v.warning) warnings.push(`Prep on ${v.date}: ${v.warning}`)
+  const events = [...plan.events].sort((a, b) => a.date.localeCompare(b.date) || a.readyBy.localeCompare(b.readyBy)).map((e) => scheduleEvent(plan, e, cat, w))
+  const prep = schedulePrep(plan, today, cat, w)
+  for (const e of plan.events) if (e.date < shift(today, 1)) warnings.push(put(w.warnings.tooSoon, { event: e.name, date: e.date }))
+  for (const e of events) if (e.warning) warnings.push(put(w.warnings.event, { event: e.name, warning: e.warning }))
+  for (const v of prep) if (v.warning) warnings.push(put(w.warnings.prep, { date: v.date, warning: v.warning }))
   const costs: Cost[] = plan.people.map((p) => {
     let amount = 0
     const quoted: string[] = []
-    const add = (s: Svc) => {
+    const add = (s: Svc, label: string) => {
       const pr = svcInfo(s, cat).price
-      if (pr === null) quoted.push(s.label)
+      if (pr === null) quoted.push(label)
       else amount += pr
     }
-    for (const e of plan.events) for (const k of p.looks[e.id] ?? []) if (LOOKS[k]) add(LOOKS[k])
-    for (const k of p.prep) if (PREP[k]) add(PREP[k])
-    return { personId: p.id, person: p.name, branch: p.branch || "Family", amount, quoted }
+    for (const e of plan.events) for (const k of p.looks[e.id] ?? []) if (LOOKS[k]) add(LOOKS[k], lookLabel(w, k))
+    for (const k of p.prep) if (PREP[k]) add(PREP[k], prepLabel(w, k))
+    return { personId: p.id, person: p.name, branch: p.branch || w.defaultBranch, amount, quoted }
   })
   const byBranch = new Map<string, { amount: number; people: number }>()
   for (const c of costs) {
@@ -276,7 +319,7 @@ export function computeSchedule(input: ShaadiPlan, today: string, cat: ShaadiCat
 }
 
 /** What moved between two schedules, in plain words (for "tell everyone"). */
-export function diffSchedules(a: Schedule, b: Schedule): string[] {
+export function diffSchedules(a: Schedule, b: Schedule, { words: w = SHAADI_WORDS, locale = "en" }: WordOpts = {}): string[] {
   const out: string[] = []
   const slot = (s: Schedule) => {
     const m = new Map<string, string>()
@@ -289,39 +332,41 @@ export function diffSchedules(a: Schedule, b: Schedule): string[] {
   for (const [k, v] of mb) {
     const [person, ev, label] = k.split("|")
     const was = ma.get(k)
-    if (!was) out.push(`${person}: ${label}${ev === "prep" ? "" : ` (${ev})`} added, ${fmtSlot(v)}`)
-    else if (was !== v) out.push(`${person}: ${label}${ev === "prep" ? "" : ` (${ev})`} moved from ${fmtSlot(was)} to ${fmtSlot(v)}`)
+    const event = ev === "prep" ? "" : put(w.changes.event, { event: ev })
+    if (!was) out.push(put(w.changes.added, { person, label, event, when: fmtSlot(v, locale) }))
+    else if (was !== v) out.push(put(w.changes.moved, { person, label, event, from: fmtSlot(was, locale), to: fmtSlot(v, locale) }))
   }
-  for (const k of ma.keys()) if (!mb.has(k)) out.push(`${k.split("|")[0]}: ${k.split("|")[2]} removed`)
+  for (const k of ma.keys()) if (!mb.has(k)) out.push(put(w.changes.removed, { person: k.split("|")[0], label: k.split("|")[2] }))
   return out
 }
-const fmtSlot = (v: string) => {
+const fmtSlot = (v: string, locale: "en" | "ur" = "en") => {
   const [d, t] = v.split(" ")
-  const day = new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
+  const day = new Date(`${d}T12:00:00Z`).toLocaleDateString(locale === "ur" ? "ur-PK" : "en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
   return t ? `${day} ${to12h(t)}` : day
 }
 
 /** One person's own schedule, ready to send on WhatsApp. */
-export function personMessage(plan: ShaadiPlan, s: Schedule, personId: string) {
+export function personMessage(plan: ShaadiPlan, s: Schedule, personId: string, { words: w = SHAADI_WORDS, locale = "en" }: WordOpts = {}) {
   const p = plan.people.find((x) => x.id === personId)
   if (!p) return ""
-  const lines = [`Assalam o Alaikum ${p.name.split(" ")[0]}! Your Mjazo glam plan for ${plan.title}:`]
+  const m = w.message
+  const lines = [put(m.hello, { name: p.name.split(" ")[0], title: plan.title })]
   for (const v of s.prep) {
     const mine = v.items.filter((i) => i.personId === p.id)
-    if (mine.length) lines.push(`• ${fmtSlot(v.date)}, ${v.window}: ${mine.map((i) => i.label).join(", ")} (at home)`)
+    if (mine.length) lines.push(put(m.prep, { date: fmtSlot(v.date, locale), window: v.window, items: mine.map((i) => i.label).join(locale === "ur" ? "، " : ", ") }))
   }
   for (const e of s.events) {
     const blocks = e.tracks.flatMap((t) => t.blocks).filter((b) => b.personId === p.id).sort((a, b) => a.start.localeCompare(b.start))
-    if (blocks.length) lines.push(`• ${e.name}, ${fmtSlot(e.date)}: please be ready to start at ${to12h(blocks[0].start)} (${[...new Set(blocks.map((b) => b.label))].join(", ")}). Done by ${to12h(blocks[blocks.length - 1].end)}, photos at ${to12h(e.readyBy)}.`)
+    if (blocks.length) lines.push(put(m.event, { event: e.name, date: fmtSlot(e.date, locale), start: to12h(blocks[0].start), looks: [...new Set(blocks.map((b) => b.label))].join(locale === "ur" ? "، " : ", "), end: to12h(blocks[blocks.length - 1].end), photos: to12h(e.readyBy) }))
   }
   const c = s.costs.find((x) => x.personId === p.id)
-  if (c?.amount) lines.push(`Your share: PKR ${c.amount.toLocaleString("en-PK")}${c.quoted.length ? ` + ${c.quoted.join(", ")} (quoted)` : ""}, paid after each visit.`)
-  lines.push("Times are confirmed by the Mjazo wedding coordinator.")
+  if (c?.amount) lines.push(put(c.quoted.length ? m.shareQuoted : m.share, { amount: pkr(c.amount), quoted: c.quoted.join(", ") }))
+  lines.push(m.footer)
   return lines.join("\n")
 }
 
 export const uid = (p = "x") => `${p}${Math.random().toString(36).slice(2, 8)}`
 
-export function emptyPlan(): ShaadiPlan {
-  return { id: uid("plan-"), title: "Our shaadi", events: [], people: [], prepWindow: "11 am–1 pm", contact: { name: "", phone: "", area: "", address: "" } }
+export function emptyPlan(title = "Our shaadi"): ShaadiPlan {
+  return { id: uid("plan-"), title, events: [], people: [], prepWindow: "11 am–1 pm", contact: { name: "", phone: "", area: "", address: "" } }
 }

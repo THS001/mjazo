@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   const parsed = body.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: "Invalid look" }, { status: 400 })
   const sel = parsed.data as GlamSelection & { occasion?: string; lang?: "en" | "ur" | "ro" }
-  const services = lookServices(sel, await getCatalog())
+  const services = lookServices(sel, await getCatalog(sel.lang === "ur" ? "ur" : "en"))
   const fallback = lookBrief(sel)
   if (!aiEnabled() || rateLimited(`look:${clientIp(req)}`, 10)) return NextResponse.json({ ...fallback, services, ai: false })
   try {

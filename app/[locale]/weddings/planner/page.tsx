@@ -12,5 +12,6 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 
 export default async function ShaadiPlannerPage({ params }: { params: Promise<{ locale: string }> }) {
   await pageLocale(params)
-  return <ShaadiPlanner hero={(await getPage<PlannerContent>("shaadi-planner")).hero} />
+  const c = await getPage<PlannerContent>("shaadi-planner")
+  return <ShaadiPlanner hero={c.hero} t={c.tool} />
 }

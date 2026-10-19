@@ -5,7 +5,9 @@ import { MODELS, ai, aiEnabled, clientIp, rateLimited } from "@/lib/ai/anthropic
 import { LOOKS, PREP, ROLE_LABEL, computeSchedule, svcInfo, to12h, type ShaadiCatalog, type ShaadiPlan } from "@/lib/shaadi"
 import { applyPatch, planSchema, type PlanPatch } from "@/lib/shaadi-edit"
 import { karachiNow } from "@/lib/time"
-import { getCatalog, whatsappLink } from "@/lib/cms/read"
+import { getCatalog, getPage, whatsappLink } from "@/lib/cms/read"
+import type { PlannerContent } from "@/lib/cms/types/pages/tools"
+import { isLocale, type Locale } from "@/lib/i18n"
 
 export const maxDuration = 60
 
@@ -17,6 +19,7 @@ const body = z.object({
   plan: planSchema,
   message: z.string().min(1).max(1500),
   history: z.array(z.object({ role: z.enum(["user", "assistant"]), text: z.string().max(3000) })).max(12).optional(),
+  locale: z.string().optional(),
 })
 
 const sel = { type: "string", description: "Person: id, exact name, a branch name, or one of bride / mother / family / guests / everyone" }
@@ -85,7 +88,7 @@ function summary(plan: ShaadiPlan, today: string, cat: ShaadiCatalog) {
   }
 }
 
-function system(today: string, cat: ShaadiCatalog) {
+function system(today: string, cat: ShaadiCatalog, locale: Locale) {
   return `You are the Shaadi Orchestrator for Mjazo, an at-home beauty service in Karachi with women-only pros. You help a family plan glam for every wedding event and everyone who needs it. Today is ${today}. You are an AI; a human Mjazo wedding coordinator approves the final plan before anything is booked.
 
 How to work:
@@ -97,14 +100,18 @@ How to work:
 - Roles: ${Object.entries(ROLE_LABEL).map(([k, v]) => `${k} = ${v}`).join(", ")}. The bride finishes last with two pros side by side.
 - Sensible defaults when they don't say: bride gets bridal + draping on the main event and mehndi-full at the mehndi; mother gets party-makeup + hair; other family soft-glam + hair. Tell them what you assumed.
 - Never state prices or times yourself except as returned by get_schedule. Bridal is quoted by the coordinator.
-- Reply in the family's language (English, Urdu or Roman Urdu), warm and short: what you set up, the key times, pros needed and the total, then at most one question.`
+- Reply in the family's language (English, Urdu or Roman Urdu), warm and short: what you set up, the key times, pros needed and the total, then at most one question.${locale === "ur" ? " They are on the Urdu site: if their language isn't clear, reply in Urdu script." : ""}`
 }
 
 export async function POST(req: Request) {
-  if (!aiEnabled()) return NextResponse.json({ error: "ai_unavailable", whatsapp: await whatsappLink("Hi Mjazo! I'd like help planning glam for our wedding.") }, { status: 503 })
-  if (rateLimited(`shaadi:${clientIp(req)}`, 12)) return NextResponse.json({ error: "Too many messages. Please wait a minute." }, { status: 429 })
-  const parsed = body.safeParse(await req.json().catch(() => null))
-  if (!parsed.success) return NextResponse.json({ error: "Something in the plan looks off. Please refresh and try again." }, { status: 400 })
+  const json = await req.json().catch(() => null)
+  const locale: Locale = isLocale(json?.locale) ? json.locale : "en"
+  // `code` picks the family's message (Tool text → Errors and messages); `error` is the fallback text.
+  const { errors } = (await getPage<PlannerContent>("shaadi-planner", locale)).tool
+  if (!aiEnabled()) return NextResponse.json({ code: "offline", error: errors.offline, whatsapp: await whatsappLink(errors.waHelp) }, { status: 503 })
+  if (rateLimited(`shaadi:${clientIp(req)}`, 12)) return NextResponse.json({ code: "tooManyMessages", error: errors.tooManyMessages }, { status: 429 })
+  const parsed = body.safeParse(json)
+  if (!parsed.success) return NextResponse.json({ code: "badPlan", error: errors.badPlan }, { status: 400 })
   const today = karachiNow().date
   const cat = await getCatalog()
   let plan = parsed.data.plan as ShaadiPlan
@@ -117,7 +124,7 @@ export async function POST(req: Request) {
 
   try {
     for (let step = 0; step < 6; step++) {
-      const res = await ai().messages.create({ model: MODELS.planner, max_tokens: 2000, system: system(today, cat), tools: [UPDATE, READ], messages })
+      const res = await ai().messages.create({ model: MODELS.planner, max_tokens: 2000, system: system(today, cat, locale), tools: [UPDATE, READ], messages })
       messages.push({ role: "assistant", content: res.content })
       const uses = res.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use")
       if (res.stop_reason !== "tool_use" || !uses.length) {
@@ -135,10 +142,10 @@ export async function POST(req: Request) {
       }
       messages.push({ role: "user", content: results })
     }
-    return NextResponse.json({ plan, reply: "I've updated the plan. Have a look at the schedule and tell me what to change.", changes })
+    return NextResponse.json({ plan, reply: errors.updated, changes })
   } catch (e) {
-    if (e instanceof Anthropic.RateLimitError) return NextResponse.json({ error: "The planner is busy. Try again in a moment." }, { status: 429 })
+    if (e instanceof Anthropic.RateLimitError) return NextResponse.json({ code: "busy", error: errors.busy }, { status: 429 })
     console.error("[shaadi/assist] failed", e instanceof Anthropic.APIError ? `${e.status} ${e.message}` : e)
-    return NextResponse.json({ error: "The planner couldn't finish that. You can keep editing the plan by hand." }, { status: 502 })
+    return NextResponse.json({ code: "failed", error: errors.failed }, { status: 502 })
   }
 }

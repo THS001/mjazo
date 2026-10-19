@@ -14,12 +14,15 @@ import type { LookService } from "@/lib/glam/look"
 import { cn } from "@/lib/utils"
 import { Accent } from "@/components/cms/accent"
 import type { GlamContent } from "@/lib/cms/types/pages/tools"
+import type { GlamMirrorText } from "@/lib/cms/types/tool-text/glam-mirror"
+import { fill, useLocale } from "@/components/cms/provider"
 
 type Mode = "mehndi" | "makeup"
 type Card = { title: string; brief: string; services: LookService[]; ai: boolean }
 const ROSE = "linear-gradient(135deg,#f3c6b3 0%,#b97c66 45%,#f6d7c8 70%,#a86c58 100%)"
 
 export function GlamMirror({ content }: { content: GlamContent }) {
+  const t = content.tool
   const [mode, setMode] = useState<Mode>("mehndi")
   const [design, setDesign] = useState<DesignId>("arabic-trail")
   const [stain, setStain] = useState<"fresh" | "dark">("dark")
@@ -53,17 +56,18 @@ export function GlamMirror({ content }: { content: GlamContent }) {
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-16">
         {mode === "mehndi" ? (
-          <MehndiStudio design={design} setDesign={setDesign} stain={stain} setStain={setStain} coverage={coverage} setCoverage={setCoverage} onUse={() => setUsedMehndi(true)} previewRef={mehndiPreview} />
+          <MehndiStudio t={t} design={design} setDesign={setDesign} stain={stain} setStain={setStain} coverage={coverage} setCoverage={setCoverage} onUse={() => setUsedMehndi(true)} previewRef={mehndiPreview} />
         ) : (
-          <MakeupStudio makeup={makeup} setMakeup={setMakeup} onUse={() => setUsedMakeup(true)} />
+          <MakeupStudio t={t} makeup={makeup} setMakeup={setMakeup} onUse={() => setUsedMakeup(true)} />
         )}
         <LookCardPanel
+          t={t}
           mehndi={usedMehndi ? { design, coverage, stain } : undefined}
           makeup={usedMakeup ? makeup : undefined}
           previewRef={mehndiPreview}
           onClear={(k) => (k === "mehndi" ? setUsedMehndi(false) : setUsedMakeup(false))}
         />
-        <p className="mt-8 text-xs text-black/45 max-w-3xl">Everything here runs on your phone: your selfie and hand photo are never uploaded. A hand preview only goes to your pro if you choose to send it with a booking, and it&apos;s deleted after the visit. Colour try-on only: no skin smoothing or lightening, ever.</p>
+        <p className="mt-8 text-xs text-black/45 max-w-3xl">{t.page.privacy}</p>
       </div>
     </div>
   )
@@ -74,6 +78,7 @@ export function GlamMirror({ content }: { content: GlamContent }) {
 // ---------------------------------------------------------------------------------------------
 
 function MehndiStudio({
+  t,
   design,
   setDesign,
   stain,
@@ -83,6 +88,7 @@ function MehndiStudio({
   onUse,
   previewRef,
 }: {
+  t: GlamMirrorText
   design: DesignId
   setDesign: (d: DesignId) => void
   stain: "fresh" | "dark"
@@ -199,11 +205,11 @@ function MehndiStudio({
             {status === "loading" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 rounded-[1.7rem] bg-black/45 flex flex-col items-center justify-center text-white gap-3">
                 <Loader2 className="w-7 h-7 animate-spin" />
-                <p className="text-sm text-center px-8">Finding your hand… The tracker runs on your phone, so the first time takes a few seconds.</p>
+                <p className="text-sm text-center px-8">{t.mehndi.finding}</p>
               </motion.div>
             )}
           </AnimatePresence>
-          {status === "sample" && <span className="absolute top-4 start-4 rounded-full bg-black/70 text-white text-xs px-3 py-1.5">Sample hand: add yours</span>}
+          {status === "sample" && <span className="absolute top-4 start-4 rounded-full bg-black/70 text-white text-xs px-3 py-1.5">{t.mehndi.sample}</span>}
         </Mirror>
         <div className="flex flex-wrap gap-2 mt-4">
           <input
@@ -217,25 +223,25 @@ function MehndiStudio({
             }}
           />
           <button onClick={() => file.current?.click()} className="h-12 px-5 rounded-full bg-black text-white text-sm flex items-center gap-2">
-            {photo ? <ImagePlus className="w-4 h-4" /> : <Camera className="w-4 h-4" />} {photo ? "Use another photo" : "Add a photo of your hand"}
+            {photo ? <ImagePlus className="w-4 h-4" /> : <Camera className="w-4 h-4" />} {photo ? t.mehndi.anotherPhoto : t.mehndi.addPhoto}
           </button>
           {photo && (
             <>
               <button onPointerDown={() => setCompare(true)} onPointerUp={() => setCompare(false)} onPointerLeave={() => setCompare(false)} className="h-12 px-5 rounded-full border border-black/15 bg-white text-sm flex items-center gap-2 select-none">
-                <Eye className="w-4 h-4" /> Hold to compare
+                <Eye className="w-4 h-4" /> {t.mehndi.compare}
               </button>
               <button onClick={save} className="h-12 px-5 rounded-full border border-black/15 bg-white text-sm flex items-center gap-2">
-                <Download className="w-4 h-4" /> Save image
+                <Download className="w-4 h-4" /> {t.mehndi.saveImage}
               </button>
             </>
           )}
         </div>
-        {status === "found" && <p className="text-sm text-emerald-700 mt-3">Found {hands.length === 2 ? "both hands" : "your hand"}: the design follows your fingers.</p>}
+        {status === "found" && <p className="text-sm text-emerald-700 mt-3">{hands.length === 2 ? t.mehndi.foundBoth : t.mehndi.foundOne}</p>}
         {status === "manual" && manual && (
           <div className="mt-4 rounded-3xl bg-white/80 border border-black/5 p-4 space-y-3">
-            <p className="text-sm">We couldn&apos;t find a hand in this photo, so place the design yourself: drag it, then size and turn it. A flat, open hand in good light works best.</p>
+            <p className="text-sm">{t.mehndi.manual}</p>
             <label className="flex items-center gap-3 text-sm">
-              <span className="w-12 text-black/50">Size</span>
+              <span className="w-12 text-black/50">{t.mehndi.size}</span>
               <input type="range" min={40} max={Math.max(photo!.w, photo!.h) * 0.6} value={manual.size} onChange={(e) => setManual({ ...manual, size: +e.target.value })} className="flex-1 accent-black" />
             </label>
             <label className="flex items-center gap-3 text-sm">
@@ -250,7 +256,7 @@ function MehndiStudio({
 
       <div className="space-y-5 min-w-0">
         <div>
-          <p className="text-xs uppercase tracking-[0.15em] text-black/50 mb-3">Designs</p>
+          <p className="text-xs uppercase tracking-[0.15em] text-black/50 mb-3">{t.mehndi.designs}</p>
           <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2">
             {DESIGNS.map((d) => (
               <button
@@ -264,15 +270,15 @@ function MehndiStudio({
                 className={cn("rounded-2xl bg-white p-1.5 border-2 transition-all text-start", design === d.id ? "border-[#a86c58] shadow-lg -translate-y-0.5" : "border-transparent hover:border-black/10")}
               >
                 <DesignThumb id={d.id} color={HENNA[stain]} />
-                <p className="text-[12px] font-medium mt-1 px-1 leading-tight">{d.name}</p>
-                <p className="text-[10px] text-black/45 px-1 pb-0.5">{d.style}</p>
+                <p className="text-[12px] font-medium mt-1 px-1 leading-tight">{t.designs[d.id]?.name ?? d.name}</p>
+                <p className="text-[10px] text-black/45 px-1 pb-0.5">{t.styles[d.style] ?? d.style}</p>
               </button>
             ))}
           </div>
-          <p className="text-sm text-black/60 mt-3">{DESIGNS.find((d) => d.id === design)?.note}</p>
+          <p className="text-sm text-black/60 mt-3">{t.designs[design]?.note ?? DESIGNS.find((d) => d.id === design)?.note}</p>
         </div>
-        <Seg label="Stain" value={stain} onChange={setStain} options={[["fresh", "Fresh (day 1)"], ["dark", "Deep (day 2–3)"]]} />
-        <Seg label="Coverage" value={coverage} onChange={setCoverage} options={[["front", "Front of hands"], ["front-back", "Front + back"]]} />
+        <Seg label={t.mehndi.stain} value={stain} onChange={setStain} options={[["fresh", t.mehndi.fresh], ["dark", t.mehndi.dark]]} />
+        <Seg label={t.mehndi.coverage} value={coverage} onChange={setCoverage} options={[["front", t.mehndi.front], ["front-back", t.mehndi.frontBack]]} />
       </div>
     </div>
   )
@@ -334,7 +340,7 @@ function DesignThumb({ id, color }: { id: DesignId; color: string }) {
 // Makeup & hair (live)
 // ---------------------------------------------------------------------------------------------
 
-function MakeupStudio({ makeup, setMakeup, onUse }: { makeup: MakeupChoice & { hairLength: "Short" | "Medium" | "Long" }; setMakeup: (m: MakeupChoice & { hairLength: "Short" | "Medium" | "Long" }) => void; onUse: () => void }) {
+function MakeupStudio({ t, makeup, setMakeup, onUse }: { t: GlamMirrorText; makeup: MakeupChoice & { hairLength: "Short" | "Medium" | "Long" }; setMakeup: (m: MakeupChoice & { hairLength: "Short" | "Medium" | "Long" }) => void; onUse: () => void }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const video = useRef<HTMLVideoElement | null>(null)
   const still = useRef<HTMLImageElement | null>(null)
@@ -361,7 +367,7 @@ function MakeupStudio({ makeup, setMakeup, onUse }: { makeup: MakeupChoice & { h
     const { faceLandmarker, hairSegmenter } = await import("@/lib/glam/vision")
     const [face, hairSeg] = await Promise.all([faceLandmarker(), hairSegmenter().catch(() => null)])
     let frame = 0
-    let t = performance.now()
+    let ts = performance.now()
     const draw = () => {
       const c = canvas.current
       const isVideo = source instanceof HTMLVideoElement
@@ -376,7 +382,7 @@ function MakeupStudio({ makeup, setMakeup, onUse }: { makeup: MakeupChoice & { h
           c.height = ch
         }
         const ctx = c.getContext("2d")!
-        t = Math.max(t + 1, performance.now())
+        ts = Math.max(ts + 1, performance.now())
         ctx.save()
         if (mirror) {
           ctx.translate(cw, 0)
@@ -385,13 +391,13 @@ function MakeupStudio({ makeup, setMakeup, onUse }: { makeup: MakeupChoice & { h
         ctx.drawImage(source, 0, 0, cw, ch)
         const m = choice.current
         if (hairSeg && m.hair !== "none" && (frame % 2 === 0 || !lastHair.current)) {
-          const r = hairSeg.segmentForVideo(source, t)
+          const r = hairSeg.segmentForVideo(source, ts)
           const mask = r.confidenceMasks?.[1] ?? r.confidenceMasks?.[0]
           if (mask) lastHair.current = { mask: mask.getAsFloat32Array().slice(), w: mask.width, h: mask.height }
           r.close()
         }
         if (m.hair !== "none" && lastHair.current) drawHair(ctx, lastHair.current.mask, lastHair.current.w, lastHair.current.h, cw, ch, m.hair, scratch.current)
-        const res = face.detectForVideo(source, t)
+        const res = face.detectForVideo(source, ts)
         const lm = res.faceLandmarks?.[0]
         if (noFaceRef.current !== !lm) {
           noFaceRef.current = !lm
@@ -428,7 +434,7 @@ function MakeupStudio({ makeup, setMakeup, onUse }: { makeup: MakeupChoice & { h
       await run(v, true)
     } catch (e) {
       console.error("[glam] camera", e)
-      setError("We couldn't open the camera. You can use a selfie photo instead.")
+      setError(t.makeup.errCamera)
       setState("error")
     }
   }
@@ -445,7 +451,7 @@ function MakeupStudio({ makeup, setMakeup, onUse }: { makeup: MakeupChoice & { h
         setState("photo")
       } catch (e) {
         console.error("[glam] face tracker", e)
-        setError("We couldn't load the face tracker on this device.")
+        setError(t.makeup.errTracker)
         setState("error")
       }
     }
@@ -467,21 +473,21 @@ function MakeupStudio({ makeup, setMakeup, onUse }: { makeup: MakeupChoice & { h
               {state === "loading" ? (
                 <>
                   <Loader2 className="w-7 h-7 animate-spin" />
-                  <p className="text-sm text-white/70">Loading the on-device face tracker… first time only.</p>
+                  <p className="text-sm text-white/70">{t.makeup.loading}</p>
                 </>
               ) : (
                 <>
                   <span className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: ROSE }}>
                     <Video className="w-7 h-7 text-black" />
                   </span>
-                  <p className="font-serif text-2xl">Your mirror, with makeup</p>
-                  <p className="text-sm text-white/60 max-w-xs">Lips, blush, kajal and hair colour follow your face live. The video never leaves your phone.</p>
+                  <p className="font-serif text-2xl">{t.makeup.title}</p>
+                  <p className="text-sm text-white/60 max-w-xs">{t.makeup.sub}</p>
                   {error && <p className="text-sm text-amber-300">{error}</p>}
                 </>
               )}
             </div>
           )}
-          {state === "live" && noFace && <span className="absolute top-4 start-4 rounded-full bg-black/70 text-white text-xs px-3 py-1.5">Looking for your face…</span>}
+          {state === "live" && noFace && <span className="absolute top-4 start-4 rounded-full bg-black/70 text-white text-xs px-3 py-1.5">{t.makeup.noFace}</span>}
         </Mirror>
         <div className="flex flex-wrap gap-2 mt-4">
           {state === "live" ? (
@@ -492,11 +498,11 @@ function MakeupStudio({ makeup, setMakeup, onUse }: { makeup: MakeupChoice & { h
               }}
               className="h-12 px-5 rounded-full border border-black/15 bg-white text-sm flex items-center gap-2"
             >
-              <VideoOff className="w-4 h-4" /> Stop camera
+              <VideoOff className="w-4 h-4" /> {t.makeup.stop}
             </button>
           ) : (
             <button onClick={startCamera} disabled={state === "loading"} className="h-12 px-5 rounded-full bg-black text-white text-sm flex items-center gap-2 disabled:opacity-50">
-              <Video className="w-4 h-4" /> Start live mirror
+              <Video className="w-4 h-4" /> {t.makeup.start}
             </button>
           )}
           <input
@@ -510,26 +516,26 @@ function MakeupStudio({ makeup, setMakeup, onUse }: { makeup: MakeupChoice & { h
             }}
           />
           <button onClick={() => file.current?.click()} className="h-12 px-5 rounded-full border border-black/15 bg-white text-sm flex items-center gap-2">
-            <ImagePlus className="w-4 h-4" /> Use a selfie photo
+            <ImagePlus className="w-4 h-4" /> {t.makeup.selfie}
           </button>
         </div>
       </div>
 
       <div className="space-y-6 min-w-0">
-        <Swatches label="Lips" items={LIPS} value={makeup.lips} onChange={(v) => set("lips", v)} />
-        <Swatches label="Blush" items={BLUSH} value={makeup.blush} onChange={(v) => set("blush", v)} />
+        <Swatches label={t.makeup.lips} names={t.shades.lips} items={LIPS} value={makeup.lips} onChange={(v) => set("lips", v)} />
+        <Swatches label={t.makeup.blush} names={t.shades.blush} items={BLUSH} value={makeup.blush} onChange={(v) => set("blush", v)} />
         <div>
-          <p className="text-xs uppercase tracking-[0.15em] text-black/50 mb-2">Eyes</p>
+          <p className="text-xs uppercase tracking-[0.15em] text-black/50 mb-2">{t.makeup.eyes}</p>
           <div className="flex flex-wrap gap-2">
             {KAJAL.map((k) => (
               <button key={k.id} onClick={() => set("kajal", k.id)} aria-pressed={makeup.kajal === k.id} className={cn("h-10 px-4 rounded-full text-sm border", makeup.kajal === k.id ? "bg-black text-white border-black" : "bg-white border-black/10")}>
-                {k.name}
+                {t.shades.kajal[k.id as keyof GlamMirrorText["shades"]["kajal"]] ?? k.name}
               </button>
             ))}
           </div>
         </div>
-        <Swatches label="Hair colour" items={HAIR} value={makeup.hair} onChange={(v) => set("hair", v)} />
-        {makeup.hair !== "none" && <Seg label="Hair length" value={makeup.hairLength} onChange={(v) => setMakeup({ ...makeup, hairLength: v })} options={[["Short", "Short"], ["Medium", "Medium"], ["Long", "Long"]]} />}
+        <Swatches label={t.makeup.hair} names={t.shades.hair} items={HAIR} value={makeup.hair} onChange={(v) => set("hair", v)} />
+        {makeup.hair !== "none" && <Seg label={t.makeup.hairLength} value={makeup.hairLength} onChange={(v) => setMakeup({ ...makeup, hairLength: v })} options={[["Short", t.makeup.Short], ["Medium", t.makeup.Medium], ["Long", t.makeup.Long]]} />}
       </div>
     </div>
   )
@@ -539,7 +545,7 @@ function MakeupStudio({ makeup, setMakeup, onUse }: { makeup: MakeupChoice & { h
 // Look Card
 // ---------------------------------------------------------------------------------------------
 
-function LookCardPanel({ mehndi, makeup, previewRef, onClear }: { mehndi?: { design: DesignId; coverage: "front" | "front-back"; stain: "fresh" | "dark" }; makeup?: MakeupChoice & { hairLength: "Short" | "Medium" | "Long" }; previewRef: React.MutableRefObject<HTMLCanvasElement | null>; onClear: (k: "mehndi" | "makeup") => void }) {
+function LookCardPanel({ t, mehndi, makeup, previewRef, onClear }: { t: GlamMirrorText; mehndi?: { design: DesignId; coverage: "front" | "front-back"; stain: "fresh" | "dark" }; makeup?: MakeupChoice & { hairLength: "Short" | "Medium" | "Long" }; previewRef: React.MutableRefObject<HTMLCanvasElement | null>; onClear: (k: "mehndi" | "makeup") => void }) {
   const [card, setCard] = useState<Card | null>(null)
   const [occasion, setOccasion] = useState("")
   const [busy, setBusy] = useState(false)
@@ -547,6 +553,7 @@ function LookCardPanel({ mehndi, makeup, previewRef, onClear }: { mehndi?: { des
   const [added, setAdded] = useState(false)
   const [withPreview, setWithPreview] = useState(true)
   const add = useCart((s) => s.add)
+  const locale = useLocale()
   const hasMakeup = makeup && (makeup.lips !== "none" || makeup.blush !== "none" || makeup.kajal !== "none" || makeup.hair !== "none")
   const any = Boolean(mehndi) || Boolean(hasMakeup)
   useEffect(() => {
@@ -558,7 +565,7 @@ function LookCardPanel({ mehndi, makeup, previewRef, onClear }: { mehndi?: { des
   const create = async () => {
     setBusy(true)
     try {
-      const res = await fetch("/api/glam/look-card", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mehndi, makeup: hasMakeup ? makeup : undefined, occasion: occasion || undefined }) })
+      const res = await fetch("/api/glam/look-card", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mehndi, makeup: hasMakeup ? makeup : undefined, occasion: occasion || undefined, lang: locale }) })
       const data = await res.json()
       if (res.ok) setCard(data)
       track("glam_look_card", { ai: data.ai, services: data.services?.length })
@@ -586,34 +593,34 @@ function LookCardPanel({ mehndi, makeup, previewRef, onClear }: { mehndi?: { des
       <div aria-hidden className="absolute -top-24 -end-24 w-80 h-80 rounded-full opacity-25 blur-[90px]" style={{ background: ROSE }} />
       <div className="relative grid lg:grid-cols-[0.8fr_1.2fr] gap-8">
         <div>
-          <p className="text-sm tracking-[0.2em] uppercase text-[#f3c6b3]">Look Card</p>
-          <p className="font-serif text-4xl mt-2">Love it? Send it to your pro.</p>
-          <p className="text-white/60 mt-3">We turn what you tried on into a brief and the right services from the Mjazo menu. Your pro arrives knowing exactly what you want.</p>
+          <p className="text-sm tracking-[0.2em] uppercase text-[#f3c6b3]">{t.card.eyebrow}</p>
+          <p className="font-serif text-4xl mt-2">{t.card.title}</p>
+          <p className="text-white/60 mt-3">{t.card.sub}</p>
           <div className="flex flex-wrap gap-2 mt-5">
             {mehndi && (
-              <Chip onClear={() => onClear("mehndi")}>
-                Mehndi: {DESIGNS.find((d) => d.id === mehndi.design)?.name}
+              <Chip label={t.card.remove} onClear={() => onClear("mehndi")}>
+                {fill(t.card.mehndiChip, { design: t.designs[mehndi.design]?.name ?? DESIGNS.find((d) => d.id === mehndi.design)?.name ?? "" })}
               </Chip>
             )}
             {hasMakeup && (
-              <Chip onClear={() => onClear("makeup")}>
-                Makeup{makeup!.hair !== "none" ? " + hair colour" : ""}
+              <Chip label={t.card.remove} onClear={() => onClear("makeup")}>
+                {makeup!.hair !== "none" ? t.card.makeupHairChip : t.card.makeupChip}
               </Chip>
             )}
-            {!any && <p className="text-sm text-white/45">Try a design or a shade above first.</p>}
+            {!any && <p className="text-sm text-white/45">{t.card.tryFirst}</p>}
           </div>
         </div>
         <div className="min-w-0">
           {!card ? (
             <div className="space-y-3">
-              <input value={occasion} onChange={(e) => setOccasion(e.target.value)} placeholder="Occasion (optional), e.g. my cousin's mehndi" className="w-full h-12 rounded-2xl bg-white/[0.07] border border-white/15 px-4 text-[16px] sm:text-sm outline-none focus:border-[#f3c6b3] placeholder:text-white/35" />
+              <input value={occasion} onChange={(e) => setOccasion(e.target.value)} placeholder={t.card.occasion} className="w-full h-12 rounded-2xl bg-white/[0.07] border border-white/15 px-4 text-[16px] sm:text-sm outline-none focus:border-[#f3c6b3] placeholder:text-white/35" />
               <button onClick={create} disabled={!any || busy} className="h-14 px-7 rounded-full text-black font-medium inline-flex items-center gap-2 disabled:opacity-40" style={{ background: ROSE }}>
-                {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />} Create my Look Card
+                {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />} {t.card.create}
               </button>
             </div>
           ) : (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-3xl bg-white text-black p-6">
-              <p className="text-xs uppercase tracking-[0.15em] text-[#a86c58]">Look Card{card.ai ? " · written by AI" : ""}</p>
+              <p className="text-xs uppercase tracking-[0.15em] text-[#a86c58]">{card.ai ? t.card.byAi : t.card.eyebrow}</p>
               <p className="font-serif text-3xl mt-1">{card.title}</p>
               <p className="text-sm text-black/70 mt-3 leading-relaxed" dir="auto">
                 {card.brief}
@@ -635,17 +642,17 @@ function LookCardPanel({ mehndi, makeup, previewRef, onClear }: { mehndi?: { des
               )}
               {mehndi && (
                 <label className="mt-4 flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={withPreview} onChange={(e) => setWithPreview(e.target.checked)} className="w-4 h-4 accent-black" /> Include my mehndi preview for the pro
+                  <input type="checkbox" checked={withPreview} onChange={(e) => setWithPreview(e.target.checked)} className="w-4 h-4 accent-black" /> {t.card.includePreview}
                 </label>
               )}
               <div className="flex flex-wrap gap-2 mt-5">
                 {card.services.length > 0 && (
                   <button onClick={toCart} className={cn("h-12 px-5 rounded-full text-sm flex items-center gap-2", added ? "bg-[#f3c6b3] text-black" : "bg-black text-white")}>
-                    {added ? <Check className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />} {added ? "Added to your cart" : "Book this look"}
+                    {added ? <Check className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />} {added ? t.card.added : t.card.book}
                   </button>
                 )}
                 <button onClick={keep} className="h-12 px-5 rounded-full border border-black/15 text-sm flex items-center gap-2">
-                  {saved ? <Check className="w-4 h-4" /> : null} {saved ? "Saved for your booking" : "Save for my booking"}
+                  {saved ? <Check className="w-4 h-4" /> : null} {saved ? t.card.saved : t.card.save}
                 </button>
               </div>
             </motion.div>
@@ -679,25 +686,26 @@ function Seg<T extends string>({ label, value, onChange, options }: { label: str
     </div>
   )
 }
-function Swatches({ label, items, value, onChange }: { label: string; items: { id: string; name: string; hex: string }[]; value: string; onChange: (v: string) => void }) {
+function Swatches({ label, names, items, value, onChange }: { label: string; names: Record<string, string>; items: { id: string; name: string; hex: string }[]; value: string; onChange: (v: string) => void }) {
+  const nameOf = (i: { id: string; name: string } | undefined) => (i ? names[i.id] ?? i.name : "")
   return (
     <div>
       <p className="text-xs uppercase tracking-[0.15em] text-black/50 mb-2">
-        {label}: <span className="normal-case tracking-normal text-black">{items.find((i) => i.id === value)?.name}</span>
+        {label}: <span className="normal-case tracking-normal text-black">{nameOf(items.find((i) => i.id === value))}</span>
       </p>
       <div className="flex flex-wrap gap-2">
         {items.map((i) => (
-          <button key={i.id} onClick={() => onChange(i.id)} aria-label={i.name} aria-pressed={value === i.id} className={cn("w-11 h-11 rounded-full border-2 transition-transform", value === i.id ? "border-black scale-110" : "border-white shadow")} style={{ background: i.hex || "repeating-linear-gradient(45deg,#fff 0 6px,#eee 6px 12px)" }} />
+          <button key={i.id} onClick={() => onChange(i.id)} aria-label={nameOf(i)} aria-pressed={value === i.id} className={cn("w-11 h-11 rounded-full border-2 transition-transform", value === i.id ? "border-black scale-110" : "border-white shadow")} style={{ background: i.hex || "repeating-linear-gradient(45deg,#fff 0 6px,#eee 6px 12px)" }} />
         ))}
       </div>
     </div>
   )
 }
-function Chip({ children, onClear }: { children: React.ReactNode; onClear: () => void }) {
+function Chip({ children, label, onClear }: { children: React.ReactNode; label: string; onClear: () => void }) {
   return (
     <span className="h-9 ps-4 pe-1 rounded-full bg-white/10 text-sm inline-flex items-center gap-2">
       {children}
-      <button onClick={onClear} aria-label="Remove" className="w-7 h-7 rounded-full hover:bg-white/15 flex items-center justify-center">
+      <button onClick={onClear} aria-label={label} className="w-7 h-7 rounded-full hover:bg-white/15 flex items-center justify-center">
         ×
       </button>
     </span>

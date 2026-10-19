@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { clientIp, rateLimited } from "@/lib/ai/anthropic"
-import { getCatalog } from "@/lib/cms/read"
+import { getCatalog, getPage } from "@/lib/cms/read"
+import type { PlannerContent } from "@/lib/cms/types/pages/tools"
+import { isLocale } from "@/lib/i18n"
 import { computeSchedule, to12h, type ShaadiPlan } from "@/lib/shaadi"
 import { planSchema } from "@/lib/shaadi-edit"
 import { karachiNow } from "@/lib/time"
@@ -16,21 +18,26 @@ import { normalisePhone, nowIso } from "@/lib/server/ops"
 
 export type WeddingDoc = { id: string; createdAt: string; status: "submitted" | "approved" | "declined"; plan: ShaadiPlan; total: number; note?: string; jobIds?: string[]; decidedAt?: string }
 
-const body = z.object({ plan: planSchema })
+const body = z.object({ plan: planSchema, locale: z.string().optional() })
 
 export async function POST(req: Request) {
-  if (rateLimited(`shaadi-submit:${clientIp(req)}`, 5, 10 * 60_000)) return NextResponse.json({ error: "Too many attempts. Please try again later or WhatsApp us." }, { status: 429 })
+  const json = await readJson(req)
+  const locale = typeof json.locale === "string" && isLocale(json.locale) ? json.locale : "en"
+  // `code` picks the family's message (Tool text → Errors and messages); `error` is the fallback text.
+  const { errors } = (await getPage<PlannerContent>("shaadi-planner", locale)).tool
+  const fail = (code: keyof typeof errors, status = 422) => NextResponse.json({ code, error: errors[code] }, { status })
+  if (rateLimited(`shaadi-submit:${clientIp(req)}`, 5, 10 * 60_000)) return fail("tooManyAttempts", 429)
   return handle(async () => {
-    const plan = body.parse(await readJson(req)).plan as ShaadiPlan
+    const plan = body.parse(json).plan as ShaadiPlan
     const c = plan.contact
-    if (c.name.trim().length < 2) return NextResponse.json({ error: "Please add your name." }, { status: 422 })
-    if (!PK_PHONE.test(c.phone.replace(/[\s-]/g, ""))) return NextResponse.json({ error: "Please add a Pakistani mobile number, e.g. 0300 1234567." }, { status: 422 })
+    if (c.name.trim().length < 2) return fail("name")
+    if (!PK_PHONE.test(c.phone.replace(/[\s-]/g, ""))) return fail("phone")
     const cat = await getCatalog()
-    if (!cat.getArea(c.area)) return NextResponse.json({ error: "Please choose your area." }, { status: 422 })
-    if (c.address.trim().length < 5) return NextResponse.json({ error: "Please add the address where the glam happens." }, { status: 422 })
-    if (!plan.events.length || !plan.people.length) return NextResponse.json({ error: "Add at least one event and one person." }, { status: 422 })
+    if (!cat.getArea(c.area)) return fail("area")
+    if (c.address.trim().length < 5) return fail("address")
+    if (!plan.events.length || !plan.people.length) return fail("empty")
     const today = karachiNow().date
-    if (plan.events.some((e) => e.date <= today)) return NextResponse.json({ error: "One of the events is today or in the past. Please check the dates, or WhatsApp us for last-minute glam." }, { status: 422 })
+    if (plan.events.some((e) => e.date <= today)) return fail("past")
     const s = computeSchedule(plan, today, cat)
     const doc: WeddingDoc = { id: `W-${newId().slice(3)}`, createdAt: nowIso(), status: "submitted", plan: { ...plan, contact: { ...c, phone: normalisePhone(c.phone) } }, total: s.total }
     await put("weddings", doc)
