@@ -7,7 +7,7 @@ import { FAQ } from "@/components/site/faq"
 import { plainText } from "@/components/cms/accent"
 import { getPage } from "@/lib/cms/read"
 import { pairs } from "@/lib/cms/types/pages/blocks"
-import type { ToolPageContent } from "@/lib/cms/types/pages/tools"
+import type { GharScanContent } from "@/lib/cms/types/pages/tools"
 import { pageLocale } from "@/lib/cms/locale"
 import { pageMetadata } from "@/lib/cms/seo/metadata"
 
@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 
 export default async function GharScanPage({ params }: { params: Promise<{ locale: string }> }) {
   await pageLocale(params)
-  const c = await getPage<ToolPageContent>("ghar-scan")
+  const c = await getPage<GharScanContent>("ghar-scan")
   return (
     <>
       <section className="relative overflow-hidden bg-[#0e0f11] text-white pt-28 sm:pt-36 pb-16 sm:pb-24">
@@ -30,7 +30,7 @@ export default async function GharScanPage({ params }: { params: Promise<{ local
             <h1 className="font-serif text-[clamp(2.35rem,10vw,4.5rem)] leading-[1] text-balance"><SplitText text={plainText(c.hero.title)} delay={0.1} /></h1>
             <HeroReveal delay={0.6}><p className="text-white/65 text-lg mt-5">{c.hero.sub}</p></HeroReveal>
           </div>
-          <GharScan />
+          <GharScan t={c.tool} />
         </Container>
       </section>
       <FAQ title={c.faqTitle} items={pairs(c.faq)} />

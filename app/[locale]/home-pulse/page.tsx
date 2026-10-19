@@ -8,7 +8,7 @@ import { FAQ } from "@/components/site/faq"
 import { plainText } from "@/components/cms/accent"
 import { getPage } from "@/lib/cms/read"
 import { pairs } from "@/lib/cms/types/pages/blocks"
-import type { ToolPageContent } from "@/lib/cms/types/pages/tools"
+import type { HomePulseContent } from "@/lib/cms/types/pages/tools"
 import { pageLocale } from "@/lib/cms/locale"
 import { pageMetadata } from "@/lib/cms/seo/metadata"
 
@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 
 export default async function HomePulsePage({ params }: { params: Promise<{ locale: string }> }) {
   await pageLocale(params)
-  const c = await getPage<ToolPageContent>("home-pulse")
+  const c = await getPage<HomePulseContent>("home-pulse")
   return (
     <div className="bg-[#f6faf8]">
       <section className="relative overflow-hidden pt-28 sm:pt-36 pb-10">
@@ -35,7 +35,7 @@ export default async function HomePulsePage({ params }: { params: Promise<{ loca
       </section>
       <section className="pb-16 sm:pb-24">
         <Container>
-          <HomePulse />
+          <HomePulse t={c.tool} />
         </Container>
       </section>
       <FAQ title={c.faqTitle} items={pairs(c.faq)} />

@@ -6,6 +6,7 @@ import { waLink, type Settings } from "@/lib/site"
 import type { Locale } from "@/lib/i18n"
 import type { NavContent } from "@/lib/cms/types/nav"
 import type { UiStrings } from "@/lib/cms/types/ui"
+import { fill } from "@/lib/cms/format"
 
 // Hands CMS content to client components. The root layout reads the catalogue, settings, menus and
 // UI strings on the server for the page's locale (lib/cms/read.ts) and passes them here; components
@@ -58,8 +59,8 @@ export function useT(): UiStrings {
 // Filling {{tokens}} in UI strings
 // ---------------------------------------------------------------------------
 
-/** "Add {{amount}} more" + { amount: "PKR 500" } -> "Add PKR 500 more". */
-export const fill = (text: string, vars: Record<string, string | number>) => text.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m))
+// fill() lives in lib/cms/format so server code can use it too.
+export { fill }
 
 /**
  * Like fill(), but values may be elements (links, bold text). `wrapText` styles the literal parts,

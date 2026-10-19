@@ -10,6 +10,8 @@ import { useCart } from "@/lib/store"
 import { saveBrief, thumb } from "@/lib/client/brief"
 import { cn } from "@/lib/utils"
 import { EASE } from "@/components/site/primitives"
+import { fill, useLocale, useT } from "@/components/cms/provider"
+import type { GharScanText } from "@/lib/cms/types/tool-text/ghar-scan"
 
 type Rec = { category: string; categoryName: string; service: string; name: string; why: string; options: string[]; price: number; range: { min: number; max: number; label: string } | null; duration: number; hasOptions: boolean; url: string; history: { jobs: number; low: number; high: number } | null }
 type Pin = { photo: number; x: number; y: number; label: string }
@@ -33,10 +35,6 @@ type Result = {
   whatsapp: string
 }
 
-const EXAMPLES = {
-  home: ["AC dripping water", "Damp or peeling wall", "Termite trail on wood", "Fridge, AC or washing-machine error code", "Leaking pipe or tap", "Sparking switch or tripping breaker", "Stained sofa or carpet"],
-  beauty: ["A party makeup look", "A mehndi design", "A hair colour or cut", "Nail art", "Brows you love"],
-}
 const MAX_ROUNDS = 2
 
 async function shrink(file: File) {
@@ -59,9 +57,13 @@ async function shrink(file: File) {
   }
 }
 
-const CONF = { high: { label: "Confident", cls: "bg-emerald-100 text-emerald-800", bar: "bg-emerald-500" }, medium: { label: "Fairly sure", cls: "bg-amber-100 text-amber-800", bar: "bg-amber-500" }, low: { label: "Not sure", cls: "bg-zinc-200 text-zinc-700", bar: "bg-zinc-400" } }
+const CONF = { high: { cls: "bg-emerald-100 text-emerald-800", bar: "bg-emerald-500" }, medium: { cls: "bg-amber-100 text-amber-800", bar: "bg-amber-500" }, low: { cls: "bg-zinc-200 text-zinc-700", bar: "bg-zinc-400" } }
 
-export function GharScan() {
+type ErrorCode = keyof GharScanText["errors"]
+
+export function GharScan({ t }: { t: GharScanText }) {
+  const ui = useT()
+  const locale = useLocale()
   const [mode, setMode] = useState<"home" | "beauty">("home")
   const [photos, setPhotos] = useState<string[]>([])
   const [note, setNote] = useState("")
@@ -95,10 +97,11 @@ export function GharScan() {
     if (!followUp) setResult(null)
     track(followUp ? "ghar_scan_followup" : "ghar_scan", { mode, photos: photos.length, answers: qa.length })
     try {
-      const res = await fetch("/api/scan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode, note, answers: qa, images: photos.map((p) => p.split(",")[1]) }) })
+      const res = await fetch("/api/scan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode, note, answers: qa, locale, images: photos.map((p) => p.split(",")[1]) }) })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError({ text: data.error === "ai_unavailable" ? "Ghar Scan is taking a break right now. Send the photos to our team on WhatsApp and they'll quote you." : data.error ?? "Something went wrong. Please try again.", whatsapp: data.whatsapp })
+        const code = data.code as ErrorCode | undefined
+        setError({ text: code && code in t.errors ? t.errors[code] : data.error ?? t.errors.generic, whatsapp: data.whatsapp })
         return
       }
       setResult(data)
@@ -108,7 +111,7 @@ export function GharScan() {
       setSaved(false)
       track("ghar_scan_result", { mode, confidence: data.confidence, score: data.score, recs: data.recommendations.length })
     } catch {
-      setError({ text: "We couldn't reach the server. Check your connection and try again." })
+      setError({ text: t.errors.offline })
     } finally {
       setBusy(false)
     }
@@ -152,7 +155,7 @@ export function GharScan() {
     <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-8 items-start">
       {/* Viewfinder */}
       <div className="space-y-4 min-w-0">
-        <div className="inline-flex rounded-full bg-white/10 p-1" role="group" aria-label="What are you scanning?">
+        <div className="inline-flex rounded-full bg-white/10 p-1" role="group" aria-label={t.modes.label}>
           {(["home", "beauty"] as const).map((m) => (
             <button
               key={m}
@@ -165,7 +168,7 @@ export function GharScan() {
               aria-pressed={mode === m}
               className={cn("h-10 px-5 rounded-full text-sm transition-colors", mode === m ? "bg-brand text-black" : "text-white/70 hover:text-white")}
             >
-              {m === "home" ? "A problem at home" : "A beauty look"}
+              {m === "home" ? t.modes.home : t.modes.beauty}
             </button>
           ))}
         </div>
@@ -186,7 +189,7 @@ export function GharScan() {
               {photos.map((p, i) => (
                 <div key={i} className="relative overflow-hidden rounded-[1.6rem]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                  <img src={p} alt={fill(t.capture.photo, { n: i + 1 })} className="w-full h-full object-cover" />
                   {/* Problem pins (positions are the AI's estimate) */}
                   {!busy &&
                     pinsFor(i).map((pin) => (
@@ -198,7 +201,7 @@ export function GharScan() {
                         onClick={() => setActivePin(activePin === pin.n ? null : pin.n)}
                         className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
                         style={{ left: `${pin.x * 100}%`, top: `${pin.y * 100}%` }}
-                        aria-label={`Marker ${pin.n}: ${pin.label}`}
+                        aria-label={fill(t.capture.marker, { n: pin.n, label: pin.label })}
                       >
                         <span className="absolute inset-0 rounded-full bg-brand animate-ping opacity-60" />
                         <span className="relative w-7 h-7 rounded-full bg-brand text-black text-xs font-bold flex items-center justify-center ring-2 ring-black/40">{pin.n}</span>
@@ -206,7 +209,7 @@ export function GharScan() {
                       </motion.button>
                     ))}
                   {!busy && (
-                    <button onClick={() => setPhotos((ph) => ph.filter((_, j) => j !== i))} className="absolute top-3 end-3 z-20 w-8 h-8 rounded-full bg-black/70 text-white flex items-center justify-center" aria-label="Remove photo">
+                    <button onClick={() => setPhotos((ph) => ph.filter((_, j) => j !== i))} className="absolute top-3 end-3 z-20 w-8 h-8 rounded-full bg-black/70 text-white flex items-center justify-center" aria-label={t.capture.removePhoto}>
                       <X className="w-4 h-4" />
                     </button>
                   )}
@@ -218,8 +221,8 @@ export function GharScan() {
               <span className="w-16 h-16 rounded-full bg-brand text-black flex items-center justify-center">
                 <Camera className="w-7 h-7" />
               </span>
-              <span className="font-medium px-6 text-center">{mode === "home" ? "Take or upload 2–3 photos of the problem" : "Upload a photo of the look you want"}</span>
-              <span className="text-xs text-white/50">{mode === "home" ? "A close-up, a wider shot, and any label or error code" : "Up to 3 photos · drag and drop works too"}</span>
+              <span className="font-medium px-6 text-center">{mode === "home" ? t.capture.homeTitle : t.capture.beautyTitle}</span>
+              <span className="text-xs text-white/50">{mode === "home" ? t.capture.homeHint : t.capture.beautyHint}</span>
             </button>
           )}
           <AnimatePresence>
@@ -229,7 +232,7 @@ export function GharScan() {
                 <motion.div className="absolute inset-x-0 h-24 bg-gradient-to-b from-transparent via-brand/45 to-transparent" initial={{ top: "-20%" }} animate={{ top: ["-20%", "100%"] }} transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }} />
                 <p className="absolute bottom-5 inset-x-0 text-center text-sm text-white flex items-center justify-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  {round > 0 || answeredCount ? "Updating the diagnosis…" : "Reading your photos…"}
+                  {round > 0 || answeredCount ? t.capture.updating : t.capture.reading}
                 </p>
               </motion.div>
             )}
@@ -251,33 +254,33 @@ export function GharScan() {
           {photos.length > 0 && photos.length < 3 && !busy && (
             <button onClick={() => file.current?.click()} className="h-10 px-4 rounded-full border border-white/20 text-white/80 text-sm flex items-center gap-2 hover:border-white">
               <ImagePlus className="w-4 h-4" />
-              Add another angle
+              {t.capture.addAngle}
             </button>
           )}
           {(photos.length > 0 || result) && !busy && (
             <button onClick={reset} className="h-10 px-4 rounded-full border border-white/20 text-white/80 text-sm flex items-center gap-2 hover:border-white">
               <RotateCcw className="w-4 h-4" />
-              Start over
+              {t.capture.startOver}
             </button>
           )}
         </div>
 
         <label className="block">
-          <span className="sr-only">Anything we should know?</span>
+          <span className="sr-only">{t.capture.noteLabel}</span>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
             dir="auto"
-            placeholder={mode === "home" ? "Anything to add? e.g. ‘AC 2 din se pani gira raha hai, Haier inverter’" : "Anything to add? e.g. ‘for my cousin's mehndi, softer colours’"}
+            placeholder={mode === "home" ? t.capture.homeNote : t.capture.beautyNote}
             className="w-full rounded-2xl bg-white/[0.06] border border-white/15 text-white placeholder:text-white/40 px-4 py-3 text-[16px] sm:text-sm outline-none focus:border-brand"
           />
         </label>
         <button onClick={() => scan(false)} disabled={!photos.length || busy} className="w-full h-14 rounded-full bg-brand text-black font-medium flex items-center justify-center gap-2 disabled:opacity-40 hover:bg-white transition-colors">
           {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-          {busy ? "Scanning" : result ? "Scan again" : mode === "home" ? "Scan the problem" : "Read the look"}
+          {busy ? t.capture.scanning : result ? t.capture.scanAgain : mode === "home" ? t.capture.scanHome : t.capture.scanBeauty}
         </button>
-        <p className="text-xs text-white/50">AI suggestion, not a final quote: your pro confirms the price before any work starts. Photos aren&apos;t stored unless you send them to your technician with a booking, and those are deleted after the visit.</p>
+        <p className="text-xs text-white/50">{t.capture.disclaimer}</p>
       </div>
 
       {/* Result */}
@@ -285,12 +288,12 @@ export function GharScan() {
         <AnimatePresence mode="wait">
           {error ? (
             <motion.div key="err" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-[2rem] bg-white p-7 text-foreground">
-              <p className="font-serif text-2xl">We couldn&apos;t scan that one</p>
+              <p className="font-serif text-2xl">{t.errors.title}</p>
               <p className="text-zinc-600 mt-2">{error.text}</p>
               {error.whatsapp && (
                 <a href={error.whatsapp} target="_blank" rel="noopener noreferrer" className="inline-flex mt-5 h-11 items-center gap-2 rounded-full bg-[#25D366] text-foreground px-5 text-sm">
                   <MessageCircle className="w-4 h-4" />
-                  Send photos on WhatsApp
+                  {t.errors.sendWhatsapp}
                 </a>
               )}
             </motion.div>
@@ -298,18 +301,18 @@ export function GharScan() {
             <motion.div key={`res-${round}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.4, ease: EASE }} className="space-y-4">
               <div className="rounded-[2rem] bg-white p-6 sm:p-7 text-foreground">
                 <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <span className={cn("text-xs rounded-full px-2.5 py-1 font-medium", CONF[result.confidence].cls)}>{CONF[result.confidence].label}</span>
-                  {result.urgent && <span className="text-xs rounded-full px-2.5 py-1 font-medium bg-red-100 text-red-700">See to it soon</span>}
-                  {round > 0 && <span className="text-xs rounded-full px-2.5 py-1 font-medium bg-brand-soft text-brand-ink">Updated with your answers</span>}
+                  <span className={cn("text-xs rounded-full px-2.5 py-1 font-medium", CONF[result.confidence].cls)}>{t.result[result.confidence]}</span>
+                  {result.urgent && <span className="text-xs rounded-full px-2.5 py-1 font-medium bg-red-100 text-red-700">{t.result.urgent}</span>}
+                  {round > 0 && <span className="text-xs rounded-full px-2.5 py-1 font-medium bg-brand-soft text-brand-ink">{t.result.updated}</span>}
                 </div>
                 <h2 className="font-serif text-3xl leading-tight" dir="auto">
                   {result.title}
                 </h2>
-                <div className="mt-3 flex items-center gap-3" aria-label={`Confidence ${result.score} out of 100`}>
+                <div className="mt-3 flex items-center gap-3" aria-label={fill(t.result.confidence, { score: result.score })}>
                   <div className="flex-1 h-1.5 rounded-full bg-zinc-100 overflow-hidden">
                     <motion.div className={cn("h-full rounded-full", CONF[result.confidence].bar)} initial={{ width: 0 }} animate={{ width: `${result.score}%` }} transition={{ duration: 0.8, ease: EASE }} />
                   </div>
-                  <span className="text-xs text-zinc-500 tabular-nums">{result.score}% sure</span>
+                  <span className="text-xs text-zinc-500 tabular-nums">{fill(t.result.sure, { score: result.score })}</span>
                 </div>
                 <p className="text-zinc-600 mt-3" dir="auto">
                   {result.summary}
@@ -334,7 +337,7 @@ export function GharScan() {
                 )}
                 {result.causes.length > 0 && (
                   <div className="mt-5">
-                    <p className="text-xs uppercase tracking-[0.15em] text-zinc-500 mb-2">Likely causes</p>
+                    <p className="text-xs uppercase tracking-[0.15em] text-zinc-500 mb-2">{t.result.causes}</p>
                     <ol className="space-y-1.5 text-sm list-decimal ps-5" dir="auto">
                       {result.causes.map((c) => (
                         <li key={c}>{c}</li>
@@ -344,7 +347,7 @@ export function GharScan() {
                 )}
                 {result.checkNow.length > 0 && (
                   <div className="mt-5">
-                    <p className="text-xs uppercase tracking-[0.15em] text-zinc-500 mb-2">Worth checking now</p>
+                    <p className="text-xs uppercase tracking-[0.15em] text-zinc-500 mb-2">{t.result.checkNow}</p>
                     <ul className="space-y-1.5 text-sm" dir="auto">
                       {result.checkNow.map((c) => (
                         <li key={c} className="flex gap-2">
@@ -357,7 +360,7 @@ export function GharScan() {
                 )}
                 {result.mode === "beauty" && result.brief && (
                   <div className="mt-5 rounded-2xl bg-brand-soft p-4">
-                    <p className="text-xs uppercase tracking-[0.15em] text-brand-ink mb-1">Look Card · for your pro</p>
+                    <p className="text-xs uppercase tracking-[0.15em] text-brand-ink mb-1">{t.result.lookCard}</p>
                     <p className="text-sm" dir="auto">
                       {result.brief}
                     </p>
@@ -365,10 +368,10 @@ export function GharScan() {
                       {saved ? (
                         <>
                           <Check className="w-4 h-4" />
-                          Saved to your next booking
+                          {t.result.saved}
                         </>
                       ) : (
-                        "Save for my booking"
+                        t.result.save
                       )}
                     </button>
                   </div>
@@ -378,12 +381,12 @@ export function GharScan() {
               {result.videoCheck && (
                 <div className="rounded-[2rem] bg-[#25D366] text-foreground p-6 sm:p-7">
                   <p className="flex items-center gap-2 font-medium">
-                    <Video className="w-5 h-5" /> Photos aren&apos;t enough for this one
+                    <Video className="w-5 h-5" /> {t.result.videoTitle}
                   </p>
-                  <p className="text-foreground/75 text-sm mt-1.5">Show it to a Mjazo technician on a free 2-minute WhatsApp video call. They&apos;ll tell you the fix and the price, so nobody makes a wasted trip.</p>
+                  <p className="text-foreground/75 text-sm mt-1.5">{t.result.videoBody}</p>
                   <a href={result.whatsapp} target="_blank" rel="noopener noreferrer" onClick={() => track("whatsapp_click", { placement: "ghar_scan_video_check" })} className="inline-flex mt-4 h-11 items-center gap-2 rounded-full bg-white text-black px-5 text-sm font-medium">
                     <MessageCircle className="w-4 h-4" />
-                    Start a free video check
+                    {t.result.videoCta}
                   </a>
                 </div>
               )}
@@ -391,7 +394,7 @@ export function GharScan() {
               {result.mode === "home" && (result.techBrief || result.parts.length > 0) && (
                 <div className="rounded-[2rem] bg-white p-6 sm:p-7 text-foreground">
                   <p className="text-xs uppercase tracking-[0.15em] text-zinc-500 flex items-center gap-2">
-                    <ClipboardCheck className="w-4 h-4" /> Brief for your technician
+                    <ClipboardCheck className="w-4 h-4" /> {t.result.briefTitle}
                   </p>
                   {result.techBrief && (
                     <p className="text-sm mt-2" dir="auto">
@@ -400,7 +403,7 @@ export function GharScan() {
                   )}
                   {result.parts.length > 0 && (
                     <div className="mt-4">
-                      <p className="text-xs text-zinc-500 mb-2">Parts to bring, just in case (priced separately, only if needed)</p>
+                      <p className="text-xs text-zinc-500 mb-2">{t.result.parts}</p>
                       <div className="flex flex-wrap gap-2">
                         {result.parts.map((p) => (
                           <span key={p} className="text-xs rounded-full bg-zinc-100 px-3 py-1.5 flex items-center gap-1.5">
@@ -413,14 +416,14 @@ export function GharScan() {
                   )}
                   <button onClick={() => keepBrief(result)} className={cn("mt-5 h-10 px-4 rounded-full text-sm flex items-center gap-2", saved ? "bg-brand text-black" : "bg-foreground text-background")}>
                     {saved ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}
-                    {saved ? "Your technician will get this with your booking" : "Send this to my technician when I book"}
+                    {saved ? t.result.briefSaved : t.result.briefSend}
                   </button>
                 </div>
               )}
 
               {result.recommendations.length > 0 && (
                 <div className="rounded-[2rem] bg-white p-6 sm:p-7 text-foreground space-y-3">
-                  <p className="text-xs uppercase tracking-[0.15em] text-zinc-500">The fix, from the Mjazo menu</p>
+                  <p className="text-xs uppercase tracking-[0.15em] text-zinc-500">{t.result.fixTitle}</p>
                   {result.recommendations.map((r) => (
                     <div key={r.service} className="rounded-2xl border border-zinc-200 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
                       <div className="flex-1 min-w-0">
@@ -432,12 +435,12 @@ export function GharScan() {
                           {r.why}
                         </p>
                         <p className="text-sm mt-1">
-                          <span className="font-medium">{r.range ? r.range.label : "Free inspection + quote"}</span>
-                          <span className="text-zinc-500"> · {formatDuration(r.duration)}</span>
+                          <span className="font-medium">{r.range ? r.range.label : t.result.inspection}</span>
+                          <span className="text-zinc-500"> · {formatDuration(r.duration, ui.duration)}</span>
                         </p>
                         {r.history && (
                           <p className="text-xs text-emerald-700 mt-1">
-                            From {r.history.jobs} recent Mjazo jobs: most paid {r.history.low === r.history.high ? formatPKR(r.history.low) : `${formatPKR(r.history.low)} – ${formatPKR(r.history.high)}`}
+                            {fill(t.result.history, { jobs: r.history.jobs, range: r.history.low === r.history.high ? formatPKR(r.history.low) : `${formatPKR(r.history.low)} – ${formatPKR(r.history.high)}` })}
                           </p>
                         )}
                       </div>
@@ -451,11 +454,11 @@ export function GharScan() {
                           }}
                           className={cn("h-10 px-4 rounded-full text-sm shrink-0", added.includes(r.service) ? "bg-brand text-black" : "bg-foreground text-background")}
                         >
-                          {added.includes(r.service) ? "Added" : `Add · ${formatPKR(r.price)}`}
+                          {added.includes(r.service) ? t.result.added : fill(t.result.addPrice, { price: formatPKR(r.price) })}
                         </button>
                       ) : (
                         <Link href={r.url} onClick={() => !saved && keepBrief(result)} className="h-10 px-4 rounded-full bg-foreground text-background text-sm flex items-center shrink-0">
-                          Choose options
+                          {t.result.chooseOptions}
                         </Link>
                       )}
                     </div>
@@ -471,7 +474,7 @@ export function GharScan() {
                   }}
                   className="rounded-[2rem] bg-white/[0.06] border border-white/10 p-5 sm:p-6 space-y-3"
                 >
-                  <p className="text-sm text-white font-medium">Answer to sharpen the diagnosis</p>
+                  <p className="text-sm text-white font-medium">{t.result.questionsTitle}</p>
                   {result.questions.map((q) => (
                     <label key={q} className="block">
                       <span className="block text-sm text-white/75 mb-1.5" dir="auto">
@@ -482,13 +485,13 @@ export function GharScan() {
                         onChange={(e) => setAnswers((a) => ({ ...a, [q]: e.target.value }))}
                         dir="auto"
                         className="w-full h-11 rounded-2xl bg-white/[0.08] border border-white/15 text-white placeholder:text-white/35 px-4 text-[16px] sm:text-sm outline-none focus:border-brand"
-                        placeholder="Your answer"
+                        placeholder={t.result.answer}
                       />
                     </label>
                   ))}
                   <button disabled={!answeredCount || busy} className="h-11 px-5 rounded-full bg-brand text-black text-sm font-medium flex items-center gap-2 disabled:opacity-40">
                     {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                    Update diagnosis
+                    {t.result.update}
                   </button>
                 </form>
               )}
@@ -496,15 +499,15 @@ export function GharScan() {
               {!result.videoCheck && (
                 <a href={result.whatsapp} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center gap-2 rounded-full bg-[#25D366] text-foreground px-4 text-sm" onClick={() => track("whatsapp_click", { placement: "ghar_scan" })}>
                   <MessageCircle className="w-4 h-4" />
-                  Ask a person to confirm
+                  {t.result.askPerson}
                 </a>
               )}
             </motion.div>
           ) : (
             <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="rounded-[2rem] bg-white/[0.04] border border-white/10 p-7">
-              <p className="text-white/50 text-xs uppercase tracking-[0.15em] mb-4">Works well for</p>
+              <p className="text-white/50 text-xs uppercase tracking-[0.15em] mb-4">{t.idle.title}</p>
               <ul className="grid sm:grid-cols-2 gap-2">
-                {EXAMPLES[mode].map((x) => (
+                {t.idle[mode].map((x) => (
                   <li key={x} className="flex items-center gap-2 text-white/85 text-sm">
                     <span className="w-1.5 h-1.5 rounded-full bg-brand" />
                     {x}
@@ -512,9 +515,7 @@ export function GharScan() {
                 ))}
               </ul>
               <p className="text-white/50 text-sm mt-6">
-                {mode === "home"
-                  ? "You'll get the likely issue marked on your photo, the causes, parts and the right service, priced from the Mjazo menu. It asks a question or two when it isn't sure, and your technician arrives already briefed."
-                  : "You'll get the look, a brief for your pro and the right services, priced from the Mjazo menu."}
+                {mode === "home" ? t.idle.homeBody : t.idle.beautyBody}
               </p>
             </motion.div>
           )}

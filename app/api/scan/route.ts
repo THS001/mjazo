@@ -4,7 +4,10 @@ import { z } from "zod"
 import { MODELS, aiEnabled, clientIp, rateLimited } from "@/lib/ai/anthropic"
 import { structured } from "@/lib/ai/structured"
 import { formatPKR, type Catalog } from "@/lib/catalog"
-import { getCatalog, whatsappLink } from "@/lib/cms/read"
+import { getCatalog, getPage, whatsappLink } from "@/lib/cms/read"
+import { fill } from "@/lib/cms/format"
+import type { GharScanContent } from "@/lib/cms/types/pages/tools"
+import { isLocale } from "@/lib/i18n"
 import { all } from "@/lib/server/docs"
 import type { Job } from "@/lib/ops/types"
 
@@ -25,6 +28,8 @@ const body = z.object({
   note: z.string().max(600).optional(),
   // Phase 3: answers to the follow-up questions from the previous round refine the diagnosis.
   answers: z.array(z.object({ q: z.string().max(300), a: z.string().max(300) })).max(4).optional(),
+  // The page's language: names, WhatsApp messages and (unless the note says otherwise) the answer follow it.
+  locale: z.string().optional(),
 })
 
 const REPORT: Anthropic.Tool = {
@@ -122,12 +127,16 @@ async function jobHistory() {
 }
 
 export async function POST(req: Request) {
-  const cat = await getCatalog()
+  const json = await req.json().catch(() => null)
+  const locale = isLocale(json?.locale) ? json.locale : "en"
+  const [cat, page] = await Promise.all([getCatalog(locale), getPage<GharScanContent>("ghar-scan", locale)])
   const { getService, visibleCategories } = cat
-  if (!aiEnabled()) return NextResponse.json({ error: "ai_unavailable", whatsapp: await whatsappLink("Hi Mjazo! I'd like to send you photos of a problem for a quote.") }, { status: 503 })
-  if (rateLimited(`scan:${clientIp(req)}`, 8)) return NextResponse.json({ error: "Too many scans. Please wait a minute." }, { status: 429 })
-  const parsed = body.safeParse(await req.json().catch(() => null))
-  if (!parsed.success) return NextResponse.json({ error: "Please add one to three photos." }, { status: 400 })
+  const { errors, whatsapp } = page.tool
+  // `code` picks the customer-facing message (Tool text → Errors); `error` is the English fallback.
+  if (!aiEnabled()) return NextResponse.json({ code: "unavailable", error: errors.unavailable, whatsapp: await whatsappLink(whatsapp.quote) }, { status: 503 })
+  if (rateLimited(`scan:${clientIp(req)}`, 8)) return NextResponse.json({ code: "tooMany", error: errors.tooMany }, { status: 429 })
+  const parsed = body.safeParse(json)
+  if (!parsed.success) return NextResponse.json({ code: "noPhotos", error: errors.noPhotos }, { status: 400 })
   const { mode, images, note, answers } = parsed.data
   const answered = (answers ?? []).filter((x) => x.a.trim())
 
@@ -139,7 +148,7 @@ export async function POST(req: Request) {
     }>({
       model: MODELS.vision,
       maxTokens: 1600,
-      system: `${PROMPT[mode]}\n\nMenu (category [slug]: service slugs)\n${menu(cat, mode)}\n\nWrite summary, title, causes, brief and questions in the language of the customer's note (English, Urdu script or Roman Urdu); default to English.`,
+      system: `${PROMPT[mode]}\n\nMenu (category [slug]: service slugs)\n${menu(cat, mode)}\n\nWrite summary, title, causes, brief and questions in the language of the customer's note (English, Urdu script or Roman Urdu); with no note, ${locale === "ur" ? "write in Urdu script (the customer is on the Urdu site)" : "default to English"}.`,
       tool: REPORT,
       messages: [
         {
@@ -196,11 +205,11 @@ export async function POST(req: Request) {
       brief: r.pro_brief ?? "",
       questions: r.follow_up_questions ?? [],
       recommendations,
-      whatsapp: await whatsappLink(`Hi Mjazo! Ghar Scan says: ${r.title}. Can a technician do a free 2-minute video check?`),
+      whatsapp: await whatsappLink(fill(whatsapp.videoCheck, { title: r.title })),
     })
   } catch (e) {
-    if (e instanceof Anthropic.RateLimitError) return NextResponse.json({ error: "Scanning is busy. Try again in a moment." }, { status: 429 })
+    if (e instanceof Anthropic.RateLimitError) return NextResponse.json({ code: "busy", error: errors.busy }, { status: 429 })
     console.error("[scan] failed", e instanceof Anthropic.APIError ? `${e.status} ${e.message}` : e)
-    return NextResponse.json({ error: "We couldn't read those photos. Try again, or send them on WhatsApp.", whatsapp: await whatsappLink("Hi Mjazo! I'd like to send you photos for a quote.") }, { status: 502 })
+    return NextResponse.json({ code: "failed", error: errors.failed, whatsapp: await whatsappLink(whatsapp.quote) }, { status: 502 })
   }
 }

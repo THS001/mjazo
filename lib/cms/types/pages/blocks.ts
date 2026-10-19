@@ -55,7 +55,8 @@ const PAGE_SEO: Record<string, { title: string; description: string }> = {
   "shaadi-planner": { title: "Shaadi Orchestrator: plan the whole family's wedding glam", description: "Tell us your events and who needs glam. Mjazo's AI plans everyone's pre-wedding glow and works backwards from photo time, so the whole family is ready together. Karachi, at home." },
 }
 
-export function page<S extends object>(id: string, opts: { label: string; path: string; description?: string; fields: Fields; defaults: S }) {
+/** `translations.ur`: shipped Urdu for some of the page's text (same shape, only the parts it covers). */
+export function page<S extends object>(id: string, opts: { label: string; path: string; description?: string; fields: Fields; defaults: S; translations?: { ur?: () => unknown } }) {
   const withHero = HERO_IMAGE.has(id) ? { heroImage, ...opts.fields } : opts.fields
   const fields = NO_SEO.has(id) ? withHero : { ...withHero, seo: seoGroup() }
   const defaults = NO_SEO.has(id) ? opts.defaults : { ...opts.defaults, seo: PAGE_SEO[id] ?? { title: "", description: "" } }
@@ -68,6 +69,7 @@ export function page<S extends object>(id: string, opts: { label: string; path: 
     description: opts.description ?? `Text on ${opts.path}. Use {{tokens}} like {{policy.redoHours}} or {{catalog.areaCount}} for values that come from settings and the catalogue.`,
     fields,
     defaults: () => defaults,
+    translations: opts.translations,
     path: () => opts.path,
   } as ContentType<S, S>)
 }

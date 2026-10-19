@@ -1,5 +1,8 @@
 import { f } from "../../fields"
 import { cards, cta, faqs, head, lines, page, type CardItem, type Cta, type Faq, type Head } from "./blocks"
+import { toolText } from "../strings"
+import { GHAR_SCAN_TEXT, GHAR_SCAN_TEXT_UR, type GharScanText } from "../tool-text/ghar-scan"
+import { HOME_PULSE_TEXT, HOME_PULSE_TEXT_UR, type HomePulseText } from "../tool-text/home-pulse"
 
 // Weddings and the AI tool pages (Shaadi Orchestrator, Ghar Scan, Home Pulse, Glam Mirror).
 // Only the page text is here; the tools' own buttons and messages stay in the code for now.
@@ -128,11 +131,14 @@ page<PlannerContent>("shaadi-planner", {
 
 export type ToolPageContent = { hero: ToolHero; faqTitle: string; faq: Faq[] }
 
-page<ToolPageContent>("ghar-scan", {
+export type GharScanContent = ToolPageContent & { tool: GharScanText }
+page<GharScanContent>("ghar-scan", {
   label: "Ghar Scan",
   path: "/ghar-scan",
-  fields: { hero: toolHero(), faqTitle: f.text("FAQ title"), faq: faqs() },
+  fields: { hero: toolHero(), faqTitle: f.text("FAQ title"), faq: faqs(), tool: toolText(GHAR_SCAN_TEXT, { modes: "Mode switch", capture: "Photos and scanning", errors: "Errors", result: "Result", idle: "Before a scan", whatsapp: "WhatsApp messages" }) },
+  translations: { ur: () => ({ tool: GHAR_SCAN_TEXT_UR }) },
   defaults: {
+    tool: GHAR_SCAN_TEXT,
     hero: {
       eyebrow: "Mjazo AI · Ghar Scan",
       title: "Snap it. See the fix. See the price.",
@@ -148,11 +154,14 @@ page<ToolPageContent>("ghar-scan", {
   },
 })
 
-page<ToolPageContent>("home-pulse", {
+export type HomePulseContent = ToolPageContent & { tool: HomePulseText }
+page<HomePulseContent>("home-pulse", {
   label: "Home Pulse",
   path: "/home-pulse",
-  fields: { hero: toolHero(), faqTitle: f.text("FAQ title"), faq: faqs() },
+  fields: { hero: toolHero(), faqTitle: f.text("FAQ title"), faq: faqs(), tool: toolText(HOME_PULSE_TEXT, { profile: "Your home (profile)", plan: "Plan header", kinds: "Item labels", item: "Item buttons", remind: "WhatsApp reminders", rules: "Plan wording" }) },
+  translations: { ur: () => ({ tool: HOME_PULSE_TEXT_UR }) },
   defaults: {
+    tool: HOME_PULSE_TEXT,
     hero: {
       eyebrow: "Mjazo AI · Home Pulse",
       title: "Your home's care calendar, kept for you.",

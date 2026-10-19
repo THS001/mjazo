@@ -1,5 +1,5 @@
-import { f, type Field, type Fields } from "../fields"
 import { register } from "../registry"
+import { stringFields } from "./strings"
 
 // Buttons, labels and messages used across the site (cards, cart, search, forms, checkout, sign-in),
 // in English with shipped Urdu. Client components read them with useT(); server components with
@@ -479,20 +479,7 @@ const GROUPS: Record<keyof UiStrings, string> = {
   cartPage: "Cart page",
   login: "Sign in",
 }
-const label = (key: string) => key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())
-function fieldFor(key: string, v: unknown): Field {
-  if (Array.isArray(v)) {
-    if (typeof v[0] === "string") return f.list(label(key), f.text("Item"))
-    const first = v[0] as Record<string, string>
-    return f.list(label(key), f.group("Item", Object.fromEntries(Object.keys(first).map((k) => [k, f.text(label(k))]))), { itemLabel: Object.keys(first)[0] })
-  }
-  const s = String(v)
-  const tokens = s.match(/\{\{\w+\}\}/g)
-  return f.text(label(key), { help: [`“${s}”`, tokens ? `Keep ${[...new Set(tokens)].join(", ")}.` : "", s.includes("*") ? "*Stars* make words bold." : ""].filter(Boolean).join(" ") })
-}
-const fields: Fields = Object.fromEntries(
-  (Object.keys(UI_DEFAULTS) as (keyof UiStrings)[]).map((g) => [g, f.group(GROUPS[g], Object.fromEntries(Object.entries(UI_DEFAULTS[g]).map(([k, v]) => [k, fieldFor(k, v)])))]),
-)
+const fields = stringFields(UI_DEFAULTS, GROUPS)
 
 register<UiStrings, UiStrings>({
   type: "ui",

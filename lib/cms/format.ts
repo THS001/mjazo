@@ -1,4 +1,7 @@
-// Date formatting for the CMS admin, usable on the server and in the browser.
+// Date formatting for the CMS admin, and filling {{tokens}} in UI strings; usable on the server and in the browser.
+
+/** "Add {{amount}} more" + { amount: "PKR 500" } -> "Add PKR 500 more". */
+export const fill = (text: string, vars: Record<string, string | number>) => text.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m))
 
 export const ago = (iso: string | null | undefined) => {
   if (!iso) return ""
