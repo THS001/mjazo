@@ -9,6 +9,7 @@
 // 3. Costs come only from the Mjazo catalogue, split by family branch.
 
 import type { Catalog } from "@/lib/catalog"
+import { windowLabel } from "@/lib/time"
 
 /** Catalogue lookups the scheduler needs (getCatalog() on the server, useCatalog() in the browser). */
 export type ShaadiCatalog = Pick<Catalog, "getService" | "MIN_ORDER">
@@ -353,7 +354,7 @@ export function personMessage(plan: ShaadiPlan, s: Schedule, personId: string, {
   const lines = [put(m.hello, { name: p.name.split(" ")[0], title: plan.title })]
   for (const v of s.prep) {
     const mine = v.items.filter((i) => i.personId === p.id)
-    if (mine.length) lines.push(put(m.prep, { date: fmtSlot(v.date, locale), window: v.window, items: mine.map((i) => i.label).join(locale === "ur" ? "، " : ", ") }))
+    if (mine.length) lines.push(put(m.prep, { date: fmtSlot(v.date, locale), window: windowLabel(v.window, locale), items: mine.map((i) => i.label).join(locale === "ur" ? "، " : ", ") }))
   }
   for (const e of s.events) {
     const blocks = e.tracks.flatMap((t) => t.blocks).filter((b) => b.personId === p.id).sort((a, b) => a.start.localeCompare(b.start))

@@ -7,22 +7,12 @@ import { CalendarCheck, Loader2, Mic, Send } from "lucide-react"
 import type { Lang } from "@/lib/content"
 import { hasUrdu, useVoice } from "@/lib/client/media"
 import { cn } from "@/lib/utils"
+import type { PartnerText } from "@/lib/cms/types/tool-text/partner"
 
 type State = { name: string; lang: string; status: string; turns: { role: "user" | "assistant"; text: string }[]; done: boolean; testSlot?: string; slots: string[]; ai: boolean }
 
-const COPY = {
-  title: { en: "Your Mjazo interview", ur: "آپ کا مجازو انٹرویو", ro: "Aapka Mjazo interview" },
-  note: { en: "AI interviewer · about 10 minutes · a person reviews every answer", ur: "اے آئی انٹرویو · تقریباً ۱۰ منٹ · ہر جواب ہماری ٹیم خود دیکھتی ہے", ro: "AI interviewer · taqreeban 10 minute · har jawab humari team khud dekhti hai" },
-  type: { en: "Type or tap the mic to speak…", ur: "لکھیں یا مائیک دبا کر بولیں…", ro: "Likhein ya mic daba kar bolein…" },
-  pick: { en: "Pick a time for your practical test", ur: "پریکٹیکل ٹیسٹ کا وقت چنیں", ro: "Practical test ka waqt chunein" },
-  pickSub: { en: "We'll WhatsApp you the address and what to bring.", ur: "ہم واٹس ایپ پر پتہ اور ساتھ لانے والی چیزیں بتا دیں گے۔", ro: "Hum WhatsApp par address aur saath lane wali cheezein bata denge." },
-  booked: { en: "Practical test booked", ur: "پریکٹیکل ٹیسٹ بک ہو گیا", ro: "Practical test book ho gaya" },
-  bookedSub: { en: "Our team will WhatsApp you to confirm. Shukriya!", ur: "ہماری ٹیم واٹس ایپ پر تصدیق کرے گی۔ شکریہ!", ro: "Humari team WhatsApp par confirm karegi. Shukriya!" },
-  offline: { en: "The online interview isn't available right now. Our team will call you for your interview instead.", ur: "آن لائن انٹرویو ابھی دستیاب نہیں۔ ہماری ٹیم آپ کو کال کر کے انٹرویو کرے گی۔", ro: "Online interview abhi available nahi. Humari team aapko call karke interview karegi." },
-  home: { en: "Back to Mjazo", ur: "واپس جائیں", ro: "Wapas jayein" },
-}
-
-export function Interview({ token }: { token: string }) {
+export function Interview({ token, text }: { token: string; text: PartnerText }) {
+  const COPY = text.interview
   const [s, setS] = useState<State | null>(null)
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
@@ -35,7 +25,7 @@ export function Interview({ token }: { token: string }) {
   const call = async (body?: unknown) => {
     const res = await fetch(`/api/interview/${token}`, body === undefined ? { cache: "no-store" } : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error ?? "Something went wrong")
+    if (!res.ok) throw new Error(data.error ?? COPY.error[lang])
     return data as State
   }
 
@@ -93,7 +83,7 @@ export function Interview({ token }: { token: string }) {
     <div dir={ur ? "rtl" : "ltr"} className="min-h-[100svh] bg-brand flex flex-col">
       <header className="sticky top-0 z-10 bg-brand/90 backdrop-blur border-b border-black/10">
         <div className="max-w-2xl mx-auto px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-3 flex items-center gap-3">
-          <Link href="/" className="w-11 h-11 rounded-2xl bg-black text-[var(--brand)] flex items-center justify-center font-serif text-2xl shrink-0" aria-label="Mjazo home">
+          <Link href="/" className="w-11 h-11 rounded-2xl bg-black text-[var(--brand)] flex items-center justify-center font-serif text-2xl shrink-0" aria-label={COPY.homeLink[lang]}>
             m
           </Link>
           <div className="min-w-0">
@@ -181,11 +171,11 @@ export function Interview({ token }: { token: string }) {
               className={cn("flex-1 min-h-12 max-h-36 resize-none rounded-3xl bg-white px-4 py-3 text-[16px] outline-none border border-black/10 focus:border-black", ur && "font-urdu")}
             />
             {voice.supported && !input.trim() ? (
-              <button type="button" onClick={() => voice.start(lang === "en" ? "en-PK" : "ur-PK", setInput, send)} aria-label="Speak" className={cn("w-12 h-12 shrink-0 rounded-full flex items-center justify-center", voice.listening ? "bg-red-500 text-white animate-pulse" : "bg-black text-[var(--brand)]")}>
+              <button type="button" onClick={() => voice.start(lang === "en" ? "en-PK" : "ur-PK", setInput, send)} aria-label={COPY.speak[lang]} className={cn("w-12 h-12 shrink-0 rounded-full flex items-center justify-center", voice.listening ? "bg-red-500 text-white animate-pulse" : "bg-black text-[var(--brand)]")}>
                 <Mic className="w-5 h-5" />
               </button>
             ) : (
-              <button type="submit" disabled={busy || !input.trim()} aria-label="Send" className="w-12 h-12 shrink-0 rounded-full bg-black text-[var(--brand)] flex items-center justify-center disabled:opacity-40">
+              <button type="submit" disabled={busy || !input.trim()} aria-label={COPY.send[lang]} className="w-12 h-12 shrink-0 rounded-full bg-black text-[var(--brand)] flex items-center justify-center disabled:opacity-40">
                 <Send className={cn("w-5 h-5", ur && "-scale-x-100")} />
               </button>
             )}

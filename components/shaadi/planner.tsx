@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import { AlertTriangle, ArrowUp, CalendarHeart, Check, Loader2, MessageCircle, Plus, Send, Sparkles, Trash2, Users, Wand2 } from "lucide-react"
 import { formatPKR } from "@/lib/catalog"
 import { track } from "@/lib/site"
-import { karachiNow, WINDOW_LABELS } from "@/lib/time"
+import { karachiNow, WINDOW_LABELS, windowLabel } from "@/lib/time"
 import { LOOKS, PREP, computeSchedule, diffSchedules, emptyPlan, personMessage, to12h, uid, type Role, type Schedule, type ShaadiEvent, type ShaadiPlan } from "@/lib/shaadi"
 import { cn } from "@/lib/utils"
 import { EASE } from "@/components/site/primitives"
@@ -269,7 +269,7 @@ export function ShaadiPlanner({ hero, t }: { hero: ToolHero; t: ShaadiText }) {
             )}
 
             {plan.people.length > 0 && (
-              <Card title={t.editor.prep} icon={Sparkles} action={<select value={plan.prepWindow} onChange={(e) => update((p) => void (p.prepWindow = e.target.value))} className="h-9 rounded-full border border-black/10 bg-white px-3 text-[16px] sm:text-sm" aria-label={t.editor.prepTime}>{WINDOW_LABELS.map((w) => <option key={w}>{w}</option>)}</select>}>
+              <Card title={t.editor.prep} icon={Sparkles} action={<select value={plan.prepWindow} onChange={(e) => update((p) => void (p.prepWindow = e.target.value))} className="h-9 rounded-full border border-black/10 bg-white px-3 text-[16px] sm:text-sm" aria-label={t.editor.prepTime}>{WINDOW_LABELS.map((w) => <option key={w} value={w}>{windowLabel(w, locale)}</option>)}</select>}>
                 <p className="text-xs text-zinc-500 -mt-1 mb-3">{t.editor.prepNote}</p>
                 <div className="space-y-3">
                   {plan.people.map((p, i) => (
@@ -517,7 +517,7 @@ function PlanView({ t, locale, plan, schedule: s, today }: { t: ShaadiText; loca
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm text-zinc-500">
-                    {new Date(`${pv.date}T12:00:00Z`).toLocaleDateString(dateLocale, { weekday: "long", timeZone: "UTC" })} · {pv.window} · {pv.pros > 1 ? fill(v.proMany, { n: pv.pros }) : v.proOne} · {formatPKR(pv.total)}
+                    {new Date(`${pv.date}T12:00:00Z`).toLocaleDateString(dateLocale, { weekday: "long", timeZone: "UTC" })} · {windowLabel(pv.window, locale)} · {pv.pros > 1 ? fill(v.proMany, { n: pv.pros }) : v.proOne} · {formatPKR(pv.total)}
                   </p>
                   <p className="text-sm mt-0.5">
                     {Object.entries(group(pv.items)).map(([person, items], i) => (

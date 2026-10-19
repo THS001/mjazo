@@ -1,6 +1,8 @@
 import { f } from "../../fields"
 import { HOME_FAQ, SAFETY_PILLARS, SAFETY_STEPS, VALUES } from "@/lib/content"
 import { cards, cta, ctaList, faqs, head, lines, page, type CardItem, type Cta, type Faq, type Head } from "./blocks"
+import { trioFields } from "../strings"
+import { PARTNER_TEXT, type PartnerText } from "../tool-text/partner"
 
 // About, careers, business, how it works, safety, contact and complaint pages.
 
@@ -271,4 +273,15 @@ page<ComplaintContent>("complaint", {
     ],
     talk: { title: "Prefer to talk?", body: "WhatsApp us and a person will pick it up.", message: "Hi Mjazo, I have a problem with my booking." },
   },
+})
+
+// ---------------------------------------------------------------------------
+
+export type PartnerContent = PartnerText
+page<PartnerContent>("partner", {
+  label: "Become a pro",
+  path: "/partner",
+  description: "The pro pages (/partner, the application, the thank-you page and the AI interview) in English, Urdu and Roman Urdu. Visitors switch language on the page, so each text has all three.",
+  fields: trioFields(PARTNER_TEXT, { landing: "Landing page", benefits: "Benefits", steps: "Steps to the first booking", apply: "Application form", errors: "Form errors", skills: "Skills", experienceOptions: "Experience options", days: "Days", transportOptions: "Transport options", thanks: "Thank-you page", interview: "AI interview", titles: "Page titles (tab and search)" }),
+  defaults: PARTNER_TEXT,
 })

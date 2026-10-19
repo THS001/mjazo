@@ -6,24 +6,10 @@ import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { EASE } from "@/components/site/primitives"
 import { urduCls, usePartnerLang } from "./lang"
+import type { PartnerText } from "@/lib/cms/types/tool-text/partner"
 
-const COPY = {
-  title: { en: "Shukriya! We've got it.", ur: "شکریہ! آپ کی درخواست مل گئی۔", ro: "Shukriya! Aapki application mil gayi." },
-  body: {
-    en: "Our team will call or WhatsApp you soon to set up your interview.",
-    ur: "ہماری ٹیم جلد آپ کو کال یا واٹس ایپ کرے گی اور انٹرویو کا وقت طے کرے گی۔",
-    ro: "Humari team jald aapko call ya WhatsApp karegi aur interview ka waqt tay karegi.",
-  },
-  now: {
-    en: "Want to go faster? Take your first interview right now, on your phone. It takes about 10 minutes, in English, Urdu or Roman Urdu. A person at Mjazo reviews every interview.",
-    ur: "جلدی آگے بڑھنا چاہتی ہیں؟ ابھی اپنے فون پر پہلا انٹرویو دیں۔ تقریباً ۱۰ منٹ، اردو، انگریزی یا رومن اردو میں۔ مجازو کی ٹیم ہر انٹرویو خود دیکھتی ہے۔",
-    ro: "Jaldi aage barhna chahti hain? Abhi apne phone par pehla interview dein. Taqreeban 10 minute, Urdu, English ya Roman Urdu mein. Mjazo ki team har interview khud dekhti hai.",
-  },
-  start: { en: "Start my interview", ur: "انٹرویو شروع کریں", ro: "Interview shuru karein" },
-  back: { en: "Back to Mjazo", ur: "واپس جائیں", ro: "Wapas jayein" },
-}
-
-export function PartnerThanks() {
+export function PartnerThanks({ text }: { text: PartnerText }) {
+  const COPY = text.thanks
   const [lang] = usePartnerLang()
   const [token, setToken] = useState<string | null>(null)
   useEffect(() => {

@@ -1,11 +1,13 @@
 import type { Metadata } from "next"
 import { CheckoutFlow } from "@/components/checkout/checkout-flow"
 import { pageLocale } from "@/lib/cms/locale"
+import { getUi } from "@/lib/cms/read"
 import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  return pageMetadata({ path: "/checkout", title: "Checkout", noindex: true })
+  const ui = await getUi()
+  return pageMetadata({ path: "/checkout", title: ui.cart.checkout, noindex: true })
 }
 
 export default async function CheckoutPage({ params }: { params: Promise<{ locale: string }> }) {

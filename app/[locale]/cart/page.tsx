@@ -1,11 +1,13 @@
 import type { Metadata } from "next"
 import { CartPageView } from "@/components/checkout/cart-page"
 import { pageLocale } from "@/lib/cms/locale"
+import { getUi } from "@/lib/cms/read"
 import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  return pageMetadata({ path: "/cart", title: "Your cart", noindex: "follow" })
+  const ui = await getUi()
+  return pageMetadata({ path: "/cart", title: ui.cart.title, noindex: "follow" })
 }
 
 export default async function CartPage({ params }: { params: Promise<{ locale: string }> }) {

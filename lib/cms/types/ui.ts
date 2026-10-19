@@ -227,6 +227,7 @@ export const UI_DEFAULTS = {
     legal: "Your profile is saved on this device and we confirm every booking on WhatsApp. By continuing you agree to our {{terms}} and {{privacy}}.",
     terms: "terms",
     privacy: "privacy policy",
+    pageTitle: "Log in",
   },
   concierge: {
     welcome: "Assalam o Alaikum! I'm Mjazo's AI assistant. Tell me what you need: type or speak in English, Urdu or Roman Urdu, or send a photo of the problem. A person from our team is always one tap away.",
@@ -389,6 +390,7 @@ export const UI_DEFAULTS = {
     wentWrong: "What went wrong? (optional)",
     sendRating: "Send rating",
     enterDetails: "Enter your booking ID and phone number to rate the visit.",
+    rateDescription: "Tell us how your Mjazo visit went. Every rating is read and helps us coach our pros.",
   },
   install: {
     installed: "Mjazo is installed on this device.",
@@ -643,6 +645,7 @@ export const UI_UR: UiStrings = {
     legal: "آپ کی پروفائل اسی ڈیوائس پر محفوظ رہتی ہے اور ہم ہر بُکنگ واٹس ایپ پر کنفرم کرتے ہیں۔ جاری رکھ کر آپ ہماری {{terms}} اور {{privacy}} سے اتفاق کرتے ہیں۔",
     terms: "شرائط",
     privacy: "پرائیویسی پالیسی",
+    pageTitle: "لاگ اِن",
   },
   concierge: {
     welcome: "السلام علیکم! میں مجازو کی اے آئی اسسٹنٹ ہوں۔ بتائیں آپ کو کیا چاہیے: انگریزی، اردو یا رومن اردو میں لکھیں یا بولیں، یا مسئلے کی تصویر بھیجیں۔ ہماری ٹیم کا کوئی فرد ہمیشہ ایک ٹیپ کی دوری پر ہے۔",
@@ -805,6 +808,7 @@ export const UI_UR: UiStrings = {
     wentWrong: "کیا غلط ہوا؟ (اختیاری)",
     sendRating: "ریٹنگ بھیجیں",
     enterDetails: "وزٹ کی ریٹنگ کے لیے اپنی بُکنگ آئی ڈی اور فون نمبر درج کریں۔",
+    rateDescription: "ہمیں بتائیں آپ کا مجازو وزٹ کیسا رہا۔ ہر ریٹنگ پڑھی جاتی ہے اور ہمارے پروز کی رہنمائی میں مدد دیتی ہے۔",
   },
   install: {
     installed: "مجازو اس ڈیوائس پر انسٹال ہے۔",

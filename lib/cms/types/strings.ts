@@ -31,6 +31,29 @@ export function stringFields<D extends Strings>(defaults: D, groups: Partial<Rec
   )
 }
 
+// ---------------------------------------------------------------------------
+// Three-language text (the partner pages): every string is { en, ur, ro } and the visitor picks
+// the language on the page itself, so these fields aren't CMS-localised.
+// ---------------------------------------------------------------------------
+
+export type Trio = { en: string; ur: string; ro: string }
+type Trios = { [k: string]: Trio | Trios }
+
+const isTrio = (v: unknown): v is Trio => Boolean(v) && typeof v === "object" && Object.keys(v as object).sort().join() === "en,ro,ur"
+
+function trioField(key: string, v: Trio | Trios, groups: Record<string, string>): Field {
+  if (isTrio(v)) {
+    const plain = (l: string, s: string) => f.text(l, { localized: false, help: `“${s}”${/\{\{\w+\}\}/.test(s) ? ` Keep ${[...new Set(s.match(/\{\{\w+\}\}/g))].join(", ")}.` : ""}` })
+    return f.group(label(key), { en: plain("English", v.en), ur: plain("Urdu (اردو)", v.ur), ro: plain("Roman Urdu", v.ro) })
+  }
+  return f.group(groups[key] ?? label(key), Object.fromEntries(Object.entries(v).map(([k, x]) => [k, trioField(k, x, groups)])))
+}
+
+/** Fields for nested { en, ur, ro } text: a group per section, three plain text fields per string. */
+export function trioFields<D extends Trios>(defaults: D, groups: Partial<Record<string, string>> = {}): Fields {
+  return Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k, trioField(k, v, groups as Record<string, string>)]))
+}
+
 /** A "Tool text" group for a page type: its strings, grouped by part of the tool. */
 export const toolText = <D extends Strings>(defaults: D, groups: Partial<Record<keyof D, string>> = {}) =>
   f.group("Tool text", stringFields(defaults, groups), { help: "Buttons, labels and messages inside the tool. Each field shows the original English under its name." })

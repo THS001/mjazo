@@ -1,6 +1,6 @@
 # Mjazo CMS: build status
 
-_Last updated 5 October 2026 (phase 7, all phases done). Code: https://github.com/THS001/mjazo (branch `main`)._
+_Last updated 19 October 2026 (interface text phase 2: the tools' text is editable too). Code: https://github.com/THS001/mjazo (branch `main`)._
 
 The CMS at `/admin` lets the team and the client edit everything on mjazo.vercel.app without code
 changes: text, prices, images, menus, SEO, and the Urdu site. It is built into the Next.js site and
@@ -16,6 +16,7 @@ looking the same while making more of it editable.
 | 5. SEO | SEO fields, metadata, redirects, SEO score, dashboard | Done, deployed |
 | 6. Page builder | New pages from blocks, live preview, click-to-edit | Done, deployed |
 | 7. Hardening | Tests, permission audit, backup, two-step sign-in, performance, team handbook | Done; the last fixes go out with the next deploy |
+| Interface text, phase 2 | The text inside the AI tools, the chat, account screens, offers, ratings, the hero phone and the pro pages, with Urdu | Done 19 October 2026; not deployed yet |
 
 **Supabase is connected (5 October 2026).** Content saved in `/admin` now persists on the live site.
 Both Owners (`CMS_OWNER_EMAIL`) can sign in, and the first has set up two-step sign-in. Locally,
@@ -86,7 +87,7 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 **Left**
 
 - **Diff view in history:** versions can be restored, but not compared side by side yet.
-- **Text inside the interactive tools is still in the code:** Ghar Scan, Home Pulse, Glam Mirror, the Shaadi planner, the Concierge chat, account screens, the offer buttons and the partner sign-up flow. These are mostly buttons and messages; they would join "Buttons & labels".
+- ~~Text inside the interactive tools is still in the code.~~ Done on 19 October 2026: see "Interface text, phase 2" below.
 
 ---
 
@@ -158,7 +159,7 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 - **The Urdu content itself:**
   - Page text, the catalogue, the blog and help need the AI translation pass (`/admin/translate`). That needs Supabase and the API key.
   - Then a person reviews it, and only then is the Urdu site switched on.
-- **Interactive tools' interface text** (see phase 2) stays English on `/ur`.
+- ~~Interactive tools' interface text stays English on `/ur`.~~ Done on 19 October 2026 (interface text, phase 2).
 - **A full visual check of every page in Urdu** at phone and desktop widths, once the Urdu text exists.
 
 ---
@@ -310,10 +311,42 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 
 ---
 
+## Interface text, phase 2. Done (19 October 2026), not deployed
+
+Every button, label and message a visitor sees can now be edited in `/admin`, and ships with hand-written Urdu, so `/ur` no longer shows English inside the tools.
+
+**Where the text lives**
+
+- **Buttons & labels** (Navigation): six new groups, for text that appears on many pages: the AI chat (Concierge), account screens, offers/Plus/referrals, report a problem and ratings, installing the app, and the services menu and search.
+- **A "Tool text" group on each tool's own page** (Pages): Ghar Scan, Home Pulse, Glam Mirror and the Shaadi Orchestrator. These are read with the page and passed to the tool, so other pages don't carry them. Home Pulse's group includes the wording of every plan item, and the Shaadi group the look names, warnings, change notes and each person's WhatsApp summary.
+- **Home page → Hero phone app:** the text inside the tappable phone (also used on `/app`). Its cart, search and waitlist words come from Buttons & labels.
+- **Pages → Become a pro** (new): `/partner`, the application, the thank-you page and the AI interview. Visitors pick English, Urdu or Roman Urdu on the page, so each text has all three. On `/ur` the pages open in Urdu. Its search title and description are editable too.
+
+**What stays fixed in code**
+
+- Ids that are stored: look and prep keys, rating tags, skills, days and booking windows. Only their names are editable.
+- The staff tools (`/ops`, `/pro`) and the admin itself.
+
+**The AI tools follow the page's language**
+
+- On `/ur`, Ghar Scan, the Shaadi assistant, the Look Card and the Concierge answer in Urdu unless the customer writes in another language. Home Pulse starts in Urdu.
+- Their APIs return an error code; the page shows that code's message from the CMS, in its language.
+- The Concierge keeps working from the English catalogue (more reliable search); its service cards show the names from the page's own catalogue.
+- The Shaadi engine (`lib/shaadi.ts`) and Home Pulse (`lib/pulse.ts`) take their wording as an argument, English by default, so the ops console and the server are unchanged. Mehndi drying time is now decided by the look's key, not its name.
+
+**Tests** (`lib/cms/strings.test.ts`): the Urdu has every English string with the same `{{tokens}}`; the pro pages have all three languages; no placeholder collides with a page token; each page type ships its Urdu; and the wording doesn't change a Home Pulse plan or a Shaadi schedule.
+
+**Left**
+
+- A native speaker should review the new Urdu, along with the rest.
+- Ghar Scan's recommendation names come from the catalogue, so they turn Urdu once the catalogue's Urdu translation is done.
+
+---
+
 ## Checks and tests
 
 - `npx tsc --noEmit`: clean.
-- `npm test`: 191 tests in 17 files pass. They cover:
+- `npm test`: 203 tests in 18 files pass. They cover:
   - every content type's built-in content validating against its fields, and round-tripping unchanged
   - shipped Urdu
   - media type and content checks, size limits and image lookup
@@ -327,6 +360,7 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
   - the permission matrix for every role, two-step sign-in, scheduling and saving (`permissions.test.ts`)
   - two-step sign-in rules (`mfa.test.ts`), backups (`backup.test.ts`) and the history compare (`diff.test.ts`)
   - built-in content as the fallback for every type when an entry is invalid or the database is down (`read.test.ts`)
+  - the shipped Urdu interface text and the engines' wording (`strings.test.ts`)
 - `npx next build`: passes (5 October 2026, phase 7). 828 pages, plus two per published block page (English and Urdu).
 
 ## Commits
@@ -344,3 +378,4 @@ and SEO suggestions in the admin. `.env.example` lists every variable with a com
 | Phase 6 | Block pages, 13 blocks, live preview, click-to-edit; new items no longer 404 after a deploy |
 | Phase 7 (part 1) | Permission fixes and matrix tests, backup, two-step sign-in, history compare, several Owners, Supabase setup script |
 | Phase 7 | Team handbook, smaller browser catalogue, Ctrl+S versions, drafts equal to live are cleared, docs |
+| Interface text 2 (19 Oct) | Ghar Scan, Home Pulse, Glam Mirror, Shaadi, Concierge, account, offers, ratings, hero phone and the pro pages editable, with Urdu |

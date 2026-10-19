@@ -2,22 +2,23 @@ import type { Metadata } from "next"
 import { PartnerLanding } from "@/components/partner/partner-landing"
 import { FAQ } from "@/components/site/faq"
 import type { HelpTopic } from "@/lib/content"
-import { getContent } from "@/lib/cms/read"
+import { getContent, getPage } from "@/lib/cms/read"
+import type { PartnerContent } from "@/lib/cms/types/pages/company"
 import { pageLocale } from "@/lib/cms/locale"
 import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  return pageMetadata({ path: "/partner", title: "Become a Mjazo pro: beautician jobs in Karachi", description: "Join Karachi's women-only beauty team. Weekly payouts, pick your days, safe transport support, free training and kits supplied. Apply in English or Urdu." })
+  return pageMetadata({ path: "/partner", seo: (await getPage("partner")).seo })
 }
 
 export default async function PartnerPage({ params }: { params: Promise<{ locale: string }> }) {
   await pageLocale(params)
-  const topics = await getContent<HelpTopic>("help-topic")
+  const [topics, text] = await Promise.all([getContent<HelpTopic>("help-topic"), getPage<PartnerContent>("partner")])
   const forPros = topics.find((t) => t.slug === "for-pros")
   return (
     <>
-      <PartnerLanding />
+      <PartnerLanding text={text} />
       {forPros && <FAQ items={forPros.articles} title="Questions from pros" />}
     </>
   )

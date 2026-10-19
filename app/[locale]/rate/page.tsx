@@ -3,11 +3,13 @@ import { PageHero } from "@/components/site/page-hero"
 import { Container } from "@/components/site/primitives"
 import { RatePage } from "@/components/site/rate-page"
 import { pageLocale } from "@/lib/cms/locale"
+import { getUi } from "@/lib/cms/read"
 import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  return pageMetadata({ path: "/rate", title: "Rate your visit", description: "Tell us how your Mjazo visit went. Every rating is read and helps us coach our pros." })
+  const ui = await getUi()
+  return pageMetadata({ path: "/rate", title: ui.crumbs.rate, description: ui.feedback.rateDescription })
 }
 
 export default async function Rate({ params }: { params: Promise<{ locale: string }> }) {

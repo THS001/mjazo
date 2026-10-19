@@ -34,7 +34,7 @@ const STATIC: [string, string | null, string?][] = [
   ["/complaint", "complaint"],
   ["/help", "help"],
   ["/blog", "blog"],
-  ["/partner", null, "Become a pro"],
+  ["/partner", "partner"],
   ["/partner/apply", null, "Pro application"],
 ]
 

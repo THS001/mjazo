@@ -2,11 +2,13 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import { SearchView } from "@/components/services/search-view"
 import { pageLocale } from "@/lib/cms/locale"
+import { getUi } from "@/lib/cms/read"
 import { pageMetadata } from "@/lib/cms/seo/metadata"
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   await pageLocale(params)
-  return pageMetadata({ path: "/search", title: "Search services", noindex: "follow" })
+  const ui = await getUi()
+  return pageMetadata({ path: "/search", title: ui.search.title, noindex: "follow" })
 }
 
 export default async function SearchPage({ params }: { params: Promise<{ locale: string }> }) {
