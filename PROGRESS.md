@@ -31,7 +31,7 @@ accounts, and what's left.
 | CMS phase 7: hardening and team handbook | Done, live |
 | Interface text phase 2 (tools, chat, account, offers, ratings, hero phone, pro pages) | **Done and live 19 Oct 2026**, with Urdu |
 | Supabase (database and file storage) | **Connected (5 Oct 2026).** CMS content, media, bookings and staff data are now stored durably |
-| **Platform stage 1: core engine** (bookings, pros, money ledger, slot capacity) | **Built 21 Oct 2026**, tested locally; switches on live once the owner runs `node scripts/setup-supabase.mjs --migrate` |
+| **Platform stage 1: core engine** (bookings, pros, money ledger, slot capacity) | **Live 21 Oct 2026**: migration 0005 run on Supabase, `DATABASE_URL` set, deployed and checked |
 | Platform stages 2–6 (mission control, pro app, client account, automation, mobile apps) | Planned, in order (section 9) |
 
 ---
@@ -307,7 +307,7 @@ Project `xjyafabyscamelebzrsb` (https://xjyafabyscamelebzrsb.supabase.co), set u
 | `0002_ai.sql` | `conversations` (Concierge) |
 | `0003_ops.sql` | `ops_docs` (jobs, pros, applicants, complaints, wedding plans, ratings, audit) |
 | `0004_cms.sql` | `cms_entries`, `cms_versions`, `cms_users`, `cms_media`, `cms_redirects`, `cms_seo_reports`, `cms_audit`, plus the `media` storage bucket |
-| `0005_core.sql` | The core engine: customers, addresses, zones, pros (+ availability, time off), bookings (+ lines, events, payments, ratings), the ledger (accounts, entries, postings), payouts, promo codes, events, notifications, audit log, core_meta. **Not yet run on the live database** |
+| `0005_core.sql` | The core engine: customers, addresses, zones, pros (+ availability, time off), bookings (+ lines, events, payments, ratings), the ledger (accounts, entries, postings), payouts, promo codes, events, notifications, audit log, core_meta. Run on the live database on 21 Oct 2026 |
 
 With Supabase connected, the cross-page flows (apply → interview link, booking → ops console,
 complaint → Trust Desk) can now work end to end on the live site. They haven't been re-tested live yet.
@@ -323,7 +323,7 @@ All are listed with explanations in [.env.example](.env.example).
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | CMS sign-in and media uploads | Set (production) |
 | `CMS_OWNER_EMAIL` | The CMS Owners | Set: mjazosupport@gmail.com, thehashirsukhera@gmail.com |
 | `CMS_MFA_REQUIRED` | Two-step sign-in for Owners and Admins (on unless `false`) | Not set (on) |
-| `DATABASE_URL` (+ optional `DATABASE_CA_CERT`) | The core engine (bookings, pros, ledger, slot capacity) | Not set: run `node scripts/setup-supabase.mjs --migrate` |
+| `DATABASE_URL` (+ optional `DATABASE_CA_CERT`) | The core engine (bookings, pros, ledger, slot capacity) | Set (production, secret): Supabase transaction pooler `aws-0-ap-northeast-1`, 21 Oct 2026. `DATABASE_CA_CERT` not set (optional) |
 | `OPS_PASSCODE`, `SESSION_SECRET` | Turning on `/ops` and `/pro` | Not set |
 | `CRON_SECRET` (plus a 5-minute pinger) | Safety Guardian, scheduled publishing and the weekly SEO check | Not set |
 | `RESEND_API_KEY`, `OPS_EMAIL`, `OPS_FROM` | Emailing every submission to the team | Not set |
@@ -342,7 +342,7 @@ All are listed with explanations in [.env.example](.env.example).
 5. Run `node scripts/setup-supabase.mjs --cron`: it makes `CRON_SECRET`, stores it in Vercel and shows the pinger steps. Point an external 5-minute pinger (cron-job.org) at `/api/cron/safety` and `/api/cron/cms-publish` with that secret, then redeploy. The weekly SEO check then runs by itself (a Vercel cron in `vercel.json`).
 6. Optionally set `RESEND_API_KEY` and the `OPS_*` emails, the WhatsApp Cloud API settings, `STT_API_KEY` and `PAGESPEED_API_KEY`.
 7. Deploy (`npx vercel deploy --prod` from `website/`) after checking that `npx vercel teams ls` shows **thehashirsukhera-8511's projects**. `vercel login` signs in whichever Vercel account your browser is using, and that has picked another client's account before; approve the login in a window signed in as thehashirsukhera-8511. Run it in a normal (not administrator) PowerShell: the administrator window on this computer is another Windows user and keeps its own login.
-8. **Connect the core engine:** run `node scripts/setup-supabase.mjs --migrate` in a normal PowerShell in `website/`.
+8. ~~**Connect the core engine:**~~ Done 21 Oct 2026. run `node scripts/setup-supabase.mjs --migrate` in a normal PowerShell in `website/`.
    - It asks for the database password, creates the new tables, then asks for Supabase's "Transaction pooler" connection string (Connect → Transaction pooler), checks it and saves it to Vercel as `DATABASE_URL`.
    - Then Claude redeploys.
 9. In `/admin/translate`, run "Translate everything missing". Have someone review the Urdu, then switch on the Urdu site under Settings → Feature switches.
@@ -374,7 +374,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
 
 1. ~~Deploy the work since 5 October~~: deployed on 19 October 2026 (the phase 7 media fix and interface text phase 2).
 2. **The platform build** (plan approved 21 October 2026; one or more sessions per stage):
-   1. ~~Core engine~~: built 21 October (section 3b). It goes live when the owner runs the `--migrate` step (section 7, step 8).
+   1. ~~Core engine~~: built and live 21 October (section 3b). Until pros are added in the core, checkout runs in "open" mode (every window open, the team confirms).
    2. **Mission control:** per-person staff accounts on the CMS sign-in (Dispatcher, Support, Finance, Recruiter roles, two-step sign-in, a real audit trail). Screens:
       - a requests inbox, the board, and a booking page with reschedule, refunds and credits
       - pros with the verification checklist, zones and capacity
