@@ -101,7 +101,14 @@ async function connect(password) {
     return direct
   } catch (err) {
     if (/password authentication failed/i.test(String(err?.message))) fail("Supabase says that database password is wrong. Reset it under Project Settings → Database, then run this again.")
-    say(`  Couldn't reach the database directly (${err?.code ?? err?.message}).`)
+    say(`  Couldn't reach the database directly (${err?.code ?? err?.message}). Trying Supabase's pooler…`)
+    const found = await findPooler(password, 5432, "select 1")
+    if (found) {
+      const viaPooler = new pg.Client({ connectionString: found, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 15000 })
+      await viaPooler.connect().catch((e) => fail(`Couldn't connect through the pooler: ${e.message}`))
+      say(`  ✓ Connected through ${new URL(found).hostname}`)
+      return viaPooler
+    }
     say("  In Supabase, click Connect → Session pooler and copy the connection string.")
     const url = await ask("  Paste it here, with your password in place of [YOUR-PASSWORD]: ", true)
     const pooled = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 15000 })
@@ -211,6 +218,31 @@ Keep the secret private: anyone with it can trigger these jobs (they can't chang
 // Step 3: the core engine (DATABASE_URL)
 // ---------------------------------------------------------------------------
 
+/** Why a pooler connection string doesn't work (null when it reaches the core tables). */
+async function poolerProblem(url, probe = "select 1 from bookings limit 1") {
+  const test = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 10000 })
+  try {
+    await test.connect()
+    await test.query(probe)
+    return null
+  } catch (e) {
+    return e.message
+  } finally {
+    await test.end().catch(() => {})
+  }
+}
+
+// Supabase pooler hosts are aws-0-<region> or aws-1-<region>; a wrong region answers "tenant not
+// found" without trying the password, so trying them all is quick and harmless.
+const POOLER_REGIONS = ["ap-south-1", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1", "ap-northeast-2", "me-central-1", "eu-central-1", "eu-central-2", "eu-west-1", "eu-west-2", "eu-west-3", "eu-north-1", "us-east-1", "us-east-2", "us-west-1", "us-west-2", "ca-central-1", "sa-east-1"]
+
+/** The project's transaction pooler string (with the password in it), or null if not found. */
+async function findPooler(password, port = 6543, probe) {
+  const urls = ["aws-0", "aws-1"].flatMap((p) => POOLER_REGIONS.map((r) => `postgresql://postgres.${PROJECT_REF}:${encodeURIComponent(password)}@${p}-${r}.pooler.supabase.com:${port}/postgres`))
+  const results = await Promise.all(urls.map(async (url) => ((await poolerProblem(url, probe)) ? null : url)))
+  return results.find(Boolean) ?? null
+}
+
 async function setupCore(exists) {
   say("\nCore engine (bookings, pros, the money ledger)")
   const replace = !exists || (await yes("DATABASE_URL is already set in Vercel. Replace it?", false))
@@ -225,30 +257,25 @@ async function setupCore(exists) {
   say("  ✓ Core tables ready")
   if (!replace) return true
 
-  say(`
-2. The database address for the site
+  say("\n2. Finding the database address for the site (Supabase's transaction pooler)")
+  let url = await findPooler(password)
+  if (url) say(`  ✓ Found it: ${new URL(url).hostname}`)
+  else
+    say(`  Couldn't find it by itself.
    In Supabase, click Connect (top of the project page) → "Transaction pooler", and copy the
    connection string. It looks like:
      postgresql://postgres.${PROJECT_REF}:[YOUR-PASSWORD]@aws-0-….pooler.supabase.com:6543/postgres
    Paste it as it is, with [YOUR-PASSWORD] still in it: this script puts your password in.`)
-  let url = ""
-  for (;;) {
+  while (!url) {
     const pasted = await ask("  Transaction pooler string: ", true)
     if (!/^postgres(ql)?:\/\/.+:6543\//.test(pasted)) {
       say("  That isn't the transaction pooler string (it uses port 6543). Try again.")
       continue
     }
-    url = pasted.replace("[YOUR-PASSWORD]", encodeURIComponent(password))
-    const test = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 15000 })
-    try {
-      await test.connect()
-      await test.query("select 1 from bookings limit 1")
-      await test.end()
-      break
-    } catch (e) {
-      await test.end().catch(() => {})
-      say(`  Couldn't use it (${e.message}). Check it's the transaction pooler string and try again.`)
-    }
+    const candidate = pasted.replace("[YOUR-PASSWORD]", encodeURIComponent(password))
+    const problem = await poolerProblem(candidate)
+    if (!problem) url = candidate
+    else say(`  Couldn't use it (${problem}). Check it's the transaction pooler string and try again.`)
   }
   say("  ✓ The site can reach the core tables through the pooler")
 
