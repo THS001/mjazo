@@ -15,6 +15,10 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  // PGlite (an embedded Postgres) is the core database for local development and tests only.
+  // Production uses DATABASE_URL, so keep PGlite out of the server bundle and the deployed functions.
+  serverExternalPackages: ["@electric-sql/pglite"],
+  outputFileTracingExcludes: { "*": ["node_modules/@electric-sql/pglite/**"] },
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: supabaseHost ? [{ protocol: "https", hostname: supabaseHost, pathname: "/storage/v1/object/public/media/**" }] : [],

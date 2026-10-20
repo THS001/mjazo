@@ -36,6 +36,7 @@ export const schemas = {
     items: z.array(bookingItem).min(1),
     total: z.number(),
     channel: z.enum(["web", "concierge-web", "concierge-whatsapp"]).optional(),
+    referral: z.string().max(40).optional(), // a friend's referral code (first booking only)
     // Ghar Scan diagnosis or Glam Mirror Look Card for the pro (photos travel separately, see /api/booking/attach)
     brief: z
       .object({
@@ -94,8 +95,12 @@ export async function notifyOps(subject: string, text: string) {
   }).catch((e) => console.error("[notifyOps] email failed", e))
 }
 
-/** Validates and stores a submission. Throws a ValidationError with a user-facing message. */
-export class ValidationError extends Error {}
+/** A user-facing problem with a submission. `code` lets the page show its own (translated) text. */
+export class ValidationError extends Error {
+  constructor(message: string, readonly code?: string) {
+    super(message)
+  }
+}
 
 export async function saveSubmission(type: SubmissionType, raw: unknown, attribution: Record<string, unknown> = {}, page?: string) {
   const parsed = schemas[type].safeParse(raw)

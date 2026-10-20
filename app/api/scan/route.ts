@@ -8,8 +8,7 @@ import { getCatalog, getPage, whatsappLink } from "@/lib/cms/read"
 import { fill } from "@/lib/cms/format"
 import type { GharScanContent } from "@/lib/cms/types/pages/tools"
 import { isLocale } from "@/lib/i18n"
-import { all } from "@/lib/server/docs"
-import type { Job } from "@/lib/ops/types"
+import { allJobs } from "@/lib/server/ops"
 
 // Ghar Scan: photos → likely issue (or look) → catalogue services with price ranges.
 // The model must answer through the report_scan tool; every recommendation is re-checked
@@ -111,7 +110,7 @@ const VIDEO_CHECK_BELOW = 55
 /** What customers actually paid on completed Mjazo jobs per service (shown once there are 3+ jobs). */
 async function jobHistory() {
   const paid = new Map<string, number[]>()
-  for (const j of await all<Job>("jobs")) {
+  for (const j of await allJobs()) {
     if (j.status !== "completed" || !j.paymentRecord || j.items.length !== 1) continue
     const k = `${j.items[0].category}/${j.items[0].service}`
     paid.set(k, [...(paid.get(k) ?? []), j.paymentRecord.amount])

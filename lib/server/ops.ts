@@ -1,16 +1,42 @@
 import "server-only"
-import { all, get, insertNew, mutate, remove } from "./docs"
-import { listSubmissions, notifyOps } from "./store"
+import { all, get, insertNew, mutate, put, remove } from "./docs"
+import { listSubmissions, notifyOps, type StoredSubmission } from "./store"
 import { randomToken } from "./session"
 import { karachiNow } from "@/lib/time"
 import { OPS, safetyStatus, type OpsCatalog } from "@/lib/ops/logic"
-import { getCatalog } from "@/lib/cms/read"
-import type { Application, Complaint, Job, JobEvent, JobEventType, JobStatus, Pro, SafetyStatus } from "@/lib/ops/types"
+import { getCatalog, getSettings } from "@/lib/cms/read"
+import { core, type Db } from "@/lib/core/db"
+import * as cj from "@/lib/core/jobs"
+import { earnedSince } from "@/lib/core/ledger"
+import { normalisePhone } from "@/lib/core/phone"
+import { PricingError } from "@/lib/core/pricing"
+import { ALLOWED, FINAL, STATUS_FOR } from "@/lib/core/status"
+import type { Application, Complaint, Job, JobEvent, JobEventType, Pro, SafetyStatus } from "@/lib/ops/types"
 
-// Ops domain on top of the document store. Bookings and applications arrive as website
-// submissions and are turned into jobs / pipeline entries the first time ops reads them.
+// The ops domain. Jobs (bookings) and pros live in the core engine's tables when it's on
+// (lib/core: DATABASE_URL in production, PGlite locally), and in the older document store
+// (ops_docs) otherwise. Applications, complaints, SOS, attachments and weddings stay in the
+// document store for now. Every caller uses these functions, so the switch is invisible to the
+// ops console and the pro app.
 
 export const nowIso = () => new Date().toISOString()
+export { normalisePhone }
+
+let legacy: Promise<unknown> | null = null
+/** The core database for ops, or null when it's off. The first use copies the older records across. */
+async function opsDb(): Promise<Db | null> {
+  const db = await core()
+  if (!db) return null
+  legacy ??= cj
+    .importLegacy(db, async () => ({ pros: await all<Pro>("pros"), jobs: await all<Job>("jobs") }))
+    .then((r) => r && console.log(`[ops] copied ${r.pros} pros and ${r.jobs} jobs into the core`))
+    .catch((e) => {
+      legacy = null
+      throw e
+    })
+  await legacy
+  return db
+}
 
 /** Only look at submissions from a little before the newest one already synced. */
 const sinceOf = (docs: { createdAt: string }[]) => {
@@ -18,34 +44,66 @@ const sinceOf = (docs: { createdAt: string }[]) => {
   return last ? new Date(last - 3600_000).toISOString() : undefined
 }
 
+/** A website booking submission as a job (the older document store, and the core's fallback import). */
+function submissionJob(s: StoredSubmission): Job {
+  const d = s.data as Record<string, unknown>
+  return {
+    id: s.id,
+    createdAt: s.created_at,
+    date: String(d.date),
+    window: String(d.window),
+    area: String(d.area),
+    subArea: d.subArea ? String(d.subArea) : undefined,
+    address: String(d.address),
+    landmark: d.landmark ? String(d.landmark) : undefined,
+    customer: { name: String(d.name), phone: String(d.phone) },
+    items: (d.items as Job["items"]) ?? [],
+    total: Number(d.total) || 0,
+    payment: String(d.payment),
+    notes: d.notes ? String(d.notes) : undefined,
+    channel: d.channel ? String(d.channel) : "web",
+    brief: d.brief ? (d.brief as Job["brief"]) : undefined,
+    status: "new",
+    events: [],
+  }
+}
+
+/**
+ * Bookings that reached the submissions table but not the core (a failed write, or bookings made
+ * before the core was switched on) are added here. Lines that can no longer be priced keep the
+ * prices the customer saw.
+ */
+async function catchUpBookings(db: Db) {
+  const latest = await cj.latestBookingAt(db)
+  const subs = await listSubmissions("booking", latest ? new Date(Date.parse(latest) - 3600_000).toISOString() : undefined)
+  if (!subs.length) return
+  const known = new Set((await db.query<{ id: string }>("select id from bookings where id = any($1::text[])", [subs.map((s) => s.id)])).map((r) => r.id))
+  const missing = subs.filter((s) => !known.has(s.id))
+  if (!missing.length) return
+  const [cat, settings] = await Promise.all([getCatalog("en"), getSettings("en")])
+  for (const s of missing) {
+    const d = s.data as Parameters<typeof cj.createBooking>[1]
+    // Bookings from before the server priced them carry the referral only in the notes.
+    const referral = d.referral ?? (typeof d.notes === "string" ? d.notes.match(/Referral (\S+):/)?.[1] : undefined)
+    try {
+      await cj.createBooking(db, { ...d, id: s.id, createdAt: s.created_at, referral }, cat, { referralOff: settings.referral.friendOff })
+    } catch (e) {
+      if (!(e instanceof PricingError)) throw e
+      await cj.importJobs(db, [submissionJob(s)])
+    }
+  }
+}
+
 export async function syncJobs(): Promise<Job[]> {
+  const db = await opsDb()
+  if (db) {
+    await catchUpBookings(db)
+    return cj.listJobs(db)
+  }
   const jobs = await all<Job>("jobs")
   const subs = await listSubmissions("booking", sinceOf(jobs))
   const known = new Set(jobs.map((j) => j.id))
-  const fresh: Job[] = []
-  for (const s of subs) {
-    if (known.has(s.id)) continue
-    const d = s.data as Record<string, unknown>
-    fresh.push({
-      id: s.id,
-      createdAt: s.created_at,
-      date: String(d.date),
-      window: String(d.window),
-      area: String(d.area),
-      subArea: d.subArea ? String(d.subArea) : undefined,
-      address: String(d.address),
-      landmark: d.landmark ? String(d.landmark) : undefined,
-      customer: { name: String(d.name), phone: String(d.phone) },
-      items: (d.items as Job["items"]) ?? [],
-      total: Number(d.total) || 0,
-      payment: String(d.payment),
-      notes: d.notes ? String(d.notes) : undefined,
-      channel: d.channel ? String(d.channel) : "web",
-      brief: d.brief ? (d.brief as Job["brief"]) : undefined,
-      status: "new",
-      events: [],
-    })
-  }
+  const fresh = subs.filter((s) => !known.has(s.id)).map(submissionJob)
   if (!fresh.length) return jobs
   await insertNew("jobs", fresh)
   return all<Job>("jobs")
@@ -80,33 +138,61 @@ export async function syncApplications(): Promise<Application[]> {
   return all<Application>("applications")
 }
 
-export const getPros = () => all<Pro>("pros")
+// ---------------------------------------------------------------------------
+// Pros
+// ---------------------------------------------------------------------------
+
+export async function getPros(): Promise<Pro[]> {
+  const db = await opsDb()
+  return db ? cj.listPros(db) : all<Pro>("pros")
+}
+
+export async function getPro(id: string): Promise<Pro | null> {
+  const db = await opsDb()
+  return db ? cj.getProRow(db, id) : get<Pro>("pros", id)
+}
+
+export async function savePro(pro: Pro) {
+  const db = await opsDb()
+  if (db) await cj.savePro(db, pro)
+  else await put("pros", pro)
+}
+
 export const getComplaints = () => all<Complaint>("complaints")
-export const getJob = (id: string) => get<Job>("jobs", id)
+
+// ---------------------------------------------------------------------------
+// Jobs
+// ---------------------------------------------------------------------------
+
+/** Every job (read only: no catch-up), for statistics like Ghar Scan's real price ranges. */
+export async function allJobs(): Promise<Job[]> {
+  const db = await opsDb()
+  return db ? cj.listJobs(db, { sinceDays: 730 }) : all<Job>("jobs")
+}
+
+export async function getJob(id: string): Promise<Job | null> {
+  const db = await opsDb()
+  return db ? cj.getJob(db, id) : get<Job>("jobs", id)
+}
+
+/** Atomic change to one job (applied to the latest copy); null when it doesn't exist. */
+async function changeJob(id: string, fn: (j: Job) => void): Promise<Job | null> {
+  const db = await opsDb()
+  return db ? cj.mutateJob(db, id, fn) : mutate<Job>("jobs", id, fn)
+}
 
 /** Atomic update of one job (re-reads the latest copy); throws when the job doesn't exist. */
 export async function updateJob(id: string, fn: (j: Job) => void) {
-  const j = await mutate<Job>("jobs", id, fn)
+  const j = await changeJob(id, fn)
   if (!j) throw new OpsError("Job not found")
   return j
 }
 
-const STATUS_FOR: Partial<Record<JobEventType, JobStatus>> = {
-  assigned: "assigned",
-  en_route: "en_route",
-  checked_in: "checked_in",
-  checked_out: "checked_out",
-  completed: "completed",
-  cancelled: "cancelled",
-}
-const ALLOWED: Record<JobStatus, JobEventType[]> = {
-  new: ["assigned", "cancelled", "note"],
-  assigned: ["assigned", "en_route", "checked_in", "cancelled", "note", "sos", "safe"],
-  en_route: ["checked_in", "assigned", "cancelled", "note", "sos", "safe"],
-  checked_in: ["checked_out", "note", "sos", "safe", "payment"],
-  checked_out: ["completed", "payment", "note", "sos", "safe"],
-  completed: ["payment", "note"],
-  cancelled: ["note", "assigned"],
+/** Adds jobs built elsewhere (wedding plans), leaving any that already exist alone. */
+export async function insertJobs(jobs: Job[]) {
+  const db = await opsDb()
+  if (db) await cj.importJobs(db, jobs)
+  else await insertNew("jobs", jobs)
 }
 
 export class OpsError extends Error {}
@@ -120,7 +206,8 @@ export async function addJobEvent(jobId: string, type: JobEventType, by: JobEven
     if (next) job.status = next
   })
   // Brief photos are for the visit only: delete them once it is over.
-  if (type === "completed" || type === "cancelled") await remove("attachments", job.id).catch((e) => console.error("[ops] attachment cleanup failed", e))
+  const next = STATUS_FOR[type]
+  if (next && FINAL.includes(next)) await remove("attachments", job.id).catch((e) => console.error("[ops] attachment cleanup failed", e))
   if (type === "sos") await notifyOps(`[Mjazo SAFETY] SOS on ${job.id}`, `SOS raised by the pro on booking ${job.id} at ${job.address}, ${job.subArea ?? ""} ${job.area}.\nLocation: ${extra.lat ?? "?"}, ${extra.lng ?? "?"}\nCall the pro now.`)
   return job
 }
@@ -160,7 +247,7 @@ export async function safetySweep(jobs: Job[]): Promise<JobWithSafety[]> {
     if (probe.events.length !== j0.events.length) {
       // Re-apply on the latest copy so a check-out that just landed isn't overwritten.
       let escalated: SafetyStatus | null = null
-      j = (await mutate<Job>("jobs", j0.id, (d) => void (escalated = applyAlerts(d, now, cat)))) ?? j0
+      j = (await changeJob(j0.id, (d) => void (escalated = applyAlerts(d, now, cat)))) ?? j0
       const e = escalated as SafetyStatus | null
       if (e) void notifyOps(`[Mjazo SAFETY] No reply on ${j.id}`, `${e.message}. Pro ${j.proId ?? "?"} at ${j.address}, ${j.subArea ?? ""} ${j.area}. Call the pro, then the customer.`)
     }
@@ -169,28 +256,24 @@ export async function safetySweep(jobs: Job[]): Promise<JobWithSafety[]> {
   return out
 }
 
+/** A pro's visits and earnings over the last 7 days (from the ledger when the core is on). */
 export async function earningsFor(proId: string, jobs: Job[]) {
   const today = karachiNow().date
   const weekAgo = new Date(new Date(`${today}T00:00:00Z`).getTime() - 6 * 86400000).toISOString().slice(0, 10)
+  const db = await opsDb()
+  if (db) return earnedSince(db, proId, `${weekAgo}T00:00:00+05:00`)
   const done = jobs.filter((j) => j.proId === proId && j.status === "completed" && j.date >= weekAgo)
   return { visits: done.length, earned: Math.round(done.reduce((s, j) => s + j.total, 0) * OPS.proShare) }
 }
 
 export { OPS }
 
-/** 03xxxxxxxxx form for matching phones typed in different ways. */
-export function normalisePhone(p: string) {
-  const d = p.replace(/\D/g, "")
-  if (d.startsWith("0092")) return `0${d.slice(4)}`
-  if (d.startsWith("92")) return `0${d.slice(2)}`
-  return d.startsWith("0") ? d : `0${d}`
-}
-
 export const publicPro = ({ pinHash, ...p }: Pro) => ({ ...p, hasPin: Boolean(pinHash) })
 
 export async function assignJob(jobId: string, proId: string | null, plan: { eta?: string; routeOrder?: number } = {}) {
+  if (proId && !(await getPro(proId))) throw new OpsError("Pro not found")
   return updateJob(jobId, (job) => {
-    if (!["new", "assigned", "en_route", "cancelled"].includes(job.status)) throw new OpsError("This job is already under way")
+    if (!["new", "assigned", "en_route", "cancelled", "no_show"].includes(job.status)) throw new OpsError("This job is already under way")
     if (proId === null) {
       delete job.proId
       delete job.eta

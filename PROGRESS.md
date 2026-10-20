@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 19 October 2026 (interface text phase 2: the tools' text is editable, with Urdu)._
+_Last updated 21 October 2026 (platform stage 1: the core engine for bookings, pros and money)._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -31,6 +31,8 @@ accounts, and what's left.
 | CMS phase 7: hardening and team handbook | Done, live |
 | Interface text phase 2 (tools, chat, account, offers, ratings, hero phone, pro pages) | **Done and live 19 Oct 2026**, with Urdu |
 | Supabase (database and file storage) | **Connected (5 Oct 2026).** CMS content, media, bookings and staff data are now stored durably |
+| **Platform stage 1: core engine** (bookings, pros, money ledger, slot capacity) | **Built 21 Oct 2026**, tested locally; switches on live once the owner runs `node scripts/setup-supabase.mjs --migrate` |
+| Platform stages 2–6 (mission control, pro app, client account, automation, mobile apps) | Planned, in order (section 9) |
 
 ---
 
@@ -50,6 +52,7 @@ accounts, and what's left.
 | 5 Oct 2026 | **CMS phase 6 finished:** block pages from 13 blocks, live preview beside every editor, click-to-edit. Also fixed new items returning 404 after a deploy |
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
+| 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
 | 19 Oct 2026 | **Interface text phase 2:** the text inside Ghar Scan, Home Pulse, Glam Mirror, the Shaadi Orchestrator, the Concierge, account screens, offers, ratings, the hero phone and the pro pages is editable in `/admin`, with hand-written Urdu. The AI tools answer in Urdu on `/ur` |
 
 ---
@@ -128,6 +131,35 @@ Supabase table `ops_docs` (migration 0003).
 **Placeholders:** the pro share of 75% (`lib/ops/logic.ts`) and a generic protocol manual (`lib/ops/protocols.ts`).
 
 ---
+
+## 3b. The core engine (platform stage 1)
+
+The blueprint's "one backend, one database" (`MjazoVentureBlueprint.pdf` §11). Code in `lib/core/`, tables in `supabase/migrations/0005_core.sql`.
+
+- **Tables:**
+  - **People and places:** customers, addresses, zones.
+  - **Pros:** pros (skills, zones, commission rate, daily cap, verification checklist), weekly availability, time off.
+  - **Bookings:** bookings, booking lines, the event history, the pro's pay sheet, ratings.
+  - **Money:** the **ledger** (accounts, journal entries, postings), payouts, promo codes and their redemptions.
+  - **Plumbing:** an event outbox for the automations, outgoing notifications, an audit log.
+- **One database layer** (`lib/core/db.ts`): Postgres through `pg` on Supabase's transaction pooler (`DATABASE_URL`) in production; **PGlite** (an embedded Postgres in `.data/pglite`) locally and in tests, running the same SQL. Without `DATABASE_URL` in production the core is off and everything works as before.
+- **Bookings are priced on the server** from the catalogue (`lib/core/pricing.ts`): prices sent by the browser are ignored, and lines that can't be booked are refused. The referral discount is applied on the server too (first booking from a phone number only). Each booking is linked to a customer by phone.
+- **Real slot capacity** (`lib/core/capacity.ts`, `POST /api/v1/slots`). A window is open only if Route Brain can still fit the booking without dropping one that already fits.
+  - Checkout shows full windows and full days, and re-checks when the booking is placed.
+  - Categories with no pros yet stay open for the team to confirm.
+- **The money ledger** (`lib/core/ledger.ts`). Double-entry, whole rupees, append-only; the database refuses an entry that doesn't balance or any edit. Entries are posted automatically:
+  - a completed visit: the customer owes the total, the pro earns her share of the full price, Mjazo funds any discount;
+  - cash collected (held by the pro) or a digital payment (Mjazo's account) once it's cash, matched or checked;
+  - cash handed in, payout settlement (cash held is netted against what she's owed), credits, refunds.
+  - Cash held per pro and the amount payable are read straight from it. The pro app's 7-day earnings now come from the ledger.
+- **The ops console and pro app run on it unchanged** (`lib/core/jobs.ts` returns the same job and pro shapes). Changes lock the row, write only what changed, and keep the history append-only.
+  - The first use copies any older `ops_docs` pros and jobs across, once.
+  - Booking submissions that didn't reach the core are imported on the next ops read.
+- **Tests:** 37 engine tests on PGlite cover ledger balance and guards, every money flow, a random run of 25 bookings, pricing, the status machine, capacity, referral, and imports.
+- **Checked locally (dev server, staff tools on with local test values):**
+  - A booking sent with a tampered PKR 100 price was stored at the real PKR 6,100.
+  - The pro's only slot showed as full at checkout.
+  - Assign → pro PIN sign-in → on the way → check-in → finish with cash: the pro app showed PKR 4,575 earned (75%), and the ops board showed the booking done.
 
 ## 4. Brand kit
 
@@ -275,6 +307,7 @@ Project `xjyafabyscamelebzrsb` (https://xjyafabyscamelebzrsb.supabase.co), set u
 | `0002_ai.sql` | `conversations` (Concierge) |
 | `0003_ops.sql` | `ops_docs` (jobs, pros, applicants, complaints, wedding plans, ratings, audit) |
 | `0004_cms.sql` | `cms_entries`, `cms_versions`, `cms_users`, `cms_media`, `cms_redirects`, `cms_seo_reports`, `cms_audit`, plus the `media` storage bucket |
+| `0005_core.sql` | The core engine: customers, addresses, zones, pros (+ availability, time off), bookings (+ lines, events, payments, ratings), the ledger (accounts, entries, postings), payouts, promo codes, events, notifications, audit log, core_meta. **Not yet run on the live database** |
 
 With Supabase connected, the cross-page flows (apply → interview link, booking → ops console,
 complaint → Trust Desk) can now work end to end on the live site. They haven't been re-tested live yet.
@@ -290,6 +323,7 @@ All are listed with explanations in [.env.example](.env.example).
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | CMS sign-in and media uploads | Set (production) |
 | `CMS_OWNER_EMAIL` | The CMS Owners | Set: mjazosupport@gmail.com, thehashirsukhera@gmail.com |
 | `CMS_MFA_REQUIRED` | Two-step sign-in for Owners and Admins (on unless `false`) | Not set (on) |
+| `DATABASE_URL` (+ optional `DATABASE_CA_CERT`) | The core engine (bookings, pros, ledger, slot capacity) | Not set: run `node scripts/setup-supabase.mjs --migrate` |
 | `OPS_PASSCODE`, `SESSION_SECRET` | Turning on `/ops` and `/pro` | Not set |
 | `CRON_SECRET` (plus a 5-minute pinger) | Safety Guardian, scheduled publishing and the weekly SEO check | Not set |
 | `RESEND_API_KEY`, `OPS_EMAIL`, `OPS_FROM` | Emailing every submission to the team | Not set |
@@ -308,7 +342,10 @@ All are listed with explanations in [.env.example](.env.example).
 5. Run `node scripts/setup-supabase.mjs --cron`: it makes `CRON_SECRET`, stores it in Vercel and shows the pinger steps. Point an external 5-minute pinger (cron-job.org) at `/api/cron/safety` and `/api/cron/cms-publish` with that secret, then redeploy. The weekly SEO check then runs by itself (a Vercel cron in `vercel.json`).
 6. Optionally set `RESEND_API_KEY` and the `OPS_*` emails, the WhatsApp Cloud API settings, `STT_API_KEY` and `PAGESPEED_API_KEY`.
 7. Deploy (`npx vercel deploy --prod` from `website/`) after checking that `npx vercel teams ls` shows **thehashirsukhera-8511's projects**. `vercel login` signs in whichever Vercel account your browser is using, and that has picked another client's account before; approve the login in a window signed in as thehashirsukhera-8511. Run it in a normal (not administrator) PowerShell: the administrator window on this computer is another Windows user and keeps its own login.
-8. In `/admin/translate`, run "Translate everything missing". Have someone review the Urdu, then switch on the Urdu site under Settings → Feature switches.
+8. **Connect the core engine:** run `node scripts/setup-supabase.mjs --migrate` in a normal PowerShell in `website/`.
+   - It asks for the database password, creates the new tables, then asks for Supabase's "Transaction pooler" connection string (Connect → Transaction pooler), checks it and saves it to Vercel as `DATABASE_URL`.
+   - Then Claude redeploys.
+9. In `/admin/translate`, run "Translate everything missing". Have someone review the Urdu, then switch on the Urdu site under Settings → Feature switches.
 
 ---
 
@@ -336,11 +373,29 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
 ## 9. What's left, in order
 
 1. ~~Deploy the work since 5 October~~: deployed on 19 October 2026 (the phase 7 media fix and interface text phase 2).
-2. **Owner setup:** section 7 (rotate secrets, SMTP, `CRON_SECRET` and pingers, staff tool passcodes).
-3. **Re-test the live flows** that need Supabase: booking → ops console, apply → interview, complaint → Trust Desk.
-4. **Urdu content:** the AI translation pass, a human review (including the new interface Urdu), then switching on the Urdu site.
-5. **Founder confirmations:** section 8 (contact details, prices, policies, legal text).
-6. **Brand:** the open decisions in section 4.
+2. **The platform build** (plan approved 21 October 2026; one or more sessions per stage):
+   1. ~~Core engine~~: built 21 October (section 3b). It goes live when the owner runs the `--migrate` step (section 7, step 8).
+   2. **Mission control:** per-person staff accounts on the CMS sign-in (Dispatcher, Support, Finance, Recruiter roles, two-step sign-in, a real audit trail). Screens:
+      - a requests inbox, the board, and a booking page with reschedule, refunds and credits
+      - pros with the verification checklist, zones and capacity
+      - money: cash held, reconciliation, payout runs
+      - promo codes, KPIs
+   3. **Pro app:** a versioned `/api/v1/pro` API with:
+      - job offers with accept/decline, multi-day schedule, availability
+      - earnings statement from the ledger, payouts, ratings
+      - phone + PIN kept, email link added
+   4. **Client account:** email-link sign-in, live booking status, reschedule/cancel, saved addresses with a map pin, promo codes, credits, rebook your pro. Needs SMTP in Supabase.
+   5. **Automation:** the outbox worker and these automations:
+      - WhatsApp/email/push messages, logged until providers are set
+      - auto-assign (off / suggest / auto)
+      - weekly payout runs for approval
+      - Home Pulse nudges, win-back and review requests
+   6. **Mobile apps:** Expo (React Native) Mjazo and Mjazo Pro in `mobile/`, tested with Expo Go. Store builds need the owner's Expo and Google Play accounts.
+3. **Owner setup:** section 7 (rotate secrets, SMTP, `CRON_SECRET` and pingers, staff tool passcodes).
+4. **Re-test the live flows** that need Supabase: booking → ops console, apply → interview, complaint → Trust Desk.
+5. **Urdu content:** the AI translation pass, a human review (including the new interface Urdu), then switching on the Urdu site.
+6. **Founder confirmations:** section 8 (contact details, prices, policies, legal text).
+7. **Brand:** the open decisions in section 4.
 
 ~~Interface text still in code~~: done on 19 October 2026.
 
@@ -369,4 +424,13 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
 - **Interface text:** shared text goes in `lib/cms/types/ui.ts` (`useT()`). A tool's own text goes in `lib/cms/types/tool-text/<tool>.ts` (English and Urdu objects of the same shape) and in a `toolText()` group on its page type; the page passes it to the tool as a prop. `lib/cms/strings.test.ts` checks the Urdu matches the English, `{{tokens}}` included. Don't name a placeholder `site`, `policy`, `plus`, `referral`, `flags` or `catalog`: `getPage()` fills those.
 - **AI tool APIs** take the page's `locale` and return `{ code, error }` on failure; the page shows the code's message from the CMS.
 - **Engines with wording:** `buildPlan()` (`lib/pulse.ts`) and `computeSchedule()`, `diffSchedules()`, `personMessage()` (`lib/shaadi.ts`) take optional wording, English by default. Decide behaviour by keys, never by labels.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (203 tests), then `npx next build` (828 pages, plus two per published block page).
+- **The core engine (`lib/core/`):**
+  - All SQL goes through `core()` / `Db` (`lib/core/db.ts`); ops code calls `lib/server/ops.ts`, which picks the core or the older document store.
+  - **Never change `0005_core.sql` once it has run on the live database:** add `0006_….sql`. Migrations must be safe to run again.
+  - **Money moves only through `lib/core/ledger.ts`**: never store a balance, never edit a posting.
+  - Change a job only through `mutateJob()`, which posts to the ledger, writes outbox events and keeps the history append-only.
+  - PGlite ignores a second constructor argument when the first isn't a path: pass one options object.
+  - pg and PGlite return dates as `YYYY-MM-DD` and timestamps as ISO strings (parsers in `db.ts`). Pass JSON values as `JSON.stringify(x)` with `$n::jsonb`.
+  - The local PGlite database (`.data/pglite`) is opened by one process at a time: stop the dev server before any script that opens it.
+- **Staff tools locally:** start the `mjazo-web-staff` preview configuration (`.claude/launch.json`). It sets local-only test values: ops passcode `local-ops-2468`; pros get PINs from ops.
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (240 tests), then `npx next build` (828 pages, plus two per published block page).

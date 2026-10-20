@@ -4,9 +4,9 @@ import { karachiNow } from "@/lib/time"
 import { getCatalog } from "@/lib/cms/read"
 import { handle, readJson } from "@/lib/server/api"
 import { audit } from "@/lib/server/audit"
-import { all, get, insertNew, mutate } from "@/lib/server/docs"
+import { all, get, mutate } from "@/lib/server/docs"
 import { requireOps } from "@/lib/server/session"
-import { OpsError, nowIso } from "@/lib/server/ops"
+import { OpsError, insertJobs, nowIso } from "@/lib/server/ops"
 import { weddingJobs } from "@/lib/server/weddings"
 import type { WeddingDoc } from "@/app/api/shaadi/submit/route"
 
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     if (b.action === "approve") {
       try {
         const jobs = weddingJobs(doc.plan, doc.id, today, await getCatalog())
-        await insertNew("jobs", jobs)
+        await insertJobs(jobs)
         jobIds = jobs.map((j) => j.id)
         saved = await mutate<WeddingDoc>("weddings", b.id, (d) => void (d.jobIds = jobIds))
       } catch (e) {

@@ -2,6 +2,7 @@
 //
 //   node scripts/setup-supabase.mjs          (asks which steps to run)
 //   node scripts/setup-supabase.mjs --cron   (only the scheduled-jobs step)
+//   node scripts/setup-supabase.mjs --migrate (only the core engine step: new tables + DATABASE_URL)
 //
 // Step 1, Supabase: asks for the database password and the two API keys. They're typed into this
 // terminal only, never saved to a file. Then it creates the database tables (supabase/migrations,
@@ -11,6 +12,9 @@
 // Step 2, scheduled jobs: makes a random CRON_SECRET on this computer, stores it in Vercel as a
 // Secret, and shows it once, to paste into a 5-minute pinger (scheduled publishing, Safety
 // Guardian). The weekly SEO check needs no pinger: Vercel runs it and sends the secret itself.
+//
+// Step 3, core engine: runs any new migrations (bookings, the money ledger, …) and stores the
+// database address the site uses for them (DATABASE_URL, Supabase's transaction pooler) in Vercel.
 //
 // Afterwards: redeploy, so the site picks the settings up.
 
@@ -106,18 +110,8 @@ async function connect(password) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Step 1: Supabase
-// ---------------------------------------------------------------------------
-
-async function setupSupabase() {
-  say("\nSupabase")
-  const password = process.env.SUPABASE_DB_PASSWORD || (await ask("Database password: ", true))
-  const publishable = process.env.SUPABASE_PUBLISHABLE_KEY || (await askKey("Publishable key", "sb_publishable_"))
-  const secret = process.env.SUPABASE_SECRET_KEY || (await askKey("Secret key", "sb_secret_"))
-
-  say("\n1. Creating the database tables")
-  const client = await connect(password)
+/** Runs every migration in order; each is safe to run again. */
+async function runMigrations(client) {
   const files = readdirSync(join(ROOT, "supabase", "migrations"))
     .filter((f) => f.endsWith(".sql"))
     .sort()
@@ -134,6 +128,21 @@ async function setupSupabase() {
       fail(`${f} failed: ${err.message}`)
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Step 1: Supabase
+// ---------------------------------------------------------------------------
+
+async function setupSupabase() {
+  say("\nSupabase")
+  const password = process.env.SUPABASE_DB_PASSWORD || (await ask("Database password: ", true))
+  const publishable = process.env.SUPABASE_PUBLISHABLE_KEY || (await askKey("Publishable key", "sb_publishable_"))
+  const secret = process.env.SUPABASE_SECRET_KEY || (await askKey("Secret key", "sb_secret_"))
+
+  say("\n1. Creating the database tables")
+  const client = await connect(password)
+  await runMigrations(client)
   const { rows } = await client.query("select table_name from information_schema.tables where table_schema = 'public' order by 1")
   const bucket = await client.query("select id from storage.buckets where id = 'media'")
   say(`  Tables: ${rows.map((r) => r.table_name).join(", ")}`)
@@ -199,6 +208,56 @@ Keep the secret private: anyone with it can trigger these jobs (they can't chang
 }
 
 // ---------------------------------------------------------------------------
+// Step 3: the core engine (DATABASE_URL)
+// ---------------------------------------------------------------------------
+
+async function setupCore(exists) {
+  say("\nCore engine (bookings, pros, the money ledger)")
+  const replace = !exists || (await yes("DATABASE_URL is already set in Vercel. Replace it?", false))
+  const password = process.env.SUPABASE_DB_PASSWORD || (await ask("Database password: ", true))
+
+  say("\n1. Creating the new tables")
+  const client = await connect(password)
+  await runMigrations(client)
+  const core = await client.query("select count(*)::int as n from information_schema.tables where table_schema = 'public' and table_name in ('bookings', 'postings', 'pros')")
+  await client.end()
+  if (core.rows[0].n !== 3) fail("The core tables weren't created. Send Claude the output above.")
+  say("  ✓ Core tables ready")
+  if (!replace) return true
+
+  say(`
+2. The database address for the site
+   In Supabase, click Connect (top of the project page) → "Transaction pooler", and copy the
+   connection string. It looks like:
+     postgresql://postgres.${PROJECT_REF}:[YOUR-PASSWORD]@aws-0-….pooler.supabase.com:6543/postgres
+   Paste it as it is, with [YOUR-PASSWORD] still in it: this script puts your password in.`)
+  let url = ""
+  for (;;) {
+    const pasted = await ask("  Transaction pooler string: ", true)
+    if (!/^postgres(ql)?:\/\/.+:6543\//.test(pasted)) {
+      say("  That isn't the transaction pooler string (it uses port 6543). Try again.")
+      continue
+    }
+    url = pasted.replace("[YOUR-PASSWORD]", encodeURIComponent(password))
+    const test = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 15000 })
+    try {
+      await test.connect()
+      await test.query("select 1 from bookings limit 1")
+      await test.end()
+      break
+    } catch (e) {
+      await test.end().catch(() => {})
+      say(`  Couldn't use it (${e.message}). Check it's the transaction pooler string and try again.`)
+    }
+  }
+  say("  ✓ The site can reach the core tables through the pooler")
+
+  say("\n3. Adding the setting to Vercel (production)")
+  addToVercel("DATABASE_URL", url, true)
+  return true
+}
+
+// ---------------------------------------------------------------------------
 
 say("Mjazo setup")
 say(`Site: ${SITE} · Supabase: ${SUPABASE_URL}`)
@@ -210,7 +269,13 @@ const env = vercel("env ls production").out
 const has = (name) => new RegExp(`^\\s*${name}\\s`, "m").test(env)
 
 const cronOnly = process.argv.includes("--cron")
+const migrateOnly = process.argv.includes("--migrate")
 let changed = false
+if (migrateOnly) {
+  changed = await setupCore(has("DATABASE_URL"))
+  say(changed ? "\nDone. Tell Claude it worked: it redeploys the site so the new settings take effect." : "\nNothing changed.")
+  process.exit(0)
+}
 if (!cronOnly) {
   if (!has("SUPABASE_SERVICE_ROLE_KEY") || (await yes("\nSupabase is already set up in Vercel. Set it up again?", false))) {
     await setupSupabase()
@@ -218,5 +283,6 @@ if (!cronOnly) {
   }
 }
 if (cronOnly || (await yes("\nSet up scheduled publishing and the other background jobs (CRON_SECRET)?", true))) changed = (await setupCron(has("CRON_SECRET"))) || changed
+if (!cronOnly && (await yes("\nConnect the core engine (bookings, pros, the money ledger)?", true))) changed = (await setupCore(has("DATABASE_URL"))) || changed
 
 say(changed ? "\nDone. Tell Claude it worked: it redeploys the site so the new settings take effect." : "\nNothing changed.")

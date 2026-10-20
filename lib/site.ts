@@ -96,6 +96,10 @@ export async function submit(type: "booking" | "request" | "waitlist" | "apply" 
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ type, data, attribution: getAttribution(), page: window.location.pathname }),
   })
-  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error ?? "Something went wrong")
-  return (await res.json()) as { id: string }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw Object.assign(new Error(body?.error ?? "Something went wrong"), { code: body?.code as string | undefined })
+  }
+  // total: what the booking actually costs, priced on the server (bookings only).
+  return (await res.json()) as { id: string; total?: number }
 }

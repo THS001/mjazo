@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { saveSubmission, ValidationError } from "@/lib/server/store"
+import { placeBooking } from "@/lib/server/bookings-core"
 import { createApplication } from "@/lib/server/ops"
 import { aiEnabled } from "@/lib/ai/anthropic"
 
@@ -19,6 +20,7 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 })
   const { type, data, attribution, page } = parsed.data
   try {
+    if (type === "booking") return NextResponse.json(await placeBooking(data, attribution ?? {}, page))
     const { id } = await saveSubmission(type, data, attribution ?? {}, page)
     if (type === "apply") {
       // Recruiter Agent: hand the applicant their interview link straight away.
@@ -27,7 +29,7 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ id })
   } catch (e) {
-    if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 422 })
+    if (e instanceof ValidationError) return NextResponse.json({ error: e.message, code: e.code }, { status: 422 })
     console.error("[submit] store failed", e)
     return NextResponse.json({ error: "Could not save. Please try WhatsApp instead." }, { status: 500 })
   }

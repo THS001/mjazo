@@ -1,7 +1,7 @@
 // Shared ops types (used by the server, the ops console and the pro app).
 
-export type JobStatus = "new" | "assigned" | "en_route" | "checked_in" | "checked_out" | "completed" | "cancelled"
-export type JobEventType = "assigned" | "en_route" | "checked_in" | "checked_out" | "completed" | "cancelled" | "safe" | "sos" | "alert_ping" | "alert_escalated" | "note" | "payment"
+export type JobStatus = "new" | "assigned" | "en_route" | "checked_in" | "checked_out" | "completed" | "cancelled" | "no_show"
+export type JobEventType = "assigned" | "en_route" | "checked_in" | "checked_out" | "completed" | "cancelled" | "no_show" | "safe" | "sos" | "alert_ping" | "alert_escalated" | "note" | "payment"
 export type JobEvent = { type: JobEventType; at: string; by: "ops" | "pro" | "system"; note?: string; lat?: number; lng?: number }
 
 export type PaymentRecord = {

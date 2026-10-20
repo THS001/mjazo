@@ -60,6 +60,7 @@ export const STATUS: Record<JobStatus, { label: string; cls: string }> = {
   checked_out: { label: "Finishing", cls: "bg-amber-100 text-amber-800" },
   completed: { label: "Done", cls: "bg-emerald-100 text-emerald-800" },
   cancelled: { label: "Cancelled", cls: "bg-zinc-100 text-zinc-400 line-through" },
+  no_show: { label: "No-show", cls: "bg-rose-100 text-rose-800" },
 }
 
 export const SAFETY: Record<SafetyLevel, { label: string; cls: string }> = {

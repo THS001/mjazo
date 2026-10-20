@@ -5,8 +5,8 @@ import { getCatalog } from "@/lib/cms/read"
 import { karachiNow } from "@/lib/time"
 import { handle, readJson } from "@/lib/server/api"
 import { hashPin, requireOps } from "@/lib/server/session"
-import { all, get, put } from "@/lib/server/docs"
-import { OpsError, getPros, nowIso, syncApplications, syncJobs } from "@/lib/server/ops"
+import { get, put } from "@/lib/server/docs"
+import { OpsError, getPros, nowIso, savePro, syncApplications, syncJobs } from "@/lib/server/ops"
 import { SKILL_TO_CATEGORIES, demandForecast } from "@/lib/ops/logic"
 import type { Application, Pro } from "@/lib/ops/types"
 
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       return { application: app }
     }
     if (app.proId) throw new OpsError("Already hired")
-    if ((await all<Pro>("pros")).some((p) => p.phone === app.phone)) throw new OpsError("A pro with this number already exists")
+    if ((await getPros()).some((p) => p.phone === app.phone)) throw new OpsError("A pro with this number already exists")
     const pro: Pro = {
       id: `P-${app.id.replace(/^MJ-/, "")}`,
       name: app.name,
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
       createdAt: nowIso(),
       applicationId: app.id,
     }
-    await put("pros", pro)
+    await savePro(pro)
     Object.assign(app, { status: "hired", proId: pro.id, decisionNote: b.note ?? app.decisionNote })
     await put("applications", app)
     await audit("ops", "hired applicant", app.id, pro.id)

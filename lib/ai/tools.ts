@@ -3,7 +3,8 @@ import type Anthropic from "@anthropic-ai/sdk"
 import { formatDuration, formatPKR, type Catalog } from "@/lib/catalog"
 import { getCatalog, getSettings } from "@/lib/cms/read"
 import { karachiNow, nextDays, windowAvailable, WINDOW_LABELS } from "@/lib/time"
-import { PK_PHONE, saveSubmission, ValidationError } from "@/lib/server/store"
+import { PK_PHONE, ValidationError } from "@/lib/server/store"
+import { placeBooking } from "@/lib/server/bookings-core"
 
 // Tools the Concierge can call. Every price, slot and policy comes from here (the catalogue and
 // the rulebook), never from the model. Results go back to the model as JSON; `ui` carries things
@@ -253,7 +254,7 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
         channel: ctx.channel === "web" ? ("concierge-web" as const) : ("concierge-whatsapp" as const),
       }
       try {
-        const { id } = await saveSubmission("booking", data, ctx.attribution ?? {}, "concierge")
+        const { id } = await placeBooking(data, ctx.attribution ?? {}, "concierge")
         return {
           result: { booked: true, id, total: formatPKR(total), next: "Tell the customer the booking reference, that the team confirms on WhatsApp, and that they pay after the service." },
           ui: [{ type: "booking", booking: { id, ...data, areaName: area!.name, cartItems: priced.map((p) => ({ category: p.category.slug, categoryName: p.category.name, service: p.service.slug, name: p.service.name, options: p.options, addOns: p.addOns, unitPrice: p.unitPrice, duration: p.service.duration, qty: p.qty })) } }],

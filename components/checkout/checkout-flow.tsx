@@ -69,6 +69,9 @@ export function CheckoutFlow() {
   const [sendBrief, setSendBrief] = useState(true)
   const started = useRef(false)
   const days = useMemo(() => nextDays(7, { locale, today: t.duration.today, tomorrow: t.duration.tomorrow }), [locale, t])
+  // Real availability per day and window (null: no capacity data, so only the time rules apply).
+  const [slotMap, setSlotMap] = useState<Record<string, Record<string, boolean>> | null>(null)
+  const [slotTick, setSlotTick] = useState(0)
 
   useEffect(() => {
     setMounted(true)
@@ -107,6 +110,31 @@ export function CheckoutFlow() {
       track("start_checkout", { total, items: list.length })
     }
   }, [mounted, list.length, total])
+
+  const slotKey = mounted && area && list.length ? JSON.stringify([area, list.map((i) => [i.category, i.service, i.qty]), slotTick]) : ""
+  useEffect(() => {
+    if (!slotKey) return setSlotMap(null)
+    const ctl = new AbortController()
+    const timer = setTimeout(() => {
+      fetch("/api/v1/slots", { method: "POST", headers: { "content-type": "application/json" }, signal: ctl.signal, body: JSON.stringify({ area, items: list.map((i) => ({ category: i.category, service: i.service, qty: i.qty })) }) })
+        .then((r) => r.json())
+        .then((r: { mode: string; days: { date: string; windows: { label: string; open: boolean }[] }[] }) => {
+          setSlotMap(r.mode === "capacity" ? Object.fromEntries(r.days.map((d) => [d.date, Object.fromEntries(d.windows.map((w) => [w.label, w.open]))])) : null)
+        })
+        .catch(() => {})
+    }, 250)
+    return () => {
+      clearTimeout(timer)
+      ctl.abort()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotKey])
+  const slotOpen = (d: string, w: string) => slotMap?.[d]?.[w] !== false
+  const dayFull = (d: string) => Boolean(slotMap?.[d]) && Object.values(slotMap![d]).every((open) => !open)
+  useEffect(() => {
+    if (date && win && !slotOpen(date, win)) setWin("")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotMap])
 
   const areaObj = area ? getArea(area) : undefined
   const done = {
@@ -149,8 +177,12 @@ export function CheckoutFlow() {
         items: list.map((i) => ({ name: i.name, category: i.category, service: i.service, options: i.options, addOns: i.addOns.map((a) => a.name), qty: i.qty, unitPrice: i.unitPrice })),
         total,
         brief: brief && sendBrief ? { kind: brief.kind, title: brief.title, text: brief.text, causes: brief.causes, parts: brief.parts, pins: brief.pins, hasPhotos: brief.photos.length > 0 } : undefined,
+        referral: ref ?? undefined,
       }
-      const { id } = await submit("booking", data)
+      const placed = await submit("booking", data)
+      const id = placed.id
+      // The server prices the booking itself; show what it will actually cost.
+      if (placed.total !== undefined) data.total = placed.total
       if (brief && sendBrief) {
         // Photos for the pro: best effort, the booking is already placed.
         if (brief.photos.length) await fetch("/api/booking/attach", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ bookingId: id, phone: data.phone, photos: brief.photos.slice(0, 3) }) }).catch(() => {})
@@ -160,11 +192,17 @@ export function CheckoutFlow() {
       try {
         localStorage.setItem("mjazo-contact", JSON.stringify({ name: data.name, phone: data.phone, area, address: data.address, landmark: data.landmark }))
       } catch {}
-      track("submit_booking", { id, total, payment, area })
+      track("submit_booking", { id, total: data.total, payment, area })
       clear()
       router.push(`/booking/confirmed?id=${encodeURIComponent(id)}`)
     } catch (err) {
-      setServerError((err as Error).message)
+      const code = (err as { code?: string }).code
+      setServerError(code === "slotFull" ? t.checkout.slotFull : code === "unavailable" ? t.checkout.unavailable : (err as Error).message)
+      if (code === "slotFull") {
+        setWin("")
+        setSlotTick((n) => n + 1)
+        document.getElementById("step-when")?.scrollIntoView({ behavior: "smooth", block: "start" })
+      }
       setBusy(false)
     }
   }
@@ -225,22 +263,27 @@ export function CheckoutFlow() {
 
         <Step n={2} title={t.checkout.when} done={done.when} id="step-when">
           <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
-            {days.map((d) => (
-              <button key={d.iso} type="button" aria-pressed={date === d.iso} onClick={() => { setDate(d.iso); if (win && !windowAvailable(d.iso, WINDOW_LABELS.indexOf(win), policy.leadHours)) setWin("") }} className={cn("shrink-0 w-[76px] rounded-2xl border py-3 text-center transition-colors", date === d.iso ? "bg-foreground text-background border-foreground" : "border-zinc-200 hover:border-zinc-400")}>
-                <span className={cn("block text-xs", date === d.iso ? "text-white/70" : "text-zinc-500")}>{d.label}</span>
-                <span className="block text-2xl font-light leading-tight">{d.day}</span>
-                <span className={cn("block text-xs", date === d.iso ? "text-white/70" : "text-zinc-500")}>{d.month}</span>
-              </button>
-            ))}
+            {days.map((d) => {
+              const full = dayFull(d.iso)
+              return (
+                <button key={d.iso} type="button" disabled={full} aria-pressed={date === d.iso} onClick={() => { setDate(d.iso); if (win && (!windowAvailable(d.iso, WINDOW_LABELS.indexOf(win), policy.leadHours) || !slotOpen(d.iso, win))) setWin("") }} className={cn("shrink-0 w-[76px] rounded-2xl border py-3 text-center transition-colors disabled:opacity-40", date === d.iso ? "bg-foreground text-background border-foreground" : "border-zinc-200 hover:border-zinc-400")}>
+                  <span className={cn("block text-xs", date === d.iso ? "text-white/70" : "text-zinc-500")}>{d.label}</span>
+                  <span className="block text-2xl font-light leading-tight">{d.day}</span>
+                  <span className={cn("block text-xs", date === d.iso ? "text-white/70" : "text-zinc-500")}>{full ? t.checkout.dayFull : d.month}</span>
+                </button>
+              )
+            })}
           </div>
           {errors.date && <p className="text-xs text-destructive mt-2">{errors.date}</p>}
           <p className="text-sm font-medium mt-6 mb-2">{t.checkout.window}</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {WINDOW_LABELS.map((w, i) => {
-              const ok = !date || windowAvailable(date, i, policy.leadHours)
+              const full = Boolean(date) && windowAvailable(date, i, policy.leadHours) && !slotOpen(date, w)
+              const ok = !date || (windowAvailable(date, i, policy.leadHours) && !full)
               return (
-                <button key={w} type="button" disabled={!ok} aria-pressed={win === w} onClick={() => setWin(w)} className={cn("rounded-2xl border h-12 text-sm transition-colors disabled:opacity-35 disabled:line-through", win === w ? "bg-foreground text-background border-foreground" : "border-zinc-200 hover:border-zinc-400")}>
+                <button key={w} type="button" disabled={!ok} aria-pressed={win === w} onClick={() => setWin(w)} className={cn("rounded-2xl border h-12 text-sm transition-colors disabled:opacity-35", !full && "disabled:line-through", win === w ? "bg-foreground text-background border-foreground" : "border-zinc-200 hover:border-zinc-400")}>
                   {windowLabel(w, locale)}
+                  {full && <span className="block text-[10px] uppercase tracking-wide text-zinc-500">{t.checkout.windowFull}</span>}
                 </button>
               )
             })}
