@@ -23,8 +23,8 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { spawnSync } from "node:child_process"
 import { randomBytes } from "node:crypto"
-import readline from "node:readline"
 import pg from "pg"
+import { ask } from "./prompt.mjs"
 
 const PROJECT_REF = "xjyafabyscamelebzrsb"
 const SUPABASE_URL = `https://${PROJECT_REF}.supabase.co`
@@ -39,20 +39,8 @@ const fail = (s) => {
   process.exit(1)
 }
 
-/** Asks in the terminal; with `hidden`, nothing typed or pasted is shown. */
-function ask(question, hidden = false) {
-  return new Promise((resolve) => {
-    // The question is written first, so it shows even when everything typed after it is hidden.
-    process.stdout.write(question)
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true })
-    if (hidden) rl._writeToOutput = () => {}
-    rl.question("", (answer) => {
-      rl.close()
-      if (hidden) process.stdout.write(" (received)\n")
-      resolve(answer.trim())
-    })
-  })
-}
+/** A secret (password, key, connection string): shown as *, and an empty Enter is ignored. */
+const askSecret = (question) => ask(question, { hidden: true, required: true })
 
 /** A yes/no question; Enter picks the default. */
 async function yes(question, byDefault) {
@@ -62,7 +50,7 @@ async function yes(question, byDefault) {
 
 async function askKey(label, prefix) {
   for (;;) {
-    const v = await ask(`${label} (starts with ${prefix}): `, true)
+    const v = await askSecret(`${label} (starts with ${prefix}): `)
     if (v.startsWith(prefix) || v.startsWith("eyJ")) return v
     say(`  That doesn't look like the ${label.toLowerCase()}. It should start with ${prefix}. Try again.`)
   }
@@ -110,7 +98,7 @@ async function connect(password) {
       return viaPooler
     }
     say("  In Supabase, click Connect → Session pooler and copy the connection string.")
-    const url = await ask("  Paste it here, with your password in place of [YOUR-PASSWORD]: ", true)
+    const url = await askSecret("  Paste it here, with your password in place of [YOUR-PASSWORD]: ")
     const pooled = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 15000 })
     await pooled.connect().catch((e) => fail(`Still couldn't connect: ${e.message}`))
     return pooled
@@ -143,7 +131,7 @@ async function runMigrations(client) {
 
 async function setupSupabase() {
   say("\nSupabase")
-  const password = process.env.SUPABASE_DB_PASSWORD || (await ask("Database password: ", true))
+  const password = process.env.SUPABASE_DB_PASSWORD || (await askSecret("Database password: "))
   const publishable = process.env.SUPABASE_PUBLISHABLE_KEY || (await askKey("Publishable key", "sb_publishable_"))
   const secret = process.env.SUPABASE_SECRET_KEY || (await askKey("Secret key", "sb_secret_"))
 
@@ -246,7 +234,7 @@ async function findPooler(password, port = 6543, probe) {
 async function setupCore(exists) {
   say("\nCore engine (bookings, pros, the money ledger)")
   const replace = !exists || (await yes("DATABASE_URL is already set in Vercel. Replace it?", false))
-  const password = process.env.SUPABASE_DB_PASSWORD || (await ask("Database password: ", true))
+  const password = process.env.SUPABASE_DB_PASSWORD || (await askSecret("Database password: "))
 
   say("\n1. Creating the new tables")
   const client = await connect(password)
@@ -267,7 +255,7 @@ async function setupCore(exists) {
      postgresql://postgres.${PROJECT_REF}:[YOUR-PASSWORD]@aws-0-….pooler.supabase.com:6543/postgres
    Paste it as it is, with [YOUR-PASSWORD] still in it: this script puts your password in.`)
   while (!url) {
-    const pasted = await ask("  Transaction pooler string: ", true)
+    const pasted = await askSecret("  Transaction pooler string: ")
     if (!/^postgres(ql)?:\/\/.+:6543\//.test(pasted)) {
       say("  That isn't the transaction pooler string (it uses port 6543). Try again.")
       continue
@@ -288,7 +276,7 @@ async function setupCore(exists) {
 
 say("Mjazo setup")
 say(`Site: ${SITE} · Supabase: ${SUPABASE_URL}`)
-say("Nothing you paste is shown or saved to a file.")
+say("Passwords and keys show as * while you type or paste them, and nothing is saved to a file.")
 
 const who = vercel("whoami")
 if (!who.out.includes(VERCEL_ACCOUNT)) fail(`The Vercel CLI isn't signed in as ${VERCEL_ACCOUNT}. Run "npx vercel login" with that account first.`)
