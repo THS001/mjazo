@@ -91,7 +91,9 @@ async function connect(password) {
     await direct.connect()
     return direct
   } catch (err) {
-    if (/password authentication failed/i.test(String(err?.message))) fail("Supabase says that database password is wrong. Reset it under Project Settings → Database, then run this again.")
+    if (/password authentication failed/i.test(String(err?.message)))
+      fail(`Supabase didn't accept that database password (${String(password).length} characters received). Run this again and type it carefully: it's the same one as last time.
+  Only if you've lost it: reset it under Project Settings → Database, run this again, and answer y to "Replace it?" so the site gets the new one too.`)
     say(`  Couldn't reach the database directly (${err?.code ?? err?.message}). Trying Supabase's pooler…`)
     const found = await findPooler(password, 5432, "select 1")
     if (found) {
