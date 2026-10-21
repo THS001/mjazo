@@ -1,12 +1,13 @@
 import "server-only"
 import { after } from "next/server"
 import { formatPKR } from "@/lib/catalog"
-import { getCatalog, getMessages } from "@/lib/cms/read"
+import { getCatalog, getMessages, getSettings } from "@/lib/cms/read"
 import { MESSAGES, type MessageKey, type MessageTexts } from "@/lib/cms/types/messages"
 import { core, type Db } from "@/lib/core/db"
 import * as store from "@/lib/core/automation"
 import * as cj from "@/lib/core/jobs"
 import { InputError } from "@/lib/core/errors"
+import { rewardReferral } from "@/lib/core/growth"
 import { draftPayoutRun } from "@/lib/core/money"
 import { listOffers, offerJob } from "@/lib/core/offers"
 import { normalisePhone } from "@/lib/core/phone"
@@ -32,7 +33,7 @@ import { listSubmissions, notifyOps } from "./store"
 // The rules
 // ---------------------------------------------------------------------------
 
-export type RuleKey = "confirm" | "reminder" | "onTheWay" | "rateVisit" | "autoAssign" | "proOffer" | "weeklyPayout" | "pulseNudges" | "winBack"
+export type RuleKey = "confirm" | "reminder" | "onTheWay" | "rateVisit" | "autoAssign" | "proOffer" | "weeklyPayout" | "pulseNudges" | "winBack" | "referralReward" | "plusWelcome"
 export type AssignMode = "off" | "suggest" | "auto"
 
 type RuleDef = {
@@ -54,6 +55,8 @@ export const RULES: RuleDef[] = [
   { key: "autoAssign", label: "Auto-assign", description: "Off; suggest the best pro on the board; or offer the visit to the best pro by itself (then the next if she declines). Only verified pros are offered automatically. Ops can always assign or offer by hand.", on: true },
   { key: "proOffer", label: "Tell a pro about an offer", description: "When a visit is offered to a pro: a push to the Mjazo Pro app, or WhatsApp.", on: true, messages: ["proOffer"], params: { proOffer: ["services", "area", "date", "window", "earn", "until", "link"] } },
   { key: "weeklyPayout", label: "Weekly payout run", description: "Every Monday from 9 am: a draft payout run for last week (Monday to Sunday). Finance approves it and marks each payout paid.", on: true },
+  { key: "referralReward", label: "Referral credit message", description: "When a friend's first visit with someone's code is done, that customer gets their credit (always) and this message (when on).", on: true, messages: ["referralReward"], params: { referralReward: ["name", "friend", "amount", "link"] } },
+  { key: "plusWelcome", label: "Welcome to Mjazo Plus", description: "When ops activate a Plus membership.", on: true, messages: ["plusWelcome"], params: { plusWelcome: ["name", "until", "pct", "link"] } },
   { key: "pulseNudges", label: "Home Pulse reminders (opt-in)", description: "To customers who asked for Home Pulse reminders: what's due in the next 2 days. At most 2 a month, 10 am to 8 pm, never after STOP.", on: false, marketing: true, messages: ["pulseNudge"], params: { pulseNudge: ["name", "title", "date", "link"] } },
   { key: "winBack", label: "Win-back after 60 and 90 days (opt-in)", description: "To signed-in customers who said yes to messages, 60 and 90 days after their last visit if they haven't booked since. 10 am to 8 pm, never after STOP.", on: false, marketing: true, messages: ["winBack60", "winBack90"], params: { winBack60: ["name", "link"], winBack90: ["name", "link"] } },
 ]
@@ -168,6 +171,7 @@ type Ctx = {
   texts: { en: MessageTexts; ur: MessageTexts }
   cat: Awaited<ReturnType<typeof getCatalog>>
   pros: Pro[]
+  settings: Awaited<ReturnType<typeof getSettings>>
 }
 
 const fillText = (text: string, vars: Record<string, string>) => text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k: string) => vars[k] ?? "")
@@ -176,6 +180,8 @@ const clock = (hhmm: string) => {
   const [h, m] = hhmm.split(":").map(Number)
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`
 }
+/** "21 October 2027" (a Plus membership runs for a year, so the year matters). */
+const longDate = (iso: string, lang: string) => new Date(iso).toLocaleDateString(lang === "ur" ? "ur-PK" : "en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Karachi" })
 const accountLink = (lang: string) => `${SITE_URL}${lang === "ur" ? "/ur" : ""}/account/bookings`
 
 /** What a booking's messages say ({{tokens}}), in the customer's language. */
@@ -291,6 +297,22 @@ async function handleEvents(ctx: Ctx) {
           await messageForBooking(ctx, "onTheWay", "onTheWay", j, `onTheWay:${j.id}:${e.id}`, {}, e.id)
         } else if ((e.type === "booking.new" || e.type === "offer.declined" || e.type === "offer.expired") && j && mode === "auto") {
           await autoOffer(ctx, j.id)
+        } else if (e.type === "booking.completed" && j) {
+          // A friend's first visit with someone's code: their credit (always), and a message.
+          const r = await rewardReferral(ctx.db, j.id, ctx.settings.referral?.youGet ?? 0)
+          const c = r && ctx.rules.referralReward.enabled ? await ctx.db.one<{ id: string; name: string; phone: string | null; email: string | null; lang: string }>("select id, name, phone, email, lang from customers where id = $1", [r.referrerId]) : null
+          if (r && c) {
+            const lang = c.lang === "ur" ? "ur" : "en"
+            await queue(ctx, { rule: "referralReward", key: "referralReward", lang, vars: { name: firstName(c.name), friend: firstName(j.customer.name), amount: formatPKR(r.amount), link: accountLink(lang) }, dedupeKey: `referral:${r.friendId}`, phone: c.phone ?? undefined, email: c.email, customerId: c.id, eventId: e.id, push: true })
+          }
+        } else if (e.type === "plus.activated" && e.customerId && ctx.rules.plusWelcome.enabled && age < FRESH.confirm) {
+          const c = await customerOf(ctx.db, e.customerId)
+          const who = await ctx.db.one<{ name: string; phone: string | null }>("select name, phone from customers where id = $1", [e.customerId])
+          const m = await ctx.db.one<{ discount_pct: number; ends_at: string }>("select discount_pct, ends_at from plus_memberships where id = $1", [String(e.data.membershipId ?? "")])
+          if (c && who && m) {
+            const lang = c.lang === "ur" ? "ur" : "en"
+            await queue(ctx, { rule: "plusWelcome", key: "plusWelcome", lang, vars: { name: firstName(who.name), until: longDate(m.ends_at, lang), pct: String(m.discount_pct), link: `${SITE_URL}${lang === "ur" ? "/ur" : ""}/services` }, dedupeKey: `plus:${String(e.data.membershipId)}`, phone: who.phone ?? undefined, email: c.email, customerId: c.id, eventId: e.id, push: true })
+          }
         } else if (e.type === "offer.made" && j && e.proId && ctx.rules.proOffer.enabled && age < FRESH.proOffer) {
           const pro = ctx.pros.find((p) => p.id === e.proId)
           const until = typeof e.data.expiresAt === "string" ? new Date(e.data.expiresAt).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Karachi" }) : ""
@@ -431,8 +453,8 @@ async function runSchedules(ctx: Ctx) {
 // ---------------------------------------------------------------------------
 
 async function context(db: Db, now: Date): Promise<Ctx> {
-  const [rules, en, ur, cat, pros] = await Promise.all([loadRules(db), getMessages("en"), getMessages("ur"), getCatalog("en"), cj.listPros(db)])
-  return { db, now, rules, texts: { en: en ?? MESSAGES, ur: ur ?? MESSAGES }, cat, pros }
+  const [rules, en, ur, cat, pros, settings] = await Promise.all([loadRules(db), getMessages("en"), getMessages("ur"), getCatalog("en"), cj.listPros(db), getSettings("en")])
+  return { db, now, rules, texts: { en: en ?? MESSAGES, ur: ur ?? MESSAGES }, cat, pros, settings }
 }
 
 export type RunSummary = { events: number; scheduled: Record<string, number | string>; sent: number; logged: number; failed: number; testMode: boolean }
@@ -491,7 +513,7 @@ export function tickAutomation() {
 
 /** A message as it would read, for mission control's preview. */
 export function previewMessage(texts: MessageTexts, key: MessageKey, lang = "en") {
-  const sample: Record<string, string> = { name: "Ayesha", services: "Full body waxing", date: formatBookingDate("2026-10-23", lang), window: windowLabel("3–5 pm", lang), id: "MJ-EXAMPLE", link: accountLink(lang), pro: "Sana", arrive: "3:40 pm", title: "AC service", area: "DHA", earn: "PKR 3,375", until: "1:30 pm" }
+  const sample: Record<string, string> = { name: "Ayesha", services: "Full body waxing", date: formatBookingDate("2026-10-23", lang), window: windowLabel("3–5 pm", lang), id: "MJ-EXAMPLE", link: accountLink(lang), pro: "Sana", arrive: "3:40 pm", title: "AC service", area: "DHA", earn: "PKR 3,375", until: key === "plusWelcome" ? longDate("2027-10-21T12:00:00Z", lang) : "1:30 pm", amount: "PKR 500", friend: "Sana", pct: "10" }
   return { subject: fillText(texts[key].subject, sample), text: fillText(texts[key].text, sample) }
 }
 

@@ -4,6 +4,7 @@ import type { Job } from "@/lib/ops/types"
 import type { Db } from "./db"
 import { testCore } from "./test-db"
 import { createBooking, getJob, importJobs, importLegacy, listJobs, listPros, mutateJob, savePro, type NewBooking } from "./jobs"
+import { referralCodeForPhone } from "./growth"
 import { customerBalances, proBalances, trialBalance } from "./ledger"
 import { PricingError, priceItems } from "./pricing"
 import { ALLOWED, STATUS_FOR, canApply } from "./status"
@@ -99,13 +100,21 @@ describe("bookings", () => {
     expect(await db.query("select * from customers")).toHaveLength(1)
   })
 
-  it("gives the referral discount on a new customer's first booking only", async () => {
-    const first = await createBooking(db, booking("MJ-R1", { phone: "03339999999", referral: "AYESHA-1234" }), cat, { referralOff: 500 })
+  it("gives the referral discount on a new customer's first booking only, for a real code", async () => {
+    const code = await referralCodeForPhone(db, "Ayesha", "03331231234")
+    expect(code).toBe("AYESHA-1234")
+    // A made-up code gives nothing.
+    const fake = await createBooking(db, booking("MJ-R0", { phone: "03339999990", referral: "NOBODY-0000" }), cat, { referralOff: 500 })
+    expect(fake.total).toBe(6100)
+    const first = await createBooking(db, booking("MJ-R1", { phone: "03339999999", referral: code.toLowerCase() }), cat, { referralOff: 500 })
     expect(first.total).toBe(5600)
     expect(await db.one("select subtotal, discount, total, promo_code from bookings where id = 'MJ-R1'")).toEqual({ subtotal: 6100, discount: 500, total: 5600, promo_code: "REF:AYESHA-1234" })
-    const second = await createBooking(db, booking("MJ-R2", { phone: "03339999999", referral: "AYESHA-1234" }), cat, { referralOff: 500 })
+    const second = await createBooking(db, booking("MJ-R2", { phone: "03339999999", referral: code }), cat, { referralOff: 500 })
     expect(second.total).toBe(6100)
-    await db.query("delete from bookings where id in ('MJ-R1', 'MJ-R2')")
+    // Her own code gives her nothing.
+    const own = await createBooking(db, booking("MJ-R3", { phone: "03331231234", referral: code }), cat, { referralOff: 500 })
+    expect(own.total).toBe(6100)
+    await db.query("delete from bookings where id in ('MJ-R0', 'MJ-R1', 'MJ-R2', 'MJ-R3')")
   })
 
   it("runs a visit from assignment to done, posting the money as it goes", async () => {

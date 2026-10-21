@@ -17,6 +17,7 @@ import { PK_PHONE, normalisePhone } from "@/components/site/notify-form"
 import { RateVisit, isRated } from "@/components/site/rate-visit"
 import { fill, useCatalog, useLocale, useSite, useT } from "@/components/cms/provider"
 import { MapPin, type Pin } from "./map-pin"
+import { GiftRedeem, plusLine, ReferCard } from "./growth-views"
 
 // The signed-in client account: adding the phone number, live bookings (with their steps and
 // changes within the policy), credit and saved addresses with a map pin. Every call goes through
@@ -37,11 +38,11 @@ export function SignInPrompt({ className }: { className?: string }) {
   )
 }
 
-export function AccountBar({ email }: { email: string }) {
+export function AccountBar({ email }: { email: string | null }) {
   const m = useT().myAccount
   return (
     <p className="text-sm text-zinc-500 mb-6 flex flex-wrap items-center gap-x-3 gap-y-1">
-      <span>{fill(m.signedInAs, { email })}</span>
+      {email && <span>{fill(m.signedInAs, { email })}</span>}
       <button onClick={() => void signOut()} className="underline underline-offset-4 hover:text-black">
         {m.signOut}
       </button>
@@ -131,8 +132,8 @@ export function LiveOverview({ me }: { me: Me }) {
     { href: "/account/bookings", icon: Wallet, t: m.credit, d: me.credit.available > 0 ? fill(m.creditSub, { amount: formatPKR(me.credit.available) }) : m.noCredit },
     { href: "/account/addresses", icon: MapIcon, t: m.addresses, d: addresses === null ? "…" : addresses ? fill(m.addressCount, { count: addresses }) : m.addAddress },
     { href: "/home-pulse", icon: CalendarCheck, t: a.homePulse, d: a.homePulseSub },
-    { href: "/plus", icon: Crown, t: a.plus, d: a.plusSub },
-    { href: "/refer", icon: Gift, t: a.refer, d: a.referSub },
+    { href: "/plus", icon: Crown, t: a.plus, d: plusLine(me, m, locale) ?? a.plusSub },
+    { href: "/refer", icon: Gift, t: a.refer, d: me.referral ? `${m.referTitle}: ${me.referral.code}` : a.referSub },
     { href: "/help", icon: LifeBuoy, t: a.help, d: a.helpSub },
   ]
   return (
@@ -150,6 +151,12 @@ export function LiveOverview({ me }: { me: Me }) {
           </Link>
         ))}
       </div>
+      {me.customer && (
+        <div className="mt-4 grid lg:grid-cols-2 gap-4">
+          <ReferCard me={me} />
+          <GiftRedeem />
+        </div>
+      )}
       {me.customer && <MessagesSwitch initial={me.customer.marketingOk} />}
     </>
   )

@@ -3,6 +3,7 @@ import { z } from "zod"
 import { getCatalog, getSettings } from "@/lib/cms/read"
 import { requireCore } from "@/lib/core/db"
 import { optIn } from "@/lib/core/automation"
+import { plusFor, redeemGiftCard, referralCode, referralSummary, referrerOf, requestPlus } from "@/lib/core/growth"
 import { creditFor, deleteAddress, linkAccount, listAddresses, saveAddress, updateCustomer, type AddressInput, type Customer } from "@/lib/core/customers"
 import { listCustomerJobs } from "@/lib/core/jobs"
 import { windowStart } from "@/lib/core/offers"
@@ -12,6 +13,7 @@ import type { Job, Pro } from "@/lib/ops/types"
 import type { Account } from "./customer-auth"
 import { audit } from "./audit"
 import { OpsError, addJobEvent, getJob, getPros, rescheduleJob } from "./ops"
+import { notifyOps } from "./store"
 
 // What the client account shows and does (/api/v1/customer, used by /account on the website and
 // by the phone app). Every function takes the signed-in customer and only touches their own
@@ -121,10 +123,38 @@ export async function changeBooking(c: Customer, id: string, a: { action: "cance
 // Account, wallet, addresses, promo codes
 // ---------------------------------------------------------------------------
 
-/** Who's signed in: the account's email, the customer (null until they add their number) and their credit. */
-export async function customerMe(account: Account, c: Customer | null) {
+/**
+ * Who's signed in: the account's email, the customer (null until they add their number), their
+ * credit, their Mjazo Plus membership (or request) and their referral code with what it has earned.
+ */
+export async function customerMe(account: Account | { email: string | null }, c: Customer | null) {
   const db = await requireCore()
-  return { email: account.email, customer: c, credit: c ? await creditFor(db, c.id) : { balance: 0, available: 0 } }
+  if (!c) return { email: account.email, customer: null, credit: { balance: 0, available: 0 }, plus: null, referral: null }
+  const [credit, plus, code, summary, settings] = await Promise.all([creditFor(db, c.id), plusFor(db, c.id), referralCode(db, c.id), referralSummary(db, c.id), getSettings("en")])
+  return {
+    email: account.email,
+    customer: c,
+    credit,
+    plus: plus && { status: plus.status, endsAt: plus.endsAt, discountPct: plus.discountPct, price: plus.price },
+    referral: code ? { code, friendOff: settings.referral.friendOff, youGet: settings.referral.youGet, ...summary } : null,
+  }
+}
+
+/** They ask to join Mjazo Plus; ops are told, take the fee and activate it. */
+export async function joinPlus(c: Customer) {
+  const db = await requireCore()
+  const s = await getSettings("en")
+  const before = await plusFor(db, c.id)
+  const p = await requestPlus(db, c.id, { price: s.plus.price, discountPct: Math.round(s.plus.discount * 100) }, `customer:${c.id}`)
+  if (!before) void notifyOps(`[Mjazo] Plus request from ${c.name || c.phone}`, `${c.name} (${c.phone ?? "no number"}) asked to join Mjazo Plus (${p.price} a year, ${p.discountPct}% off).\nTake the fee, then activate it in mission control → Plus & gifts.`).catch(() => {})
+  return { status: p.status, endsAt: p.endsAt, discountPct: p.discountPct, price: p.price }
+}
+
+/** A gift card turned into their credit. */
+export async function addGiftCard(c: Customer, code: string) {
+  const db = await requireCore()
+  const g = await redeemGiftCard(db, c.id, code)
+  return { added: g.amount, credit: await creditFor(db, c.id) }
 }
 
 export async function linkCustomer(account: Account, b: { name: string; phone: string; proof?: string[] }) {
@@ -154,8 +184,19 @@ export const customerAddresses = async (c: Customer) => listAddresses(await requ
 export const saveCustomerAddress = async (c: Customer, a: AddressInput & { id?: string }) => saveAddress(await requireCore(), c.id, a, await liveAreas())
 export const deleteCustomerAddress = async (c: Customer, id: string) => deleteAddress(await requireCore(), c.id, id)
 
-/** Checks a promo code against an order before it's placed (the checkout shows what it takes off). */
+/**
+ * Checks a code against an order before it's placed (the checkout shows what it takes off): a promo
+ * code, or a friend's referral code (first booking only, never their own).
+ */
 export async function checkCustomerPromo(code: string, items: ClientItem[], customerId?: string | null) {
+  const db = await requireCore()
   const cat = await getCatalog("en")
-  return checkPromo(await requireCore(), code, { subtotal: priceItems(items, cat).subtotal, customerId })
+  const subtotal = priceItems(items, cat).subtotal
+  const r = await checkPromo(db, code, { subtotal, customerId })
+  if (r.ok || r.problem !== "invalid") return r
+  const referrer = await referrerOf(db, code)
+  if (!referrer || referrer === customerId) return r
+  if (customerId && (await db.one("select 1 from bookings where customer_id = $1 and status <> 'cancelled' limit 1", [customerId]))) return { ok: false as const, code: code.trim().toUpperCase(), problem: "used" as const }
+  const s = await getSettings("en")
+  return { ok: true as const, code: code.trim().toUpperCase(), discount: Math.min(s.referral.friendOff, subtotal), kind: "referral" as const }
 }

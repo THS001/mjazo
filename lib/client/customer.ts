@@ -88,7 +88,9 @@ export async function signOut() {
   window.dispatchEvent(new Event(ACCOUNT_EVENT))
 }
 
-export type Me = { email: string; customer: Customer | null; credit: { balance: number; available: number } }
+export type MePlus = { status: "requested" | "active"; endsAt: string | null; discountPct: number; price: number }
+export type MeReferral = { code: string; friendOff: number; youGet: number; friends: number; rewarded: number; earned: number }
+export type Me = { email: string | null; customer: Customer | null; credit: { balance: number; available: number }; plus?: MePlus | null; referral?: MeReferral | null }
 export type AccountState = { state: "loading" } | { state: "out"; failed?: boolean } | { state: "phone"; me: Me } | { state: "in"; me: Me & { customer: Customer } }
 
 /** Who's signed in, kept fresh across the page (sign-in, phone added, sign-out). */

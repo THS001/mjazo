@@ -113,12 +113,14 @@ describe("promo codes at booking", () => {
   it("gives one discount per booking: the larger of the friend's referral and the code", async () => {
     // A new number with a referral: PKR 500 off, larger than ONCE's 300 (which is used up anyway) → referral wins over a smaller code.
     await savePromo(db, { code: "SMALL100", kind: "fixed", value: 100 }, "f", true)
-    const a = await book("03001110006", { referral: "FRIEND", promo: "SMALL100" })
-    expect((await db.one<{ discount: number; promo_code: string }>("select discount, promo_code from bookings where id = $1", [a.id]))).toEqual({ discount: 500, promo_code: "REF:FRIEND" })
+    const { referralCodeForPhone } = await import("./growth")
+    const friend = await referralCodeForPhone(db, "Friend", "03001119999")
+    const a = await book("03001110006", { referral: friend, promo: "SMALL100" })
+    expect((await db.one<{ discount: number; promo_code: string }>("select discount, promo_code from bookings where id = $1", [a.id]))).toEqual({ discount: 500, promo_code: `REF:${friend}` })
     expect(await db.one("select 1 from promo_redemptions where booking_id = $1", [a.id])).toBeNull()
-    const b = await book("03001110007", { referral: "FRIEND", promo: "WELCOME20" })
+    const b = await book("03001110007", { referral: friend, promo: "WELCOME20" })
     const r = (await db.one<{ subtotal: number; discount: number; promo_code: string }>("select subtotal, discount, promo_code from bookings where id = $1", [b.id]))!
-    expect(r.promo_code).toBe(Math.round(r.subtotal * 0.2) >= 500 ? "WELCOME20" : "REF:FRIEND")
+    expect(r.promo_code).toBe(Math.round(r.subtotal * 0.2) >= 500 ? "WELCOME20" : `REF:${friend}`)
   })
 })
 

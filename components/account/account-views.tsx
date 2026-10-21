@@ -50,7 +50,7 @@ export function AccountOverview() {
   const acc = useAccount()
   if (acc.state === "loading") return <AccountShell title={a.yourAccount} sub={null}><Skeleton /></AccountShell>
   if (acc.state === "phone") return <AccountShell title={a.yourAccount} sub={null}><PhoneLink me={acc.me} /></AccountShell>
-  if (acc.state === "in") return <AccountShell title={fill(a.hi, { name: acc.me.customer.name.split(" ")[0] || acc.me.email })} sub={null}><LiveOverview me={acc.me} /></AccountShell>
+  if (acc.state === "in") return <AccountShell title={fill(a.hi, { name: acc.me.customer.name.split(" ")[0] || acc.me.email || "" })} sub={null}><LiveOverview me={acc.me} /></AccountShell>
   return <DeviceOverview />
 }
 

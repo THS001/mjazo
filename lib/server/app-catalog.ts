@@ -48,6 +48,8 @@ export async function appCatalog(lang: Locale, origin: string) {
     minOrder: cat.MIN_ORDER,
     policy: { freeChangeHours: settings.policy.freeChangeHours, leadHours: settings.policy.leadHours, redoHours: settings.policy.redoHours },
     contact: { phone: settings.site.phone, whatsapp: settings.site.whatsapp, email: settings.site.email, hours: settings.site.hours },
+    plus: { price: settings.plus.price, discountPct: Math.round(settings.plus.discount * 100) },
+    referral: { friendOff: settings.referral.friendOff, youGet: settings.referral.youGet },
   }
 }
 export type AppCatalog = Awaited<ReturnType<typeof appCatalog>>

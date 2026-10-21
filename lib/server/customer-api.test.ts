@@ -36,7 +36,7 @@ vi.mock("@/lib/server/store", async (orig) => ({
 vi.mock("@/lib/cms/read", async () => {
   const { buildCatalog, DEFAULT_CATALOG } = await import("@/lib/catalog")
   const cat = buildCatalog(DEFAULT_CATALOG)
-  return { getCatalog: async () => cat, getSettings: async () => ({ referral: { friendOff: 500 }, policy: { leadHours: 2, freeChangeHours: 3, redoHours: 24 }, site: { phone: "+92 300 0000000", whatsapp: "923000000000", email: "hello@mjazo.pk", hours: "9 am to 9 pm" } }) }
+  return { getCatalog: async () => cat, getSettings: async () => ({ referral: { friendOff: 500, youGet: 500 }, plus: { price: 2500, period: "year", discount: 0.1 }, policy: { leadHours: 2, freeChangeHours: 3, redoHours: 24 }, site: { phone: "+92 300 0000000", whatsapp: "923000000000", email: "hello@mjazo.pk", hours: "9 am to 9 pm" } }) }
 })
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -70,6 +70,9 @@ beforeAll(async () => {
     slots: await import("../../app/api/v1/slots/route"),
     catalog: await import("../../app/api/v1/catalog/route"),
     appBooking: await import("../../app/api/v1/bookings/route"),
+    plus: await import("../../app/api/v1/customer/plus/route"),
+    gift: await import("../../app/api/v1/customer/gift-card/route"),
+    referral: await import("../../app/api/v1/referral/route"),
   } as typeof R
   const cj = await import("@/lib/core/jobs")
   await cj.savePro(db, { id: "P-SANA", name: "Sana Bibi", phone: "03111111111", area: "dha", skills: ["womens-salon"], women: true, status: "active", createdAt: new Date().toISOString() })
@@ -225,6 +228,35 @@ describe("the phone app", () => {
     expect((await json(await call(R.bookings.GET!, { token: t }))).upcoming.map((b: { id: string }) => b.id)).toEqual([signed.id])
     // The same checks as the website: a bad phone number is refused with its reason.
     expect(await json(await call(R.appBooking.POST!, { body: booking("12345") }))).toMatchObject({ status: 422, error: expect.any(String) })
+  })
+})
+
+describe("Plus, gift cards and referrals", () => {
+  it("shows the account's Plus and referral code, joins Plus, and turns a gift card into credit", async () => {
+    const t = await devToken("growth@example.com")
+    await call(R.link.POST!, { token: t, body: { name: "Rabia Khan", phone: "03007770001" } })
+    const me = await json(await call(R.me.GET!, { token: t }))
+    expect(me).toMatchObject({ plus: null, referral: { code: "RABIA-0001", friendOff: 500, youGet: 500, friends: 0, earned: 0 } })
+    expect(await json(await call(R.plus.POST!, { token: t, body: {} }))).toMatchObject({ status: 200, plus: { status: "requested", price: 2500, discountPct: 10 } })
+    expect((await json(await call(R.me.GET!, { token: t }))).plus).toMatchObject({ status: "requested" })
+    const { issueGiftCard } = await import("@/lib/core/growth")
+    const g = await issueGiftCard(db, { amount: 2000, paidVia: "cash", by: "fin@mjazo.test" })
+    expect(await json(await call(R.gift.POST!, { token: t, body: { code: g.code } }))).toMatchObject({ status: 200, added: 2000, credit: { balance: 2000, available: 2000 } })
+    expect(await json(await call(R.gift.POST!, { token: t, body: { code: g.code } }))).toMatchObject({ status: 400, error: expect.stringMatching(/already added/) })
+    expect((await call(R.plus.POST!, { body: {} })).status).toBe(401)
+  })
+
+  it("gives a code to someone not signed in, and takes a friend's code in the promo box (first booking only)", async () => {
+    const r = await json(await call(R.referral.POST!, { body: { name: "Nadia", phone: "0300 7770002" } }))
+    expect(r).toMatchObject({ status: 200, code: "NADIA-0002", friendOff: 500, youGet: 500 })
+    expect((await call(R.referral.POST!, { body: { name: "Nadia", phone: "123" } })).status).toBe(400)
+    const asGuest = await json(await call(R.promo.POST!, { body: { code: "nadia-0002", items: [item] } }))
+    expect(asGuest).toMatchObject({ ok: true, code: "NADIA-0002", discount: 500, kind: "referral" })
+    // Someone who has booked before can't use a friend's code.
+    const t = await devToken("growth@example.com")
+    await call(R.appBooking.POST!, { token: t, body: booking("03007770001", { date: day(5), window: "5–7 pm" }) })
+    expect(await json(await call(R.promo.POST!, { token: t, body: { code: "NADIA-0002", items: [item] } }))).toMatchObject({ ok: false, problem: "used" })
+    expect(await json(await call(R.promo.POST!, { body: { code: "NOBODY-9999", items: [item] } }))).toMatchObject({ ok: false, problem: "invalid" })
   })
 })
 

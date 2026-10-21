@@ -36,6 +36,7 @@ accounts, and what's left.
 | **Platform stage 3: the pro app** (versioned `/api/v1/pro` API, job offers, schedule, earnings from the ledger, payouts, ratings, availability, email sign-in) | **Live 21 Oct 2026** (section 3d): migration 0007 run, `SESSION_SECRET` set, deployed and checked. Next: PINs (and emails) for the real pros in mission control |
 | **Platform stage 4: the client account** (email sign-in, live bookings, change and cancel, saved addresses with a map pin, promo codes, wallet credit, book a pro again, `/api/v1/customer`) | **Live 21 Oct 2026** (section 3e): migration 0008 run, deployed and checked. Still to do: Supabase sign-in settings and SMTP (section 7, item 9), then a real email sign-in |
 | **Platform stage 5: automation** (customer messages, auto-assign, weekly payout drafts, opt-in Home Pulse and win-back messages, mission control → Automations) | **Live 21 Oct 2026** (section 3f): migration 0009 run, deployed and checked. Messages stay in test mode (logged only) until WhatsApp templates or Resend are set; the automation pinger needs `CRON_SECRET` (section 7, item 10) |
+| **After the platform, part 1: Plus, gift cards and referral rewards** (they were request forms) | **Built 21 Oct 2026** (section 3h). To go live: `--migrate` (0010), then deploy |
 | **Platform stage 6: the phone apps** (Mjazo and Mjazo Pro, Expo, in `mobile/`) | **Built 21 Oct 2026** (section 3g); its API is **live** (deployed the same day and checked). Next: try both apps on a phone with Expo Go, then store builds with your Expo account |
 
 ---
@@ -320,6 +321,27 @@ Built on 21 October 2026; the API the apps use went **live** the same day (deplo
   - Mjazo Pro (Test Pro Hina, PIN set in mission control): sign-in, Today, accepted an offer, On my way → check in → finished with PKR 4,500 cash; earnings showed she hands in PKR 1,125; changed and reset her weekly windows and a day off (the day she has a visit was blocked).
   - Mission control's send log had the app booking's confirmation, the offer to her and "on the way" to the customer.
 - **Found and fixed on the way:** a development-only CORS setting in `next.config.mjs` made every `/api/v1` route with an id in its address answer 404 on the dev server; it was removed (the apps don't need CORS; `mobile/scripts/web-dev.mjs` serves an app and the API from one address for browser checks).
+
+## 3h. After the platform: what was still missing
+
+On 21 October 2026 the owner asked for the rest before testing: Plus, gift cards and referral rewards; live tracking of the pro; phone-number sign-in; and the AI tools in the apps. Built in that order, each in its own commit.
+
+### Part 1: Plus, gift cards and referral rewards
+
+Schema: `supabase/migrations/0010_plus_gifts_referrals.sql` (Plus memberships, gift cards, referral rewards; customers get a referral code and who referred them). Code: `lib/core/growth.ts`; three new ledger accounts: Plus fees (revenue), gift cards not yet used (a liability) and referral rewards (an expense).
+
+- **Mjazo Plus** (PKR 2,500 a year for 10% off, from /admin → Settings → Plus & referrals):
+  - a signed-in customer joins from the Plus page, the account page or the app; ops are emailed;
+  - Finance or an Owner takes the fee (JazzCash, Easypaisa, bank, Raast or cash) and activates it in mission control → **Plus & gifts**, or adds a member by phone;
+  - from then on every booking gets the member's discount for a year, by itself (an early renewal adds a year to the end). One discount per booking still: the largest of Plus, a promo code and a friend's referral;
+  - the customer gets a "Welcome to Mjazo Plus" message (Automations; logged until WhatsApp or email is set).
+- **Gift cards:** once the buyer has paid, mission control issues a code (`MJG-XXXX-XXXX`) with a ready message to WhatsApp the buyer or the recipient. Whoever has the code adds it in their account (website or app) and it becomes Mjazo credit, once. An unused card can be cancelled (its money goes back to the buyer outside the app). Tries are limited, so codes can't be guessed.
+- **Referral rewards:**
+  - every customer with a number has a code (`NAME-1234`), shown on their account (website and app) with WhatsApp sharing; the Refer page makes one from a name and number without signing in;
+  - a friend's first booking with the code (from the `?ref=` link, or typed in the promo box on the website or in the app) gets PKR 500 off. **Only real codes count now, and never your own**: before, any code got the discount;
+  - when that first visit is done, the referrer gets PKR 500 credit by itself (once per friend) and a message. Mission control lists the rewards paid.
+- **Tests:** the growth core (5: Plus from request to discount and renewal, members added by phone, gift cards from sale to credit and cancelling, referral codes, the reward once), the API (2), the automation (2: the referral credit and message, the Plus welcome), the permissions, and the referral rules in the booking tests now use real codes.
+- **Checked locally:** issued a PKR 1,500 gift card in mission control; the test customer joined Plus from the API, an Owner activated it (until 21 October 2027), the gift card became PKR 1,500 credit, a booking got 10% off by itself (PKR 450 off PKR 4,500), and the account page showed the membership, the credit, the code STAGE-0099 and the gift card box. The welcome message was logged.
 
 ## 4. Brand kit
 

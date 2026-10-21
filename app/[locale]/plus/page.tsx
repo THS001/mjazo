@@ -13,6 +13,7 @@ import { pairs } from "@/lib/cms/types/pages/blocks"
 import type { PlusContent } from "@/lib/cms/types/pages/commerce"
 import { pageLocale } from "@/lib/cms/locale"
 import { pageMetadata } from "@/lib/cms/seo/metadata"
+import { PlusJoin } from "@/components/account/growth-views"
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   await pageLocale(params)
@@ -76,14 +77,16 @@ export default async function PlusPage({ params }: { params: Promise<{ locale: s
             <p className="font-serif text-5xl">{c.join.title}</p>
             <p className="text-white/60 mt-4">{c.join.body}</p>
           </div>
-          <EnquiryForm
-            kind="plus"
-            dark
-            submitLabel={c.join.submit}
-            whatsappText={c.join.whatsapp}
-            success={c.join.success}
-            extras={[{ name: "area", label: c.join.area, type: "select", options: areaOptions(areas), required: true }]}
-          />
+          <PlusJoin>
+            <EnquiryForm
+              kind="plus"
+              dark
+              submitLabel={c.join.submit}
+              whatsappText={c.join.whatsapp}
+              success={c.join.success}
+              extras={[{ name: "area", label: c.join.area, type: "select", options: areaOptions(areas), required: true }]}
+            />
+          </PlusJoin>
         </Container>
       </section>
 

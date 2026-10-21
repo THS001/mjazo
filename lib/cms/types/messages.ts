@@ -40,6 +40,14 @@ export const MESSAGES = {
     subject: "New visit offer: {{services}}",
     text: "New Mjazo visit for you: {{services}} in {{area}}, {{date}}, {{window}}. You earn {{earn}}. Answer by {{until}} in the Mjazo Pro app: {{link}}",
   },
+  referralReward: {
+    subject: "{{amount}} credit from Mjazo",
+    text: "Shukriya {{name}}! {{friend}} had their first Mjazo visit with your code, so {{amount}} credit is in your account for your next booking: {{link}}",
+  },
+  plusWelcome: {
+    subject: "Welcome to Mjazo Plus",
+    text: "Welcome to Mjazo Plus, {{name}}! Until {{until}} you get {{pct}}% off every booking, taken off by itself. Book: {{link}}",
+  },
 }
 
 export type MessageTexts = typeof MESSAGES
@@ -78,6 +86,14 @@ export const MESSAGES_UR: MessageTexts = {
     subject: "نئے وزٹ کی آفر: {{services}}",
     text: "آپ کے لیے نیا مجازو وزٹ: {{services}}، {{area}}، {{date}}، {{window}}۔ آپ کی کمائی {{earn}}۔ مجازو پرو ایپ میں {{until}} تک جواب دیں: {{link}}",
   },
+  referralReward: {
+    subject: "مجازو کی طرف سے {{amount}} کریڈٹ",
+    text: "شکریہ {{name}}! {{friend}} نے آپ کے کوڈ سے مجازو کا پہلا وزٹ کیا، اس لیے آپ کے اکاؤنٹ میں اگلی بکنگ کے لیے {{amount}} کریڈٹ آ گیا ہے: {{link}}",
+  },
+  plusWelcome: {
+    subject: "مجازو پلس میں خوش آمدید",
+    text: "مجازو پلس میں خوش آمدید، {{name}}! {{until}} تک ہر بکنگ پر {{pct}}% رعایت خود بخود لگے گی۔ بکنگ: {{link}}",
+  },
 }
 
 const GROUPS: Record<MessageKey, string> = {
@@ -89,6 +105,8 @@ const GROUPS: Record<MessageKey, string> = {
   winBack60: "Win-back after 60 days (opt-in)",
   winBack90: "Win-back after 90 days (opt-in)",
   proOffer: "A visit offered to a pro",
+  referralReward: "Referral credit (to the customer who referred a friend)",
+  plusWelcome: "Welcome to Mjazo Plus",
 }
 
 register<MessageTexts, MessageTexts>({
@@ -97,7 +115,7 @@ register<MessageTexts, MessageTexts>({
   group: "Settings",
   kind: "singleton",
   icon: "MessageCircle",
-  description: "The messages Mjazo sends by itself: booking confirmed, the day-before reminder, \"your pro is on the way\", \"rate your visit\", the opt-in reminders and win-backs, and visit offers to pros. Each one can be switched on or off in mission control → Automations. Keep the {{tokens}}.",
+  description: "The messages Mjazo sends by itself: booking confirmed, the day-before reminder, \"your pro is on the way\", \"rate your visit\", the opt-in reminders and win-backs, visit offers to pros, referral credit and the Plus welcome. Each one can be switched on or off in mission control → Automations. Keep the {{tokens}}.",
   fields: stringFields(MESSAGES, GROUPS),
   defaults: () => MESSAGES,
   translations: { ur: () => MESSAGES_UR },

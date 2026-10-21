@@ -30,6 +30,8 @@ export type Catalog = {
   minOrder: number
   policy: { freeChangeHours: number; leadHours: number; redoHours: number }
   contact: { phone: string; whatsapp: string; email: string; hours: string }
+  plus: { price: number; discountPct: number }
+  referral: { friendOff: number; youGet: number }
 }
 
 /** A line in the cart, as a booking sends it (options by their English key, add-ons by id). */
@@ -42,7 +44,9 @@ export type Slots = { mode: "off" | "open" | "capacity" | "unavailable"; days: {
 // ---------------------------------------------------------------------------
 
 export type Customer = { id: string; name: string; phone: string | null; email: string | null; lang: string; marketingOk: boolean }
-export type Me = { email: string; customer: Customer | null; credit: { balance: number; available: number } }
+export type MePlus = { status: "requested" | "active"; endsAt: string | null; discountPct: number; price: number }
+export type MeReferral = { code: string; friendOff: number; youGet: number; friends: number; rewarded: number; earned: number }
+export type Me = { email: string | null; customer: Customer | null; credit: { balance: number; available: number }; plus?: MePlus | null; referral?: MeReferral | null }
 export type Address = { id: string; label: string | null; area: string; subArea: string | null; line: string; landmark: string | null; lat: number | null; lng: number | null; isDefault: boolean }
 export type BookingStatus = "new" | "assigned" | "en_route" | "checked_in" | "checked_out" | "completed" | "cancelled" | "no_show"
 export type CustomerBooking = {
@@ -73,7 +77,7 @@ export type CustomerBooking = {
   rebookWith: { id: string; firstName: string } | null
 }
 export type PromoProblem = "invalid" | "notYet" | "expired" | "minOrder" | "usedUp" | "used"
-export type PromoCheck = { ok: true; code: string; discount: number } | { ok: false; code?: string; problem: PromoProblem; minOrder?: number }
+export type PromoCheck = { ok: true; code: string; discount: number; kind?: "referral" } | { ok: false; code?: string; problem: PromoProblem; minOrder?: number }
 
 // ---------------------------------------------------------------------------
 // The pro (/api/v1/pro)

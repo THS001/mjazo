@@ -15,6 +15,9 @@ import type { Db } from "./db"
 //   mjazo:discounts     expense    promo and referral discounts (Mjazo funds them, not the pro)
 //   mjazo:goodwill      expense    credits given to customers
 //   mjazo:refunds       expense    money paid back to customers
+//   mjazo:plus          revenue    Mjazo Plus membership fees
+//   mjazo:giftcards     liability  gift cards sold and not yet turned into credit
+//   mjazo:referrals     expense    credit given to customers for a friend's first visit
 //
 // Pros earn on the full price: a discount comes out of Mjazo's share, never hers.
 
@@ -28,6 +31,9 @@ export const ACC = {
   discounts: "mjazo:discounts",
   goodwill: "mjazo:goodwill",
   refunds: "mjazo:refunds",
+  plus: "mjazo:plus",
+  giftCards: "mjazo:giftcards",
+  referrals: "mjazo:referrals",
 } as const
 
 type Kind = "asset" | "liability" | "revenue" | "expense"
@@ -45,6 +51,9 @@ export function accountInfo(id: string): { kind: Kind; ownerType: "pro" | "custo
     discounts: ["expense", "Discounts"],
     goodwill: ["expense", "Goodwill credits"],
     refunds: ["expense", "Refunds"],
+    plus: ["revenue", "Mjazo Plus fees"],
+    giftcards: ["liability", "Gift cards not yet used"],
+    referrals: ["expense", "Referral rewards"],
   }
   if (scope === "mjazo" && mjazo[owner]) return { kind: mjazo[owner][0], ownerType: "mjazo", ownerId: null, name: mjazo[owner][1] }
   throw new LedgerError(`Unknown ledger account ${id}`)
@@ -191,6 +200,81 @@ export function issueCredit(db: Db, c: { customerId: string; amount: number; rea
     postings: [
       { account: ACC.goodwill, amount: c.amount },
       { account: ACC.custCredit(c.customerId), amount: -c.amount },
+    ],
+  })
+}
+
+/** A Plus membership fee received (bank, wallet or cash handed to the office). */
+export function plusFeePaid(db: Db, p: { membershipId: string; customerId: string; amount: number; method: string; reference?: string; actor?: string }) {
+  if (p.amount <= 0) return Promise.resolve(null)
+  return post(db, {
+    kind: "plus_paid",
+    key: `plus:${p.membershipId}`,
+    customerId: p.customerId,
+    actor: p.actor,
+    memo: [`Plus ${p.membershipId} (${p.method})`, p.reference].filter(Boolean).join(" · "),
+    postings: [
+      { account: ACC.bank, amount: p.amount },
+      { account: ACC.plus, amount: -p.amount },
+    ],
+  })
+}
+
+/** A gift card paid for: the money is held until the card is turned into credit. */
+export function giftCardSold(db: Db, g: { code: string; amount: number; method: string; reference?: string; actor?: string }) {
+  return post(db, {
+    kind: "giftcard_sold",
+    key: `giftcard:${g.code}:sold`,
+    actor: g.actor,
+    memo: [`Gift card ${g.code} (${g.method})`, g.reference].filter(Boolean).join(" · "),
+    postings: [
+      { account: ACC.bank, amount: g.amount },
+      { account: ACC.giftCards, amount: -g.amount },
+    ],
+  })
+}
+
+/** A gift card turned into the customer's credit. */
+export function giftCardRedeemed(db: Db, g: { code: string; amount: number; customerId: string; actor?: string }) {
+  return post(db, {
+    kind: "giftcard_redeemed",
+    key: `giftcard:${g.code}:redeemed`,
+    customerId: g.customerId,
+    actor: g.actor,
+    memo: `Gift card ${g.code}`,
+    postings: [
+      { account: ACC.giftCards, amount: g.amount },
+      { account: ACC.custCredit(g.customerId), amount: -g.amount },
+    ],
+  })
+}
+
+/** An unused gift card cancelled and its money given back to the buyer. */
+export function giftCardRefunded(db: Db, g: { code: string; amount: number; actor?: string; reason?: string }) {
+  return post(db, {
+    kind: "giftcard_refunded",
+    key: `giftcard:${g.code}:refunded`,
+    actor: g.actor,
+    memo: [`Gift card ${g.code} cancelled`, g.reason].filter(Boolean).join(" · "),
+    postings: [
+      { account: ACC.giftCards, amount: g.amount },
+      { account: ACC.bank, amount: -g.amount },
+    ],
+  })
+}
+
+/** Credit for the customer whose friend's first visit is done. */
+export function referralRewarded(db: Db, r: { referrerId: string; friendId: string; bookingId: string; amount: number }) {
+  return post(db, {
+    kind: "referral_reward",
+    key: `referral:${r.friendId}`,
+    customerId: r.referrerId,
+    bookingId: r.bookingId,
+    actor: "automation",
+    memo: `A friend's first visit (${r.bookingId})`,
+    postings: [
+      { account: ACC.referrals, amount: r.amount },
+      { account: ACC.custCredit(r.referrerId), amount: -r.amount },
     ],
   })
 }

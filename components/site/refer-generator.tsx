@@ -1,19 +1,25 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Check, Copy, MessageCircle } from "lucide-react"
+import { Check, Copy, Loader2, MessageCircle } from "lucide-react"
 import { formatPKR } from "@/lib/catalog"
-import { submit, track } from "@/lib/site"
+import { useAccount } from "@/lib/client/customer"
+import { track } from "@/lib/site"
 import { Field, inputCls } from "./forms"
 import { PK_PHONE, normalisePhone } from "./notify-form"
 import { fill, useLocale, useSite, useT } from "@/components/cms/provider"
 import { localePath } from "@/lib/i18n"
 
 const KEY = "mjazo-my-ref"
-const makeCode = (name: string, phone: string) => `${name.trim().split(/\s+/)[0].replace(/[^a-z]/gi, "").toUpperCase().slice(0, 10) || "MJAZO"}-${phone.slice(-4)}`
 
-/** Creates the visitor's personal referral code + link and shares it on WhatsApp. */
+/**
+ * The visitor's personal referral code + link, shared on WhatsApp. Signed in, it's their account's
+ * code; otherwise their name and number make one on the server (it's theirs from then on, and the
+ * credit it earns waits in their account).
+ */
 export function ReferGenerator() {
+  const acc = useAccount()
+  const [busy, setBusy] = useState(false)
   const { referral } = useSite()
   const t = useT().offers
   const locale = useLocale()
@@ -24,6 +30,9 @@ export function ReferGenerator() {
   const [copied, setCopied] = useState(false)
   const [origin, setOrigin] = useState("")
 
+  useEffect(() => {
+    if (acc.state === "in" && acc.me.referral) setCode(acc.me.referral.code)
+  }, [acc])
   useEffect(() => {
     setOrigin(window.location.origin)
     try {
@@ -43,14 +52,19 @@ export function ReferGenerator() {
     if (name.trim().length < 2) return setError(t.errName)
     if (!PK_PHONE.test(p)) return setError(t.errPhone)
     setError("")
-    const c = makeCode(name, p)
+    setBusy(true)
     try {
-      localStorage.setItem(KEY, c)
-    } catch {}
-    setCode(c)
-    track("referral_code_created", { code: c })
-    // Register the code so credits can be matched to this customer.
-    submit("enquiry", { kind: "contact", name: name.trim(), phone: p, message: `Referral code created: ${c}`, details: { referralCode: c } }).catch(() => {})
+      const res = await fetch("/api/v1/referral", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: name.trim(), phone: p }) })
+      const r = (await res.json().catch(() => ({}))) as { code?: string; error?: string }
+      if (!res.ok || !r.code) return setError(r.error ?? t.errPhone)
+      try {
+        localStorage.setItem(KEY, r.code)
+      } catch {}
+      setCode(r.code)
+      track("referral_code_created", { code: r.code })
+    } finally {
+      setBusy(false)
+    }
   }
 
   if (code)
@@ -89,7 +103,10 @@ export function ReferGenerator() {
       <Field label={t.yourName}><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" /></Field>
       <Field label={t.yourPhone} hint={t.phoneHint}><input className={inputCls} value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel" placeholder="0300 1234567" /></Field>
       {error && <p className="text-xs text-destructive">{error}</p>}
-      <button className="h-12 rounded-full bg-foreground text-background text-sm font-medium hover:bg-brand hover:text-foreground transition-colors">{t.getCode}</button>
+      <button disabled={busy} className="h-12 rounded-full bg-foreground text-background text-sm font-medium hover:bg-brand hover:text-foreground transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-60">
+        {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+        {t.getCode}
+      </button>
     </form>
   )
 }

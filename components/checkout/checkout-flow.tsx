@@ -4,7 +4,7 @@ import Link from "@/components/site/locale-link"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "@/components/site/locale-link"
 import { motion } from "framer-motion"
-import { Banknote, Check, ClipboardCheck, Gift, Loader2, Lock, MapPinned, MessageCircle, ShieldCheck, ShoppingBag, Smartphone, Tag, UserRound, Wallet, X, Zap } from "lucide-react"
+import { Banknote, Check, ClipboardCheck, Crown, Gift, Loader2, Lock, MapPinned, MessageCircle, ShieldCheck, ShoppingBag, Smartphone, Tag, UserRound, Wallet, X, Zap } from "lucide-react"
 import { formatPKR } from "@/lib/catalog"
 import { getRef, submit, track } from "@/lib/site"
 import { cartTotal, useCart, useLocation } from "@/lib/store"
@@ -123,11 +123,14 @@ export function CheckoutFlow() {
 
   const list = mounted ? items : []
   const subtotal = cartTotal(list)
-  // One discount per booking: the larger of the friend's referral and the promo code (the server decides the same way).
+  // One discount per booking: the largest of Mjazo Plus, the promo code and a friend's referral (the server decides the same way).
   const referralOff = ref && subtotal > 0 ? Math.min(referral.friendOff, subtotal) : 0
   const promoOff = promo ? Math.min(promo.discount, subtotal) : 0
-  const usingPromo = promoOff > 0 && promoOff >= referralOff
-  const discount = Math.max(referralOff, promoOff)
+  const plus = signedIn?.plus?.status === "active" ? signedIn.plus : null
+  const plusOff = plus ? Math.round((subtotal * plus.discountPct) / 100) : 0
+  const usingPromo = promoOff > 0 && promoOff >= referralOff && promoOff >= plusOff
+  const usingPlus = !usingPromo && plusOff > 0 && plusOff >= referralOff
+  const discount = Math.max(referralOff, promoOff, plusOff)
   const total = subtotal - discount
   const creditAvailable = signedIn?.credit.available ?? 0
   const credit = signedIn && useCredit ? Math.min(creditAvailable, total) : 0
@@ -269,7 +272,7 @@ export function CheckoutFlow() {
         date,
         window: win,
         payment: payment as "cash",
-        notes: [notes.trim(), ref && !usingPromo ? `Referral ${ref}: ${formatPKR(discount)} off` : ""].filter(Boolean).join(" · ") || undefined,
+        notes: [notes.trim(), ref && !usingPromo && !usingPlus ? `Referral ${ref}: ${formatPKR(discount)} off` : ""].filter(Boolean).join(" · ") || undefined,
         items: list.map((i) => ({ name: i.name, category: i.category, service: i.service, options: i.options, addOns: i.addOns.map((a) => a.name), qty: i.qty, unitPrice: i.unitPrice })),
         total,
         brief: brief && sendBrief ? { kind: brief.kind, title: brief.title, text: brief.text, causes: brief.causes, parts: brief.parts, pins: brief.pins, hasPhotos: brief.photos.length > 0 } : undefined,
@@ -526,7 +529,8 @@ export function CheckoutFlow() {
           <CartLines items={list} />
           <div className="pt-4 border-t border-zinc-100 space-y-2 text-sm">
             <div className="flex justify-between text-zinc-500"><span>{t.common.visitFee}</span><span>{t.common.free}</span></div>
-            {discount > 0 && !usingPromo && <div className="flex justify-between text-brand-ink"><span className="flex items-center gap-1.5"><Gift className="w-4 h-4" />{fill(t.checkout.friendWelcome, { code: ref ?? "" })}</span><span>− {formatPKR(discount)}</span></div>}
+            {usingPlus && <div className="flex justify-between text-brand-ink"><span className="flex items-center gap-1.5"><Crown className="w-4 h-4" />{fill(m.plusLine, { pct: plus!.discountPct })}</span><span>− {formatPKR(discount)}</span></div>}
+            {discount > 0 && !usingPromo && !usingPlus && <div className="flex justify-between text-brand-ink"><span className="flex items-center gap-1.5"><Gift className="w-4 h-4" />{fill(t.checkout.friendWelcome, { code: ref ?? "" })}</span><span>− {formatPKR(discount)}</span></div>}
             {usingPromo && (
               <div className="flex justify-between text-brand-ink">
                 <span className="flex items-center gap-1.5">

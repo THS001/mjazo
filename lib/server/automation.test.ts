@@ -37,7 +37,7 @@ vi.mock("@/lib/cms/read", async () => {
   const { buildCatalog, DEFAULT_CATALOG } = await import("@/lib/catalog")
   const { MESSAGES, MESSAGES_UR } = await import("@/lib/cms/types/messages")
   const cat = buildCatalog(DEFAULT_CATALOG)
-  return { getCatalog: async () => cat, getSettings: async () => ({ referral: { friendOff: 500 }, policy: { leadHours: 2, freeChangeHours: 3 } }), getMessages: async (l: string) => (l === "ur" ? MESSAGES_UR : MESSAGES) }
+  return { getCatalog: async () => cat, getSettings: async () => ({ referral: { friendOff: 500, youGet: 500 }, plus: { price: 2500, period: "year", discount: 0.1 }, policy: { leadHours: 2, freeChangeHours: 3 } }), getMessages: async (l: string) => (l === "ur" ? MESSAGES_UR : MESSAGES) }
 })
 
 type Note = { id: number; rule: string; channel: string; recipient: string; template: string; body: string; params: string[]; lang: string; status: string; attempts: number; error: string | null; provider_id: string | null; booking_id: string | null; dedupe_key: string }
@@ -181,6 +181,39 @@ describe("booking messages", () => {
     await A.runAutomation()
     expect(await forBooking(b.id)).toHaveLength(0)
     await rule("confirm", true)
+  })
+})
+
+describe("referrals and Plus", () => {
+  it("credits the referrer when a friend's first visit with the code is done, and tells them once", async () => {
+    const { referralCodeForPhone } = await import("@/lib/core/growth")
+    const code = await referralCodeForPhone(db, "Saima", "03019990001")
+    const b = await book({ phone: "03019990002", name: "Fatima Noor" })
+    await A.runAutomation()
+    // The friend's code goes in as their referral (the core keeps it on the booking).
+    await db.query("update bookings set promo_code = $2 where id = $1", [b.id, `REF:${code}`])
+    const referrer = (await db.one<{ id: string }>("select id from customers where phone = '03019990001'"))!.id
+    await db.query("update customers set referred_by = $2 where id = $1", [await customerOf(b.id), referrer])
+    await complete(b.id, "P-SANA", new Date())
+    await A.runAutomation()
+    await A.runAutomation()
+    const sent = await notes("rule = 'referralReward'")
+    expect(sent).toHaveLength(1)
+    expect(sent[0]).toMatchObject({ recipient: "03019990001", template: "referralReward" })
+    expect(sent[0].body).toContain("Fatima")
+    expect(sent[0].body).toContain("PKR 500")
+    const { creditFor } = await import("@/lib/core/customers")
+    expect((await creditFor(db, referrer)).balance).toBe(500)
+  })
+
+  it("welcomes a new Plus member", async () => {
+    const { activatePlus } = await import("@/lib/core/growth")
+    const p = await activatePlus(db, { phone: "03019990003", name: "Iqra Shah", terms: { price: 2500, discountPct: 10 }, paidVia: "jazzcash", by: "fin@mjazo.test" })
+    await A.runAutomation()
+    const [m] = await notes("rule = 'plusWelcome'")
+    expect(m).toMatchObject({ recipient: "03019990003", dedupe_key: `plus:${p.id}` })
+    expect(m.body).toContain("Iqra")
+    expect(m.body).toContain("10%")
   })
 })
 

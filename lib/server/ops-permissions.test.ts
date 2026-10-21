@@ -48,7 +48,7 @@ vi.mock("@/lib/cms/read", async () => {
   const { buildCatalog, DEFAULT_CATALOG } = await import("@/lib/catalog")
   const cat = buildCatalog(DEFAULT_CATALOG)
   const { MESSAGES } = await import("@/lib/cms/types/messages")
-  return { getCatalog: async () => cat, getSettings: async () => ({ referral: { friendOff: 500 }, policy: { leadHours: 2 } }), getMessages: async () => MESSAGES }
+  return { getCatalog: async () => cat, getSettings: async () => ({ referral: { friendOff: 500, youGet: 500 }, plus: { price: 2500, period: "year", discount: 0.1 }, policy: { leadHours: 2 } }), getMessages: async () => MESSAGES }
 })
 vi.mock("next/headers", () => ({ headers: async () => new Headers(), cookies: async () => ({ get: () => undefined, set: () => {}, delete: () => {}, getAll: () => [] }) }))
 
@@ -73,6 +73,7 @@ beforeAll(async () => {
     booking: await import("../../app/api/ops/booking/route"),
     money: await import("../../app/api/ops/money/route"),
     promos: await import("../../app/api/ops/promos/route"),
+    growth: await import("../../app/api/ops/growth/route"),
     kpi: await import("../../app/api/ops/kpi/route"),
     audit: await import("../../app/api/ops/audit/route"),
     requests: await import("../../app/api/ops/requests/route"),
@@ -135,6 +136,8 @@ const CASES: Case[] = [
   { name: "apply a Route Brain plan", roles: ["owner", "admin", "dispatcher"], run: () => post(R["route-plan"], { date: "2099-01-01", apply: true }) },
   { name: "approve a wedding plan", roles: ["owner", "admin", "dispatcher"], run: () => post(R.weddings, { action: "approve", id: "W-NONE" }) },
   { name: "see promo codes", roles: ["owner", "admin", "finance"], run: () => (R.promos.GET as () => Promise<Response>)() },
+  { name: "see Plus and gift cards", roles: ["owner", "finance"], run: () => (R.growth.GET as () => Promise<Response>)() },
+  { name: "issue a gift card", roles: ["owner", "finance"], run: () => post(R.growth, { action: "issue_gift", amount: 1000, paidVia: "cash" }) },
   { name: "create a promo code", roles: ["owner", "admin", "finance"], run: () => post(R.promos, { action: "create", promo: { code: `T${Math.random().toString(36).slice(2, 8).toUpperCase()}`, kind: "percent", value: 10 } }) },
   { name: "see KPIs", roles: ["owner", "admin", "dispatcher", "finance"], run: () => get(R.kpi, "?days=7") },
   { name: "see the audit log", roles: ["owner", "admin", "finance"], run: () => get(R.audit) },

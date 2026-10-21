@@ -149,7 +149,12 @@ export default function Checkout() {
   }
   const promoProblem = (p: Extract<PromoCheck, { ok: false }>) => fill(t[`promo-${p.problem}` as keyof typeof t] ?? t["promo-invalid"], { min: formatPKR(p.minOrder ?? 0) })
 
-  const discount = promo?.ok ? Math.min(promo.discount, cart.subtotal) : 0
+  // One discount per booking, as the server decides: the larger of Mjazo Plus and the code.
+  const plus = me?.plus?.status === "active" ? me.plus : null
+  const plusOff = plus ? Math.round((cart.subtotal * plus.discountPct) / 100) : 0
+  const codeOff = promo?.ok ? Math.min(promo.discount, cart.subtotal) : 0
+  const usingPlus = plusOff > codeOff
+  const discount = Math.max(plusOff, codeOff)
   const total = cart.subtotal - discount
   const credit = me && useCredit ? Math.min(me.credit.available, total) : 0
 
@@ -178,7 +183,7 @@ export default function Checkout() {
         ...(notes.trim() ? { notes: notes.trim() } : {}),
         items,
         total: total - credit,
-        ...(promo?.ok ? { promo: promo.code } : {}),
+        ...(promo?.ok && !usingPlus ? { promo: promo.code } : {}),
         ...(me && credit > 0 ? { useCredit: true } : {}),
         ...(proId ? { preferredProId: proId } : {}),
         ...(pin ? { lat: pin.lat, lng: pin.lng } : {}),
@@ -332,7 +337,7 @@ export default function Checkout() {
         {cart.items.map((i) => (
           <Line key={i.key} label={`${i.name}${i.qty > 1 ? ` ×${i.qty}` : ""}`} value={i.unitPrice > 0 ? formatPKR(i.unitPrice * i.qty) : t.onRequest} />
         ))}
-        {discount > 0 && <Line label={t.discount} value={`− ${formatPKR(discount)}`} />}
+        {discount > 0 && <Line label={usingPlus ? fill(t.plusLine, { pct: plus!.discountPct }) : promo?.ok && promo.kind === "referral" ? fill(t.friendWelcome, { code: promo.code }) : t.discount} value={`− ${formatPKR(discount)}`} />}
         {credit > 0 && <Line label={t.creditUsed} value={`− ${formatPKR(credit)}`} />}
         <Line label={t.payAfter} value={total - credit > 0 ? formatPKR(total - credit) : t.onRequest} strong />
       </Card>

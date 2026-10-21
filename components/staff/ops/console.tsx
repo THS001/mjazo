@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { Activity, BarChart3, Bot, CalendarHeart, Banknote, Inbox, Lock, LogOut, Route, ScrollText, ShieldAlert, Tag, UserPlus, Users, Wallet, Zap } from "lucide-react"
+import { Activity, BarChart3, Bot, CalendarHeart, Banknote, Inbox, Lock, LogOut, Route, ScrollText, ShieldAlert, Tag, UserPlus, Users, Wallet, Zap, Gift } from "lucide-react"
 import type { Job, Pro, SafetyStatus } from "@/lib/ops/types"
 import type { OpsPerm } from "@/lib/ops/access"
 import { ROLES, ROLE_INFO } from "@/lib/cms/roles"
@@ -23,6 +23,7 @@ import { PromosTab } from "./promos"
 import { KpiTab } from "./kpi"
 import { AuditTab } from "./audit"
 import { AutomationsTab } from "./automations"
+import { GrowthTab } from "./growth"
 
 export type OpsJob = Job & { safety: SafetyStatus }
 export type OpsPro = Omit<Pro, "pinHash"> & { hasPin: boolean }
@@ -58,6 +59,7 @@ const TABS = [
   { id: "trust", label: "Trust Desk", icon: Wallet, perms: ["ops.requests", "ops.money"] },
   { id: "kpi", label: "KPIs", icon: BarChart3, perms: ["ops.kpi"] },
   { id: "audit", label: "Audit log", icon: ScrollText, perms: ["ops.audit"] },
+  { id: "growth", label: "Plus & gifts", icon: Gift, perms: ["ops.money"] },
   { id: "automations", label: "Automations", icon: Zap, perms: ["ops.automations"] },
   { id: "ask", label: "Ask AI", icon: Bot, perms: ["ops.ai"] },
 ] as const satisfies readonly { id: string; label: string; icon: unknown; perms: readonly OpsPerm[] }[]
@@ -276,6 +278,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             {tab === "trust" && <TrustDesk reload={load} />}
             {tab === "kpi" && <KpiTab />}
             {tab === "audit" && <AuditTab />}
+            {tab === "growth" && <GrowthTab />}
             {tab === "automations" && <AutomationsTab />}
             {tab === "ask" && <AskOps ai={data.ai} />}
           </motion.div>

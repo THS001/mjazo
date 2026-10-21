@@ -6,6 +6,7 @@ import { karachiNow } from "@/lib/time"
 import { emit } from "./events"
 import { applyCredit, customerBalances, settlePayment, visitCompleted, type PayMethod } from "./ledger"
 import { creditFor } from "./customers"
+import { plusDiscount, referrerOf } from "./growth"
 import { coreId, normalisePhone } from "./phone"
 import { priceItems, type ClientItem } from "./pricing"
 import { checkPromo, PromoError } from "./promos"
@@ -210,18 +211,29 @@ export async function createBooking(db: Db, b: NewBooking, cat: Catalog, rules: 
   return db.tx(async (t) => {
     if (await t.one("select 1 from bookings where id = $1", [b.id])) return (await getJob(t, b.id))!
     const customerId = b.customerId ?? (await ensureCustomer(t, b.name, b.phone))
-    // Referral discount: only on a customer's first booking (same rule the checkout shows).
+    // A friend's referral code typed in the promo box counts as the referral.
+    let referral = b.referral?.trim() || undefined
+    let promoCode = b.promo?.trim() || undefined
+    if (promoCode && !(await t.one("select 1 from promo_codes where code = upper($1)", [promoCode])) && (await referrerOf(t, promoCode))) {
+      referral = promoCode
+      promoCode = undefined
+    }
+    // Referral discount: a real code that isn't their own, on their first booking only.
     const firstBooking = !(await t.one("select 1 from bookings where customer_id = $1 and status not in ('cancelled')", [customerId]))
-    const referralOff = b.referral && firstBooking ? Math.min(rules.referralOff, priced.subtotal) : 0
+    const referrer = referral && firstBooking ? await referrerOf(t, referral) : null
+    const referralOff = referrer && referrer !== customerId ? Math.min(rules.referralOff, priced.subtotal) : 0
     let promo: { code: string; discount: number } | null = null
-    if (b.promo?.trim()) {
-      const c = await checkPromo(t, b.promo, { subtotal: priced.subtotal, customerId, now: rules.now })
+    if (promoCode) {
+      const c = await checkPromo(t, promoCode, { subtotal: priced.subtotal, customerId, now: rules.now })
       if (!c.ok) throw new PromoError(c.problem, c.minOrder)
       promo = c
     }
-    // One discount per booking: the larger of the friend's referral and the promo code.
-    const usePromo = Boolean(promo && promo.discount >= referralOff)
-    const discount = usePromo ? promo!.discount : referralOff
+    // Mjazo Plus members get their discount on every booking.
+    const plusOff = await plusDiscount(t, customerId, priced.subtotal, rules.now)
+    // One discount per booking: the largest of Plus, the promo code and a friend's referral.
+    const usePromo = Boolean(promo && promo.discount >= referralOff && promo.discount >= plusOff)
+    const usePlus = !usePromo && plusOff > 0 && plusOff >= referralOff
+    const discount = usePromo ? promo!.discount : usePlus ? plusOff : referralOff
     const total = priced.subtotal - discount
     const credit = b.useCredit && b.customerId ? Math.min((await creditFor(t, customerId)).available, total) : 0
     const preferred = b.preferredProId && (await t.one("select 1 from pros where id = $1 and status = 'active'", [b.preferredProId])) ? b.preferredProId : null
@@ -235,7 +247,12 @@ export async function createBooking(db: Db, b: NewBooking, cat: Catalog, rules: 
     if (usePromo) {
       await t.query("update bookings set promo_code = $2 where id = $1", [b.id, promo!.code])
       await t.query("insert into promo_redemptions (code, booking_id, customer_id, amount) values ($1, $2, $3, $4)", [promo!.code, b.id, customerId, discount])
-    } else if (discount) await t.query("update bookings set promo_code = $2 where id = $1", [b.id, `REF:${b.referral!.slice(0, 40)}`])
+    } else if (usePlus) await t.query("update bookings set promo_code = 'PLUS' where id = $1", [b.id])
+    else if (discount) {
+      await t.query("update bookings set promo_code = $2 where id = $1", [b.id, `REF:${referral!.toUpperCase().slice(0, 40)}`])
+      // Who referred them: their referrer gets credit when this first visit is done.
+      await t.query("update customers set referred_by = $2 where id = $1 and referred_by is null", [customerId, referrer])
+    }
     await insertItems(t, b.id, priced.items)
     if (priced.changed || (b.total !== undefined && b.total !== total - credit && b.total !== total)) console.warn(`[core] ${b.id}: browser total ${b.total} replaced by ${total}`)
     await emit(t, "booking.created", { bookingId: b.id, customerId, proId: preferred ?? undefined }, { total, discount, credit, promo: usePromo ? promo!.code : null, preferredProId: preferred, channel: b.channel ?? "web" })
