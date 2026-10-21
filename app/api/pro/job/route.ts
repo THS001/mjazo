@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     const g = "lat" in b && b.lat !== undefined ? { lat: b.lat, lng: b.lng } : {}
 
     if (b.action === "sos") {
-      await audit("pro", "SOS raised", b.jobId ?? proId)
+      await audit(`pro:${proId}`, "SOS raised", b.jobId ?? proId)
       if (b.jobId) {
         const job = await getJob(b.jobId)
         if (job?.proId === proId && !["completed", "cancelled", "new"].includes(job.status)) return { job: await addJobEvent(b.jobId, "sos", "pro", g, { proId }) }

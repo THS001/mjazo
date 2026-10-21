@@ -3,8 +3,8 @@ import { z } from "zod"
 import { getCatalog } from "@/lib/cms/read"
 import type { Catalog } from "@/lib/catalog"
 import { handle, readJson } from "@/lib/server/api"
-import { requireOps } from "@/lib/server/session"
-import { assignJob, getPros, syncJobs } from "@/lib/server/ops"
+import { requireStaff } from "@/lib/server/staff"
+import { assignJob, getPros, opsLimits, syncJobs } from "@/lib/server/ops"
 import { gapFillCandidates, planRoutes, travelMinutes, windowIndex } from "@/lib/ops/logic"
 import type { Job } from "@/lib/ops/types"
 
@@ -31,21 +31,22 @@ function currentTravel(jobs: Job[], homes: Map<string, string>) {
 
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireOps()
     const { date, apply } = body.parse(await readJson(req))
+    // Looking at a plan is for anyone on the board; applying it is dispatching.
+    const me = await requireStaff(apply ? "ops.dispatch" : "ops.view")
     const [jobs, allPros] = await Promise.all([syncJobs(), getPros()])
     const pros = allPros.filter((p) => p.status === "active")
     const day = jobs.filter((j) => j.date === date && j.status !== "cancelled" && j.status !== "completed")
     const cat = await getCatalog()
-    const plan = planRoutes(day, pros, jobs, cat)
+    const plan = planRoutes(day, pros, jobs, cat, await opsLimits())
     const before = currentTravel(day, new Map(pros.map((p) => [p.id, p.area])))
 
-    if (apply) await audit("ops", "applied Route Brain plan", date, plan.travelTotal + " min travel, " + plan.unassigned.length + " unassigned")
+    if (apply) await audit(me.email, "applied Route Brain plan", date, plan.travelTotal + " min travel, " + plan.unassigned.length + " unassigned")
     if (apply) {
       for (const [proId, stops] of Object.entries(plan.byPro))
         for (const [i, s] of stops.entries()) {
           const j = day.find((x) => x.id === s.jobId)
-          if (j && (j.status === "new" || j.status === "assigned")) await assignJob(s.jobId, proId, { eta: s.eta, routeOrder: i + 1 })
+          if (j && (j.status === "new" || j.status === "assigned")) await assignJob(s.jobId, proId, { eta: s.eta, routeOrder: i + 1 }, me.email)
         }
     }
 

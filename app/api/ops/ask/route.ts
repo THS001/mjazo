@@ -2,14 +2,14 @@ import { NextResponse } from "next/server"
 import { aiEnabled, rateLimited } from "@/lib/ai/anthropic"
 import { opsAsk } from "@/lib/ai/staff-agents"
 import { handle, readJson } from "@/lib/server/api"
-import { requireOps } from "@/lib/server/session"
+import { requireStaff } from "@/lib/server/staff"
 import { getComplaints, getPros, syncJobs } from "@/lib/server/ops"
 
 export const maxDuration = 60
 
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireOps()
+    await requireStaff("ops.ai")
     if (!aiEnabled()) return NextResponse.json({ error: "AI isn't switched on yet (ANTHROPIC_API_KEY)." }, { status: 503 })
     if (rateLimited("ops-ask", 30)) return NextResponse.json({ error: "Too many questions at once. Try again in a minute." }, { status: 429 })
     const { question } = await readJson(req)

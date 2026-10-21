@@ -1,11 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { Activity, Bot, CalendarHeart, Lock, LogOut, Route, ShieldAlert, UserPlus, Users, Wallet } from "lucide-react"
+import { Activity, BarChart3, Bot, CalendarHeart, Banknote, Inbox, Lock, LogOut, Route, ScrollText, ShieldAlert, Tag, UserPlus, Users, Wallet } from "lucide-react"
 import type { Job, Pro, SafetyStatus } from "@/lib/ops/types"
+import type { OpsPerm } from "@/lib/ops/access"
+import { ROLES, ROLE_INFO } from "@/lib/cms/roles"
 import { cn } from "@/lib/utils"
 import { api, ago, Btn, usePoll } from "../kit"
+import { OpsContext, type OpsMe } from "./context"
 import { LiveBoard } from "./live"
 import { Dispatch } from "./dispatch"
 import { ProsTab } from "./pros"
@@ -13,6 +16,12 @@ import { Recruiting } from "./recruiting"
 import { TrustDesk } from "./trust"
 import { AskOps } from "./ask"
 import { Weddings } from "./weddings"
+import { BookingPage } from "./booking"
+import { RequestsInbox } from "./requests"
+import { MoneyTab } from "./money"
+import { PromosTab } from "./promos"
+import { KpiTab } from "./kpi"
+import { AuditTab } from "./audit"
 
 export type OpsJob = Job & { safety: SafetyStatus }
 export type OpsPro = Omit<Pro, "pinHash"> & { hasPin: boolean }
@@ -26,79 +35,128 @@ export type OpsData = {
   stats: { jobs: number; unassigned: number; live: number; done: number; revenue: number; perProDay: number; unreconciled: number; openComplaints: number; weddingsPending: number }
   days: { date: string; count: number }[]
   ai: boolean
+  me: OpsMe
 }
 
+/** Each tab and the permissions that show it (any one of them). */
 const TABS = [
-  { id: "live", label: "Live board", icon: Activity },
-  { id: "dispatch", label: "Route Brain", icon: Route },
-  { id: "pros", label: "Pros", icon: Users },
-  { id: "recruiting", label: "Recruiting", icon: UserPlus },
-  { id: "weddings", label: "Weddings", icon: CalendarHeart },
-  { id: "trust", label: "Trust Desk", icon: Wallet },
-  { id: "ask", label: "Ask AI", icon: Bot },
-] as const
+  { id: "live", label: "Live board", icon: Activity, perms: ["ops.view"] },
+  { id: "requests", label: "Requests", icon: Inbox, perms: ["ops.requests"] },
+  { id: "dispatch", label: "Route Brain", icon: Route, perms: ["ops.view"] },
+  { id: "pros", label: "Pros", icon: Users, perms: ["ops.view"] },
+  { id: "recruiting", label: "Recruiting", icon: UserPlus, perms: ["ops.recruit"] },
+  { id: "money", label: "Money", icon: Banknote, perms: ["ops.money"] },
+  { id: "promos", label: "Promo codes", icon: Tag, perms: ["ops.promos"] },
+  { id: "weddings", label: "Weddings", icon: CalendarHeart, perms: ["ops.view"] },
+  { id: "trust", label: "Trust Desk", icon: Wallet, perms: ["ops.requests", "ops.money"] },
+  { id: "kpi", label: "KPIs", icon: BarChart3, perms: ["ops.kpi"] },
+  { id: "audit", label: "Audit log", icon: ScrollText, perms: ["ops.audit"] },
+  { id: "ask", label: "Ask AI", icon: Bot, perms: ["ops.ai"] },
+] as const satisfies readonly { id: string; label: string; icon: unknown; perms: readonly OpsPerm[] }[]
 type Tab = (typeof TABS)[number]["id"]
 
-export function OpsConsole({ authed, enabled }: { authed: boolean; enabled: boolean }) {
-  const [isIn, setIn] = useState(authed)
+/** in: signed in with access; signed-out; two-step: must enter their code first; no-access: a role without mission control. */
+export type OpsGate = "in" | "signed-out" | "two-step" | "no-access"
+type Mode = "supabase" | "dev" | "off"
+
+export function OpsConsole({ gate, mode, who }: { gate: OpsGate; mode: Mode; who: { email: string; role: string } | null }) {
+  const [isIn, setIn] = useState(gate === "in")
   useEffect(() => {
     const out = () => setIn(false)
     window.addEventListener("mjazo:staff-logout", out)
     return () => window.removeEventListener("mjazo:staff-logout", out)
   }, [])
-  return isIn ? <Shell onLogout={() => setIn(false)} /> : <Login enabled={enabled} onIn={() => setIn(true)} />
+  return isIn ? <Shell onLogout={() => window.location.reload()} /> : <Gate gate={gate === "in" ? "signed-out" : gate} mode={mode} who={who} />
 }
 
-function Login({ enabled, onIn }: { enabled: boolean; onIn: () => void }) {
-  const [code, setCode] = useState("")
+const signOut = async () => {
+  await api("/api/ops/logout", {}).catch(() => {})
+  window.location.reload()
+}
+
+function Gate({ gate, mode, who }: { gate: Exclude<OpsGate, "in">; mode: Mode; who: { email: string; role: string } | null }) {
+  const [role, setRole] = useState<string>("owner")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  const devIn = async () => {
+    setBusy(true)
+    setError("")
+    try {
+      await api("/api/ops/dev-login", { role })
+      window.location.reload()
+    } catch (e) {
+      setError((e as Error).message)
+      setBusy(false)
+    }
+  }
+  const link = "h-14 w-full mt-10 rounded-full bg-[var(--brand)] text-black font-medium inline-flex items-center justify-center hover:brightness-105"
   return (
     <div className="min-h-[100svh] bg-[#0b0b0b] text-white flex items-center justify-center px-6 relative overflow-hidden">
       <div aria-hidden className="absolute -top-40 -right-40 w-[34rem] h-[34rem] rounded-full bg-[var(--brand)] opacity-20 blur-[120px]" />
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault()
-          setBusy(true)
-          setError("")
-          try {
-            await api("/api/ops/login", { passcode: code })
-            onIn()
-          } catch (err) {
-            setError((err as Error).message)
-          } finally {
-            setBusy(false)
-          }
-        }}
-        className="relative w-full max-w-sm"
-      >
+      <div className="relative w-full max-w-sm">
         <span className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center">
           <Lock className="w-6 h-6 text-[var(--brand)]" />
         </span>
         <h1 className="font-serif text-5xl mt-8">
           Mjazo <span className="italic text-[var(--brand)]">Ops</span>
         </h1>
-        <p className="text-white/55 mt-3">Live board, Route Brain, Safety Guardian, recruiting and Trust Desk.</p>
-        {enabled ? (
+        <p className="text-white/55 mt-3">Mission control: the board, bookings, pros, money and the requests inbox.</p>
+        {gate === "signed-out" && mode === "supabase" && (
           <>
-            <input type="password" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Ops passcode" autoComplete="current-password" className="mt-10 w-full h-14 rounded-2xl bg-white/[0.07] border border-white/10 px-5 text-[16px] outline-none focus:border-[var(--brand)]" />
+            <a href="/admin/login?next=/ops" className={link}>
+              Sign in with your Mjazo email
+            </a>
+            <p className="text-xs text-white/40 mt-4 leading-relaxed">Everyone has their own sign-in, so the audit log shows who did what. An Owner invites you from the CMS (People &amp; roles).</p>
+          </>
+        )}
+        {gate === "signed-out" && mode === "dev" && (
+          <>
+            <p className="mt-10 rounded-2xl bg-white/[0.06] p-4 text-sm text-white/70 leading-relaxed">Local development: Supabase isn&apos;t set up, so pick a role to try mission control as. Never available on the live site.</p>
+            <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Role" className="mt-4 w-full h-14 rounded-2xl bg-white/[0.07] border border-white/10 px-5 text-[16px] outline-none focus:border-[var(--brand)]">
+              {ROLES.map((r) => (
+                <option key={r} value={r} className="text-black">
+                  {ROLE_INFO[r].label}
+                </option>
+              ))}
+            </select>
             {error && <p className="text-sm text-red-300 mt-3">{error}</p>}
-            <Btn variant="brand" size="lg" busy={busy} disabled={!code} className="w-full mt-4">
-              Enter console
+            <Btn variant="brand" size="lg" busy={busy} className="w-full mt-4" onClick={devIn}>
+              Continue as local {ROLE_INFO[role as keyof typeof ROLE_INFO]?.label ?? role}
             </Btn>
           </>
-        ) : (
-          <p className="mt-10 rounded-2xl bg-white/[0.06] p-5 text-sm text-white/70 leading-relaxed">
-            The console is switched off. Set <code className="text-[var(--brand)]">OPS_PASSCODE</code> and <code className="text-[var(--brand)]">SESSION_SECRET</code> in the deployment's environment variables, then reload.
-          </p>
         )}
-      </form>
+        {gate === "signed-out" && mode === "off" && (
+          <p className="mt-10 rounded-2xl bg-white/[0.06] p-5 text-sm text-white/70 leading-relaxed">Staff sign-in isn&apos;t set up: it needs the Supabase settings (the same sign-in as the CMS).</p>
+        )}
+        {gate === "two-step" && (
+          <>
+            <a href="/admin/two-step?next=/ops" className={link}>
+              Finish two-step sign-in
+            </a>
+            <p className="text-xs text-white/40 mt-4">Your role approves money or runs the business, so it needs your authenticator app&apos;s code.</p>
+          </>
+        )}
+        {gate === "no-access" && (
+          <div className="mt-10 rounded-2xl bg-white/[0.06] p-5 text-sm text-white/70 leading-relaxed">
+            Signed in as <b className="text-white">{who?.email}</b> ({who?.role}). This role works in the CMS, not mission control. Ask an Owner for a Dispatcher, Support, Finance or Recruiter role.
+            <div className="flex gap-2 mt-4">
+              <a href="/admin" className="h-10 px-4 rounded-full bg-white text-black inline-flex items-center font-medium">
+                Open the CMS
+              </a>
+              <Btn variant="ghost" className="text-white hover:bg-white/10" onClick={signOut}>
+                Sign out
+              </Btn>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
 function Shell({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>("live")
+  const [booking, setBooking] = useState<string | null>(null)
   const [date, setDate] = useState<string>("")
   const [data, setData] = useState<OpsData | null>(null)
   const [updated, setUpdated] = useState(0)
@@ -123,12 +181,17 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   }, [])
 
   const logout = async () => {
-    await api("/api/staff/logout", {}).catch(() => {})
+    await api("/api/ops/logout", {}).catch(() => {})
     onLogout()
   }
+  const perms = data?.me.perms
+  const can = useCallback((...ps: OpsPerm[]) => Boolean(perms && ps.some((p) => perms.includes(p))), [perms])
+  const ctx = useMemo(() => ({ me: data?.me ?? { name: "", email: "", role: "", roleLabel: "", perms: [] }, can, openBooking: setBooking }), [data?.me, can])
+  const tabs = TABS.filter((t) => can(...t.perms))
   const sosCount = (data?.sos.length ?? 0) + (data?.alerts.filter((a) => a.safety.level === "sos" || a.safety.level === "escalated").length ?? 0)
 
   return (
+    <OpsContext.Provider value={ctx}>
     <div className="min-h-[100svh] bg-[oklch(0.975_0.008_80)] text-black">
       <header className="sticky top-0 z-40 bg-[#0b0b0b] text-white">
         <div className="max-w-[1500px] mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
@@ -154,13 +217,19 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             <span className={cn("w-2 h-2 rounded-full", error ? "bg-red-500" : "bg-emerald-400 animate-pulse")} />
             {error ? "Offline" : updated ? `Live · ${ago(new Date(updated).toISOString())}` : "Connecting"}
           </span>
-          <button onClick={logout} aria-label="Log out" className="w-10 h-10 shrink-0 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/15">
+          {data && (
+            <span className="hidden lg:block text-right text-xs leading-tight shrink-0 max-w-[14rem]">
+              <span className="block text-white/80 truncate">{data.me.email}</span>
+              <span className="block text-white/40">{data.me.roleLabel}</span>
+            </span>
+          )}
+          <button onClick={logout} aria-label="Sign out" className="w-10 h-10 shrink-0 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/15">
             <LogOut className="w-4 h-4" />
           </button>
         </div>
         <nav className="max-w-[1500px] mx-auto px-2 sm:px-4 overflow-x-auto no-scrollbar" data-lenis-prevent>
           <div className="flex gap-1 w-max">
-            {TABS.map((t) => (
+            {tabs.map((t) => (
               <button key={t.id} onClick={() => setTab(t.id)} className={cn("relative h-12 px-4 flex items-center gap-2 text-sm transition-colors", tab === t.id ? "text-white" : "text-white/50 hover:text-white/80")}>
                 <t.icon className="w-4 h-4" />
                 {t.label}
@@ -189,16 +258,23 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         ) : (
           <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
             {tab === "live" && <LiveBoard data={data} reload={load} />}
+            {tab === "requests" && <RequestsInbox />}
             {tab === "dispatch" && <Dispatch date={data.date} reload={load} />}
             {tab === "pros" && <ProsTab pros={data.pros} reload={load} />}
             {tab === "recruiting" && <Recruiting />}
+            {tab === "money" && <MoneyTab />}
+            {tab === "promos" && <PromosTab />}
             {tab === "weddings" && <Weddings reload={load} />}
             {tab === "trust" && <TrustDesk reload={load} />}
+            {tab === "kpi" && <KpiTab />}
+            {tab === "audit" && <AuditTab />}
             {tab === "ask" && <AskOps ai={data.ai} />}
           </motion.div>
         )}
       </div>
+      <AnimatePresence>{booking && <BookingPage key={booking} id={booking} onClose={() => setBooking(null)} reload={load} />}</AnimatePresence>
     </div>
+    </OpsContext.Provider>
   )
 }
 

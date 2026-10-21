@@ -7,13 +7,15 @@ import { devLoginAction, prepareSignInAction } from "@/app/(staff)/admin/actions
 import { browserSupabase } from "./supabase-browser"
 import { Btn, Notice } from "./ui"
 
-export function LoginForm({ mode, linkError }: { mode: "supabase" | "dev" | "off"; linkError: boolean }) {
+/** `next`: where to go once signed in (the CMS, or mission control at /ops). */
+export function LoginForm({ mode, linkError, next = "/admin" }: { mode: "supabase" | "dev" | "off"; linkError: boolean; next?: string }) {
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [busy, setBusy] = useState("")
   const [msg, setMsg] = useState<{ tone: "ok" | "error"; text: string } | null>(linkError ? { tone: "error", text: "That link has expired or was already used. Request a new one." } : null)
-  const callback = (next = "/admin") => `${window.location.origin}/admin/auth/callback?next=${encodeURIComponent(next)}`
+  const ops = next.startsWith("/ops")
+  const callback = (to = next) => `${window.location.origin}/admin/auth/callback?next=${encodeURIComponent(to)}`
 
   const signIn = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,7 +25,7 @@ export function LoginForm({ mode, linkError }: { mode: "supabase" | "dev" | "off
     const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password })
     setBusy("")
     if (error) setMsg({ tone: "error", text: error.message === "Invalid login credentials" ? "That email and password don't match." : error.message })
-    else router.replace("/admin")
+    else router.replace(next)
   }
   const magic = async () => {
     const sb = browserSupabase()
@@ -39,7 +41,7 @@ export function LoginForm({ mode, linkError }: { mode: "supabase" | "dev" | "off
     if (!sb || !email) return setMsg({ tone: "error", text: "Enter your email first." })
     setBusy("reset")
     await prepareSignInAction(email).catch(() => {})
-    const { error } = await sb.auth.resetPasswordForEmail(email.trim(), { redirectTo: callback("/admin/account") })
+    const { error } = await sb.auth.resetPasswordForEmail(email.trim(), { redirectTo: callback(ops ? "/ops" : "/admin/account") })
     setBusy("")
     setMsg(error ? { tone: "error", text: error.message } : { tone: "ok", text: `If ${email} has an account, a reset link is on its way.` })
   }
@@ -51,8 +53,8 @@ export function LoginForm({ mode, linkError }: { mode: "supabase" | "dev" | "off
         <path d="M8 21v-6.5l4 3.5 4-3.5V21" />
         <circle cx="18.5" cy="5.5" r="1.6" fill="#F4A437" stroke="none" />
       </svg>
-      <h1 className="font-serif text-4xl">Mjazo CMS</h1>
-      <p className="mt-2 text-sm text-zinc-500">Sign in to edit the website.</p>
+      <h1 className="font-serif text-4xl">{ops ? "Mjazo mission control" : "Mjazo CMS"}</h1>
+      <p className="mt-2 text-sm text-zinc-500">{ops ? "Sign in with your own Mjazo email." : "Sign in to edit the website."}</p>
       {msg && (
         <Notice tone={msg.tone} className="mt-6">
           {msg.text}

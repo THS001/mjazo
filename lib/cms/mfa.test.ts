@@ -9,8 +9,8 @@ const factorNoCode = { currentLevel: "aal1", nextLevel: "aal2" }
 const done = { currentLevel: "aal2", nextLevel: "aal2" }
 
 describe("mfaState", () => {
-  it("makes Owners and Admins set it up, and leaves the other roles free to", () => {
-    for (const role of ROLES) expect(mfaState(role, noFactor, true)).toBe(role === "owner" || role === "admin" ? "needs-setup" : "ok")
+  it("makes Owners, Admins and Finance set it up, and leaves the other roles free to", () => {
+    for (const role of ROLES) expect(mfaState(role, noFactor, true)).toBe(role === "owner" || role === "admin" || role === "finance" ? "needs-setup" : "ok")
   })
 
   it("asks anyone who has set it up for their code, every sign-in", () => {

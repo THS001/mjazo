@@ -1,14 +1,26 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, MapPin, Phone } from "lucide-react"
-import { eligible, jobMinutes } from "@/lib/ops/logic"
+import { ChevronDown, ExternalLink, MapPin, Phone } from "lucide-react"
+import { eligible, jobMinutes, unavailableReason } from "@/lib/ops/logic"
 import { cn } from "@/lib/utils"
-import type { Pro } from "@/lib/ops/types"
+import { isVerified, type Pro } from "@/lib/ops/types"
 import { api, Badge, Btn, clock, Empty, pkr, SAFETY, STATUS } from "../kit"
 import type { OpsData, OpsJob } from "./console"
+import { useOps } from "./context"
 import { useCatalog } from "@/components/cms/provider"
 import { WINDOW_LABELS } from "@/lib/time"
+
+const FILTERS = [
+  { id: "all", label: "All" },
+  { id: "unassigned", label: "Unassigned" },
+  { id: "alerts", label: "Late or overdue" },
+  { id: "live", label: "In progress" },
+  { id: "done", label: "Done" },
+] as const
+type Filter = (typeof FILTERS)[number]["id"]
+const matches = (j: OpsJob, f: Filter) =>
+  f === "all" || (f === "unassigned" && j.status === "new") || (f === "alerts" && j.safety.level !== "ok") || (f === "live" && ["assigned", "en_route", "checked_in", "checked_out"].includes(j.status)) || (f === "done" && ["completed", "cancelled", "no_show"].includes(j.status))
 
 export function LiveBoard({ data, reload }: { data: OpsData; reload: () => void }) {
   const s = data.stats
@@ -23,8 +35,13 @@ export function LiveBoard({ data, reload }: { data: OpsData; reload: () => void 
     { k: "Unreconciled payments", v: s.unreconciled, warn: s.unreconciled > 0 },
     { k: "Open complaints", v: s.openComplaints, warn: s.openComplaints > 0 },
   ]
-  const groups = WINDOW_LABELS.map((w) => ({ w, jobs: data.jobs.filter((j) => j.window === w) })).filter((g) => g.jobs.length)
-  const other = data.jobs.filter((j) => !WINDOW_LABELS.includes(j.window))
+  const { getArea } = useCatalog()
+  const [filter, setFilter] = useState<Filter>("all")
+  const [zone, setZone] = useState("")
+  const zones = [...new Set(data.jobs.map((j) => j.area))].sort()
+  const shown = data.jobs.filter((j) => matches(j, filter) && (!zone || j.area === zone))
+  const groups = WINDOW_LABELS.map((w) => ({ w, jobs: shown.filter((j) => j.window === w) })).filter((g) => g.jobs.length)
+  const other = shown.filter((j) => !WINDOW_LABELS.includes(j.window))
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -37,8 +54,33 @@ export function LiveBoard({ data, reload }: { data: OpsData; reload: () => void 
         ))}
       </div>
 
+      {data.jobs.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {FILTERS.map((f) => {
+            const n = data.jobs.filter((j) => matches(j, f.id)).length
+            return (
+              <button key={f.id} onClick={() => setFilter(f.id)} aria-pressed={filter === f.id} className={cn("h-9 px-3.5 rounded-full border text-sm transition-colors", filter === f.id ? "bg-black text-white border-black" : "border-black/15 bg-white hover:border-black/40", f.id === "unassigned" && n > 0 && filter !== f.id && "border-amber-400")}>
+                {f.label} <span className="opacity-60">· {n}</span>
+              </button>
+            )
+          })}
+          {zones.length > 1 && (
+            <select value={zone} onChange={(e) => setZone(e.target.value)} aria-label="Zone" className="h-9 rounded-full border border-black/15 bg-white px-3 text-sm">
+              <option value="">Every area</option>
+              {zones.map((z) => (
+                <option key={z} value={z}>
+                  {getArea(z)?.name ?? z}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
       {!data.jobs.length ? (
         <Empty title={isToday ? "No bookings today yet" : "No bookings on this day"} body="Bookings from the website, the Concierge and WhatsApp land here automatically." />
+      ) : !shown.length ? (
+        <Empty title="Nothing matches" body="Try another filter." />
       ) : (
         [...groups, ...(other.length ? [{ w: "Other", jobs: other }] : [])].map((g) => (
           <section key={g.w}>
@@ -60,11 +102,18 @@ export function LiveBoard({ data, reload }: { data: OpsData; reload: () => void 
 function JobCard({ job: j, pros, reload }: { job: OpsJob; pros: OpsData["pros"]; reload: () => void }) {
   const cat = useCatalog()
   const { getArea } = cat
+  const { can, openBooking } = useOps()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState("")
   const pro = pros.find((p) => p.id === j.proId)
-  const fits = pros.filter((p) => p.status === "active").map((p) => ({ p, ok: eligible(p as Pro, j, cat) })).sort((a, b) => Number(b.ok) - Number(a.ok))
-  const locked = !["new", "assigned", "en_route", "cancelled"].includes(j.status)
+  const fits = pros
+    .filter((p) => p.status === "active")
+    .map((p) => {
+      const why = !eligible(p as Pro, j, cat) ? "skills don't match" : unavailableReason(p as Pro, j)
+      return { p, ok: !why, why: [why, isVerified(p) ? null : "not verified"].filter(Boolean).join(", ") }
+    })
+    .sort((a, b) => Number(b.ok) - Number(a.ok))
+  const locked = !["new", "assigned", "en_route", "cancelled"].includes(j.status) || !can("ops.dispatch")
   const run = async (key: string, body: unknown) => {
     setBusy(key)
     try {
@@ -103,13 +152,16 @@ function JobCard({ job: j, pros, reload }: { job: OpsJob; pros: OpsData["pros"];
         >
           <option value="">{pro ? "Unassign" : "Assign a pro…"}</option>
           {pro && !fits.some((f) => f.p.id === pro.id) && <option value={pro.id}>{pro.name} (paused)</option>}
-          {fits.map(({ p, ok }) => (
+          {fits.map(({ p, why }) => (
             <option key={p.id} value={p.id}>
               {p.name}
-              {ok ? "" : " (skills don't match)"}
+              {why ? ` (${why})` : ""}
             </option>
           ))}
         </select>
+        <button onClick={() => openBooking(j.id)} aria-label="Open the booking page" title="Open the booking page" className="w-11 h-11 shrink-0 rounded-2xl border border-black/10 flex items-center justify-center hover:border-black/30">
+          <ExternalLink className="w-4 h-4" />
+        </button>
         <button onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Details" className="w-11 h-11 shrink-0 rounded-2xl border border-black/10 flex items-center justify-center">
           <ChevronDown className={cn("w-4 h-4 transition-transform", open && "rotate-180")} />
         </button>
@@ -134,7 +186,7 @@ function JobCard({ job: j, pros, reload }: { job: OpsJob; pros: OpsData["pros"];
             <ol className="space-y-1 text-xs text-zinc-500 border-l border-black/10 pl-3">
               {j.events.slice(-8).map((e, i) => (
                 <li key={i}>
-                  <span className="text-black font-medium">{e.type.replace("_", " ")}</span> · {clock(e.at)} · {e.by}
+                  <span className="text-black font-medium">{e.type.replace("_", " ")}</span> · {clock(e.at)} · {e.actor ?? e.by}
                   {e.note && ` · ${e.note}`}
                   {e.lat && (
                     <>
@@ -154,17 +206,20 @@ function JobCard({ job: j, pros, reload }: { job: OpsJob; pros: OpsData["pros"];
             </p>
           )}
           <div className="flex flex-wrap gap-2">
-            {j.status === "checked_in" && (
+            <Btn size="sm" variant="dark" onClick={() => openBooking(j.id)}>
+              Booking page
+            </Btn>
+            {can("ops.dispatch") && j.status === "checked_in" && (
               <Btn size="sm" variant="light" busy={busy === "out"} onClick={() => run("out", { action: "event", jobId: j.id, type: "checked_out", note: "Checked out by ops" })}>
                 Check out
               </Btn>
             )}
-            {j.status === "checked_out" && (
+            {can("ops.dispatch") && j.status === "checked_out" && (
               <Btn size="sm" variant="light" busy={busy === "done"} onClick={() => run("done", { action: "event", jobId: j.id, type: "completed", note: "Completed by ops" })}>
                 Mark done
               </Btn>
             )}
-            {["new", "assigned", "en_route"].includes(j.status) && (
+            {can("ops.dispatch", "ops.bookings") && ["new", "assigned", "en_route"].includes(j.status) && (
               <Btn
                 size="sm"
                 variant="ghost"

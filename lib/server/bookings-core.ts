@@ -3,6 +3,7 @@ import { z } from "zod"
 import { core } from "@/lib/core/db"
 import { slots, windowOpen, type SlotNeed } from "@/lib/core/capacity"
 import { createBooking, listJobs, listPros } from "@/lib/core/jobs"
+import { zoneCaps } from "@/lib/core/pros"
 import { PricingError, priceItems } from "@/lib/core/pricing"
 import { getCatalog, getSettings } from "@/lib/cms/read"
 import { nextDays } from "@/lib/time"
@@ -35,8 +36,8 @@ export async function placeBooking(raw: unknown, attribution: Record<string, unk
   }
   let full = false
   try {
-    const [jobs, pros] = await Promise.all([listJobs(db, { sinceDays: 0 }), listPros(db)])
-    full = !windowOpen(d.date, d.window, jobs, pros, { area: d.area, items: d.items }, cat)
+    const [jobs, pros, caps] = [await listJobs(db, { sinceDays: 0 }), await listPros(db), await zoneCaps(db)]
+    full = !windowOpen(d.date, d.window, jobs, pros, { area: d.area, items: d.items }, cat, { zoneCaps: caps })
   } catch (e) {
     console.error("[booking] capacity check failed; booking anyway", e)
   }
@@ -63,7 +64,8 @@ export async function slotsFor(raw: unknown) {
   const b = slotBody.parse(raw)
   const db = await core()
   if (!db) return { mode: "off" as const, days: [] }
-  const [cat, settings, jobs, pros] = await Promise.all([getCatalog("en"), getSettings("en"), listJobs(db, { sinceDays: 0 }), listPros(db)])
+  const [cat, settings] = await Promise.all([getCatalog("en"), getSettings("en")])
+  const [jobs, pros, caps] = [await listJobs(db, { sinceDays: 0 }), await listPros(db), await zoneCaps(db)]
   const need: SlotNeed = { area: b.area, items: b.items.map((i) => ({ name: "", category: i.category, service: i.service, options: [], addOns: [], qty: i.qty, unitPrice: 0 })) }
-  return slots(nextDays(7).map((d) => d.iso), jobs, pros, need, cat, settings.policy.leadHours)
+  return slots(nextDays(7).map((d) => d.iso), jobs, pros, need, cat, settings.policy.leadHours, { zoneCaps: caps })
 }

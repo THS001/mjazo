@@ -14,11 +14,11 @@ export const STATUS_FOR: Partial<Record<JobEventType, JobStatus>> = {
   no_show: "no_show",
 }
 
-/** Which events each status accepts. */
+/** Which events each status accepts. A reschedule (new day or window) is only possible before the visit starts. */
 export const ALLOWED: Record<JobStatus, JobEventType[]> = {
-  new: ["assigned", "cancelled", "note"],
-  assigned: ["assigned", "en_route", "checked_in", "cancelled", "no_show", "note", "sos", "safe"],
-  en_route: ["checked_in", "assigned", "cancelled", "no_show", "note", "sos", "safe"],
+  new: ["assigned", "cancelled", "note", "rescheduled"],
+  assigned: ["assigned", "en_route", "checked_in", "cancelled", "no_show", "note", "sos", "safe", "rescheduled"],
+  en_route: ["checked_in", "assigned", "cancelled", "no_show", "note", "sos", "safe", "rescheduled"],
   checked_in: ["checked_out", "note", "sos", "safe", "payment"],
   checked_out: ["completed", "payment", "note", "sos", "safe"],
   completed: ["payment", "note"],

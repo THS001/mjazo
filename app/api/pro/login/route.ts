@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
 import { clientIp, rateLimited } from "@/lib/ai/anthropic"
 import { handle, readJson } from "@/lib/server/api"
-import { setSession, staffEnabled, verifyPin } from "@/lib/server/session"
+import { proEnabled, setSession, verifyPin } from "@/lib/server/session"
 import { getPros, normalisePhone } from "@/lib/server/ops"
 
 export async function POST(req: Request) {
-  if (!staffEnabled()) return NextResponse.json({ error: "The pro app isn't set up yet. Please contact Mjazo ops." }, { status: 503 })
+  if (!proEnabled()) return NextResponse.json({ error: "The pro app isn't set up yet. Please contact Mjazo ops." }, { status: 503 })
   if (rateLimited(`pro-login:${clientIp(req)}`, 8, 10 * 60_000)) return NextResponse.json({ error: "Too many tries. Wait 10 minutes and try again." }, { status: 429 })
   return handle(async () => {
     const { phone, pin } = await readJson(req)

@@ -7,11 +7,22 @@ import { OPS, safetyStatus, type OpsCatalog } from "@/lib/ops/logic"
 import { getCatalog, getSettings } from "@/lib/cms/read"
 import { core, type Db } from "@/lib/core/db"
 import * as cj from "@/lib/core/jobs"
-import { earnedSince } from "@/lib/core/ledger"
+import { allProBalances, bookingEntries, bookingPaid, customerBalances, earnedSince, trialBalance } from "@/lib/core/ledger"
+import * as money from "@/lib/core/money"
+import * as promos from "@/lib/core/promos"
+import * as cpros from "@/lib/core/pros"
+import * as creq from "@/lib/core/requests"
+import { listAudit, type AuditFilter } from "@/lib/core/audit"
+import { windowOpen } from "@/lib/core/capacity"
+import { computeKpis } from "@/lib/ops/kpi"
+import type { PlanLimits } from "@/lib/ops/logic"
+import { paymentNeedsCheck } from "@/lib/ops/logic"
+import { WINDOW_LABELS } from "@/lib/time"
+import { recentAudit } from "./audit"
 import { normalisePhone } from "@/lib/core/phone"
 import { PricingError } from "@/lib/core/pricing"
 import { ALLOWED, FINAL, STATUS_FOR } from "@/lib/core/status"
-import type { Application, Complaint, Job, JobEvent, JobEventType, Pro, SafetyStatus } from "@/lib/ops/types"
+import type { Application, Complaint, Job, JobEvent, JobEventType, Pro, SafetyStatus, VerificationKey } from "@/lib/ops/types"
 
 // The ops domain. Jobs (bookings) and pros live in the core engine's tables when it's on
 // (lib/core: DATABASE_URL in production, PGlite locally), and in the older document store
@@ -201,7 +212,7 @@ export async function addJobEvent(jobId: string, type: JobEventType, by: JobEven
   const job = await updateJob(jobId, (job) => {
     if (opts.proId !== undefined && job.proId !== opts.proId) throw new OpsError("This job isn't assigned to you")
     if (!ALLOWED[job.status].includes(type)) throw new OpsError(`Can't do "${type.replace("_", " ")}" while the job is ${job.status.replace("_", " ")}`)
-    job.events.push({ type, at: nowIso(), by, ...extra })
+    job.events.push({ type, at: nowIso(), by, ...(opts.proId ? { actor: opts.proId } : {}), ...extra })
     const next = STATUS_FOR[type]
     if (next) job.status = next
   })
@@ -270,7 +281,8 @@ export { OPS }
 
 export const publicPro = ({ pinHash, ...p }: Pro) => ({ ...p, hasPin: Boolean(pinHash) })
 
-export async function assignJob(jobId: string, proId: string | null, plan: { eta?: string; routeOrder?: number } = {}) {
+/** `actor`: the staff email recorded on the assignment (Route Brain passes the person who applied its plan). */
+export async function assignJob(jobId: string, proId: string | null, plan: { eta?: string; routeOrder?: number } = {}, actor?: string) {
   if (proId && !(await getPro(proId))) throw new OpsError("Pro not found")
   return updateJob(jobId, (job) => {
     if (!["new", "assigned", "en_route", "cancelled", "no_show"].includes(job.status)) throw new OpsError("This job is already under way")
@@ -279,11 +291,11 @@ export async function assignJob(jobId: string, proId: string | null, plan: { eta
       delete job.eta
       delete job.routeOrder
       job.status = "new"
-      job.events.push({ type: "note", at: nowIso(), by: "ops", note: "Unassigned" })
+      job.events.push({ type: "note", at: nowIso(), by: "ops", actor, note: "Unassigned" })
     } else {
       const changed = job.proId !== proId
       Object.assign(job, { proId, eta: plan.eta ?? job.eta, routeOrder: plan.routeOrder ?? job.routeOrder, status: "assigned" })
-      if (changed) job.events.push({ type: "assigned", at: nowIso(), by: "ops", note: proId })
+      if (changed) job.events.push({ type: "assigned", at: nowIso(), by: "ops", actor, note: proId })
     }
   })
 }
@@ -316,3 +328,225 @@ export async function findApplication(token: string) {
 
 export type SosDoc = { id: string; proId: string; at: string; lat?: number; lng?: number; resolved?: boolean; resolvedAt?: string }
 export const getOpenSos = async () => (await all<SosDoc>("sos")).filter((s) => !s.resolved)
+
+// ---------------------------------------------------------------------------
+// Mission control (platform stage 2): booking pages, money, pros' profiles, zones, promo codes,
+// the requests inbox, KPIs and the audit log. Money moves only through lib/core/money.ts, which
+// posts through lib/core/ledger.ts; jobs change only through updateJob() (mutateJob on the core).
+// ---------------------------------------------------------------------------
+
+/** The core database, for the screens that only exist on it (money, promo codes, …). */
+async function needCore(): Promise<Db> {
+  const db = await opsDb()
+  if (!db) throw new OpsError("This needs the core database (DATABASE_URL).")
+  return db
+}
+
+const daysAgo = (n: number) => new Date(new Date(`${karachiNow().date}T00:00:00Z`).getTime() - n * 86400000).toISOString().slice(0, 10)
+
+/** Route Brain's and checkout's day-level limits (zone caps), when the core is on. */
+export async function opsLimits(): Promise<PlanLimits> {
+  const db = await opsDb()
+  return db ? { zoneCaps: await cpros.zoneCaps(db) } : {}
+}
+
+// Bookings -------------------------------------------------------------------
+
+/** Everything the booking page shows: the job, its money (ledger entries, refunds and credits) and the customer's balances. */
+export async function bookingDetail(id: string) {
+  const job = await getJob(id)
+  if (!job) throw new OpsError("Booking not found")
+  const db = await opsDb()
+  if (!db) return { job, money: null, ledger: [], requests: [], customer: null }
+  const row = await db.one<{ customer_id: string | null; subtotal: number; discount: number; promo_code: string | null; client_total: number | null }>("select customer_id, subtotal, discount, promo_code, client_total from bookings where id = $1", [id])
+  const ledger = await bookingEntries(db, id)
+  const requests = await money.listMoneyRequests(db, { bookingId: id })
+  const paid = await bookingPaid(db, id)
+  let customer = null
+  if (row?.customer_id) {
+    const bal = await customerBalances(db, row.customer_id)
+    const visits = (await db.one<{ n: number }>("select count(*)::int as n from bookings where customer_id = $1 and status = 'completed'", [row.customer_id]))!.n
+    customer = { id: row.customer_id, ...bal, visits }
+  }
+  return { job, money: { subtotal: row?.subtotal ?? job.total, discount: row?.discount ?? 0, promo: row?.promo_code ?? null, ...paid }, ledger, requests, customer }
+}
+
+export const addBookingNote = (id: string, note: string, actor: string) => addJobEvent(id, "note", "ops", { note, actor })
+
+/**
+ * Moves a booking to another day or window, before the visit starts. Checks capacity first (the
+ * same check as checkout) unless `force`; returns { full: true } and changes nothing when the
+ * window is full. An assigned pro is taken off it, to be dispatched again.
+ */
+export async function rescheduleJob(id: string, to: { date: string; window: string }, actor: string, opts: { reason?: string; force?: boolean } = {}): Promise<{ job: Job | null; full: boolean }> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(to.date) || to.date < karachiNow().date) throw new OpsError("Pick today or a later day")
+  if (!WINDOW_LABELS.includes(to.window)) throw new OpsError("Pick an arrival window")
+  const current = await getJob(id)
+  if (!current) throw new OpsError("Booking not found")
+  const db = await opsDb()
+  if (db && !opts.force) {
+    const [jobs, pros, cat, limits] = [await cj.listJobs(db, { sinceDays: 0 }), await cj.listPros(db), await getCatalog(), await opsLimits()]
+    const others = jobs.filter((j) => j.id !== id)
+    if (!windowOpen(to.date, to.window, others, pros, { area: current.area, items: current.items }, cat, limits)) return { job: null, full: true }
+  }
+  const job = await updateJob(id, (j) => {
+    if (!ALLOWED[j.status].includes("rescheduled")) throw new OpsError("This visit has started or is over, so it can't be moved")
+    if (j.date === to.date && j.window === to.window) throw new OpsError("That's the day and window it already has")
+    const from = `${j.date}, ${j.window}`
+    const hadPro = j.proId
+    j.date = to.date
+    j.window = to.window
+    if (hadPro) {
+      delete j.proId
+      delete j.eta
+      delete j.routeOrder
+      j.status = "new"
+    }
+    const why = opts.reason?.trim() ? `: ${opts.reason.trim().slice(0, 200)}` : ""
+    j.events.push({ type: "rescheduled", at: nowIso(), by: "ops", actor, note: `From ${from} to ${to.date}, ${to.window}${why}${hadPro ? ` (${hadPro} taken off it)` : ""}${opts.force ? " (booked over capacity)" : ""}` })
+  })
+  return { job, full: false }
+}
+
+// Money ----------------------------------------------------------------------
+
+export const requestMoney = async (r: { kind: "refund" | "credit"; bookingId: string; amount: number; reason: string; by: string }) => money.requestMoney(await needCore(), r)
+export const decideMoney = async (id: string, d: Parameters<typeof money.decideMoney>[2]) => money.decideMoney(await needCore(), id, d)
+export const recordCashIn = async (c: Parameters<typeof money.recordCashIn>[1]) => money.recordCashIn(await needCore(), c)
+export const draftPayoutRun = async (p: Parameters<typeof money.draftPayoutRun>[1]) => money.draftPayoutRun(await needCore(), p)
+export const approvePayoutRun = async (id: string, by: money.Actor) => money.approvePayoutRun(await needCore(), id, by)
+export const payPayout = async (id: string, p: Parameters<typeof money.payPayout>[2]) => money.payPayout(await needCore(), id, p)
+export const cancelPayoutRun = async (id: string, by: string) => money.cancelPayoutRun(await needCore(), id, by)
+
+/** The money screen: cash held and owed per pro, payments to check, refunds and credits waiting, payout runs, and the books' balance check. */
+export async function moneyOverview() {
+  const db = await needCore()
+  const pros = await cj.listPros(db)
+  const balances = await allProBalances(db)
+  const jobs = await cj.listJobs(db, { sinceDays: 45 })
+  const since = daysAgo(30)
+  const name = (id?: string) => pros.find((p) => p.id === id)?.name ?? id ?? "—"
+  const perPro = pros
+    .map((p) => ({ proId: p.id, name: p.name, phone: p.phone, status: p.status, ...(balances.get(p.id) ?? { cashHeld: 0, payable: 0 }) }))
+    .filter((p) => p.cashHeld || p.payable || p.status === "active")
+    .sort((a, b) => b.cashHeld - a.cashHeld || b.payable - a.payable)
+  const unreconciled = jobs
+    .filter((j) => j.status === "completed" && j.date >= since && paymentNeedsCheck(j))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .map((j) => ({ id: j.id, date: j.date, pro: name(j.proId), customer: j.customer.name, total: j.total, booked: j.payment, record: j.paymentRecord ? { ...j.paymentRecord, screenshot: j.paymentRecord.screenshot ? "1" : undefined } : null }))
+  const pending = await money.listMoneyRequests(db, { status: "pending" })
+  const decided = (await money.listMoneyRequests(db, { limit: 30 })).filter((r) => r.status !== "pending")
+  const runs = await money.listPayoutRuns(db)
+  const trial = await trialBalance(db)
+  return {
+    perPro,
+    totals: { cashHeld: perPro.reduce((s, p) => s + Math.max(0, p.cashHeld), 0), payable: perPro.reduce((s, p) => s + Math.max(0, p.payable), 0) },
+    unreconciled,
+    pending,
+    decided,
+    runs,
+    trial,
+  }
+}
+
+// Promo codes ------------------------------------------------------------------
+
+export const listPromos = async () => promos.listPromos(await needCore())
+export const savePromo = async (p: promos.PromoInput, by: string, create: boolean) => promos.savePromo(await needCore(), p, by, create)
+
+// Pros: profile, verification, zones --------------------------------------------
+
+export async function saveProProfile(id: string, patch: cpros.ProProfilePatch) {
+  const cat = await getCatalog()
+  await cpros.setProProfile(await needCore(), id, patch, cat.areas.map((a) => a.slug))
+  return getPro(id)
+}
+
+export async function verifyPro(id: string, key: VerificationKey, v: { done: boolean; last4?: string; note?: string }, actor: string) {
+  await cpros.setVerification(await needCore(), id, key, v, actor)
+  return getPro(id)
+}
+
+/** Zones with their caps, the active pros who cover each, and the visits booked today and tomorrow. */
+export async function zonesOverview() {
+  const db = await needCore()
+  const cat = await getCatalog()
+  await cpros.ensureZones(db, cat.areas)
+  const zones = await cpros.listZones(db)
+  const pros = (await cj.listPros(db)).filter((p) => p.status === "active")
+  const jobs = await cj.listJobs(db, { sinceDays: 0 })
+  const today = karachiNow().date
+  const tomorrow = new Date(Date.parse(`${today}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)
+  const booked = (slug: string, d: string) => jobs.filter((j) => j.area === slug && j.date === d && j.status !== "cancelled" && j.status !== "no_show").length
+  return zones.map((z) => ({
+    ...z,
+    homePros: pros.filter((p) => p.area === z.slug).length,
+    coverPros: pros.filter((p) => p.area === z.slug || !p.zones?.length || p.zones.includes(z.slug)).length,
+    today: booked(z.slug, today),
+    tomorrow: booked(z.slug, tomorrow),
+  }))
+}
+
+export const setZoneCap = async (slug: string, cap: number | null) => cpros.setZoneCap(await needCore(), slug, cap)
+
+// The requests inbox ---------------------------------------------------------------
+
+export type InboxKind = "plus" | "gift" | "referral" | "pulse" | "wedding" | "business" | "contact" | "handoff" | "page" | "request"
+export type InboxItem = { id: string; createdAt: string; kind: InboxKind; name: string; phone: string; email?: string; message?: string; details?: Record<string, unknown>; status: creq.RequestStatus; note: string | null; handledBy: string | null; updatedAt: string | null }
+
+/** Enquiries (Plus, gift cards, referrals, Home Pulse and the rest) and WhatsApp requests from the website, with how far the team has got. */
+export async function requestsInbox(days = 90): Promise<InboxItem[]> {
+  const since = new Date(Date.now() - days * 86400000).toISOString()
+  const [enquiries, requests] = await Promise.all([listSubmissions("enquiry", since), listSubmissions("request", since)])
+  const items: Omit<InboxItem, "status" | "note" | "handledBy" | "updatedAt">[] = [
+    ...enquiries.map((e) => {
+      const d = e.data as { kind: string; name: string; phone: string; email?: string; message?: string; details?: Record<string, unknown> }
+      const kind = (d.kind === "contact" && d.details?.referralCode ? "referral" : d.kind) as InboxKind
+      return { id: e.id, createdAt: e.created_at, kind, name: d.name, phone: d.phone, email: d.email || undefined, message: d.message, details: d.details }
+    }),
+    ...requests.map((r) => {
+      const d = r.data as { name: string; phone: string; area: string; services: string; when?: string }
+      return { id: r.id, createdAt: r.created_at, kind: "request" as const, name: d.name, phone: d.phone, message: `${d.services}${d.when ? ` · ${d.when}` : ""} · ${d.area}` }
+    }),
+  ]
+  const db = await opsDb()
+  const states = db ? await creq.requestStates(db, items.map((i) => i.id)) : new Map((await all<{ id: string } & creq.RequestState>("requests")).map((r) => [r.id, r]))
+  return items
+    .map((i) => {
+      const st = states.get(i.id)
+      return { ...i, status: st?.status ?? "new", note: st?.note ?? null, handledBy: st?.handledBy ?? null, updatedAt: st?.updatedAt ?? null }
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+export async function setRequestStatus(id: string, status: creq.RequestStatus, note: string | undefined, by: string) {
+  const db = await opsDb()
+  if (db) return creq.setRequestState(db, id, { status, note }, by)
+  const cur = await get<{ id: string } & creq.RequestState>("requests", id)
+  await put("requests", { id, status, note: note?.trim() || cur?.note || null, handledBy: by, updatedAt: nowIso() })
+}
+
+// KPIs and the audit log -----------------------------------------------------------
+
+/** The KPI dashboard for the last `days` days (today included). */
+export async function kpiReport(days: number) {
+  const to = karachiNow().date
+  const from = daysAgo(days - 1)
+  const jobs = await allJobs()
+  const k = computeKpis(jobs, from, to)
+  const db = await opsDb()
+  const balances = db ? [...(await allProBalances(db)).values()] : []
+  const unreconciled = jobs.filter((j) => j.status === "completed" && j.date >= from && j.date <= to && paymentNeedsCheck(j))
+  return {
+    ...k,
+    cashHeld: balances.reduce((s, b) => s + Math.max(0, b.cashHeld), 0),
+    unreconciled: { count: unreconciled.length, amount: unreconciled.reduce((s, j) => s + j.total, 0) },
+    books: db ? (await trialBalance(db)).balanced : null,
+  }
+}
+
+export async function auditLog(f: AuditFilter = {}) {
+  const db = await opsDb()
+  if (db) return listAudit(db, f)
+  return (await recentAudit(f.limit ?? 100)).map((a, i) => ({ id: i + 1, at: a.at, actor: a.actor, action: a.action, target: a.target ?? null, detail: a.detail ?? null }))
+}

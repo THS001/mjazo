@@ -3,7 +3,7 @@ import { karachiNow } from "@/lib/time"
 import { getCatalog } from "@/lib/cms/read"
 import { leakageWatch, morningDigest, qualityReport, type LeakState } from "@/lib/ops/trust"
 import { handle, readJson } from "@/lib/server/api"
-import { requireOps } from "@/lib/server/session"
+import { requireStaff } from "@/lib/server/staff"
 import { all, put } from "@/lib/server/docs"
 import { audit, recentAudit } from "@/lib/server/audit"
 import { getComplaints, getPros, nowIso, syncJobs } from "@/lib/server/ops"
@@ -14,7 +14,7 @@ const body = z.object({ action: z.enum(["leak_checkin", "leak_dismiss"]), key: z
 
 export async function GET() {
   return handle(async () => {
-    await requireOps()
+    await requireStaff("ops.requests", "ops.money")
     const today = karachiNow().date
     const [jobs, pros, complaints, states, log, weddings] = await Promise.all([syncJobs(), getPros(), getComplaints(), all<LeakState>("leak"), recentAudit(80), all<{ id: string; status: string }>("weddings")])
     const cat = await getCatalog()
@@ -27,11 +27,11 @@ export async function GET() {
 
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireOps()
+    const me = await requireStaff("ops.requests")
     const b = body.parse(await readJson(req))
     const status = b.action === "leak_checkin" ? "checked_in" : "dismissed"
     await put<LeakState>("leak", { id: b.key, status, at: nowIso(), note: b.note })
-    await audit("ops", b.action === "leak_checkin" ? "leakage check-in sent" : "leakage flag dismissed", b.key.split("|")[1], b.note)
+    await audit(me.email, b.action === "leak_checkin" ? "leakage check-in sent" : "leakage flag dismissed", b.key.split("|")[1], b.note)
     return { ok: true }
   })
 }

@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import { ArrowRight, Car, MessageCircle, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { api, Btn, Empty, waTo } from "../kit"
+import { useOps } from "./context"
 
 type StopJob = { id: string; window: string; area: string; customer: string; services: string; status: string }
 type Plan = {
@@ -25,6 +26,7 @@ const toMin = (hhmm: string) => {
 }
 
 export function Dispatch({ date, reload }: { date: string; reload: () => void }) {
+  const { can } = useOps()
   const [plan, setPlan] = useState<Plan | null>(null)
   const [busy, setBusy] = useState<"" | "plan" | "apply">("")
   const [error, setError] = useState("")
@@ -63,9 +65,11 @@ export function Dispatch({ date, reload }: { date: string; reload: () => void })
             <Btn variant="light" className="bg-white/10 text-white border-white/15" busy={busy === "plan"} onClick={() => run(false)}>
               Re-plan
             </Btn>
-            <Btn variant="brand" busy={busy === "apply"} disabled={!plan?.routes.length} onClick={() => run(true)}>
-              Apply plan <ArrowRight className="w-4 h-4" />
-            </Btn>
+            {can("ops.dispatch") && (
+              <Btn variant="brand" busy={busy === "apply"} disabled={!plan?.routes.length} onClick={() => run(true)}>
+                Apply plan <ArrowRight className="w-4 h-4" />
+              </Btn>
+            )}
           </div>
         </div>
         {plan && (

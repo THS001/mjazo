@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from "vitest"
-import { ROLES, type Role } from "./roles"
+import { CMS_ROLES, ROLES, type Role } from "./roles"
 import type { AuditRow, EntryRow, VersionRow } from "./store"
 import { getType } from "./registry"
 import "./types"
@@ -115,7 +115,10 @@ const draft = async (type: string, id: string, fn: (x: D) => void) => {
 }
 
 type Case = { name: string; roles: Role[]; run: () => Promise<R | Response> }
+// Every role, mission control's included: those (Dispatcher, Support, Finance, Recruiter) can't do
+// anything in the CMS, so "everyone" below means every website role.
 const ALL = [...ROLES]
+const CMS = [...CMS_ROLES]
 const CASES: Case[] = [
   { name: "change a service's name", roles: ["owner", "admin", "editor"], run: async () => { const e = await load("service", SERVICE); return A.saveDraftAction("service", SERVICE, edit(e.data, (x) => (x.name.en = "Full body wax")), e.version) } },
   { name: "change a price", roles: ["owner", "admin"], run: async () => { const e = await load("service", SERVICE); return A.saveDraftAction("service", SERVICE, edit(e.data, (x) => (x.price += 500)), e.version) } },
@@ -146,11 +149,11 @@ const CASES: Case[] = [
       return A.restoreAction("service", SERVICE, v.seq, (await load("service", SERVICE)).version)
     },
   },
-  { name: "see an entry's history", roles: ALL, run: () => A.versionsAction("service", SERVICE) },
+  { name: "see an entry's history", roles: CMS, run: () => A.versionsAction("service", SERVICE) },
   { name: "translate with AI", roles: ["owner", "admin", "editor", "author"], run: async () => T.translateEntryAction("service", (await load("service", SERVICE)).data, "missing") },
   { name: "add a redirect", roles: ["owner", "admin", "editor", "seo"], run: () => S.saveRedirectAction({ source: "/old", destination: "/offers", permanent: true }) },
   { name: "audit a page", roles: ["owner", "admin", "editor", "seo"], run: () => S.auditAction("/about", "en", "") },
-  { name: "see the SEO panel", roles: ALL, run: () => S.listRedirectsAction() },
+  { name: "see the SEO panel", roles: CMS, run: () => S.listRedirectsAction() },
   { name: "upload media", roles: ["owner", "admin", "editor", "author"], run: () => M.prepareUploadAction({ name: "a.jpg", mime: "image/jpeg", size: 1000 }) },
   { name: "delete media", roles: ["owner", "admin"], run: () => M.deleteMediaAction("m1") },
   { name: "invite people", roles: ["owner", "admin"], run: () => A.inviteAction("new@mjazo.test", "New", "editor") },
@@ -161,7 +164,7 @@ const CASES: Case[] = [
 
 describe("permission matrix", () => {
   for (const c of CASES)
-    it(`${c.name}: ${c.roles.length === ALL.length ? "everyone" : c.roles.join(", ")}`, async () => {
+    it(`${c.name}: ${c.roles.length === CMS.length && CMS.every((r) => c.roles.includes(r)) ? "every website role" : c.roles.join(", ")}`, async () => {
       const got: Record<string, boolean> = {}
       for (const role of ALL) {
         reset()

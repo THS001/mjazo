@@ -67,6 +67,29 @@ export function eligible(pro: Pro, job: Job, cat: OpsCatalog) {
   return jobCategories(job).every((c) => pro.skills.includes(c))
 }
 
+/**
+ * Why a pro can't take a job on its day and window, from the limits set in mission control (days
+ * off, weekly windows, the areas she travels to), or null when she can. A pro with no limits set
+ * is free every day, in every window and area.
+ */
+export function unavailableReason(pro: Pro, job: Job): string | null {
+  if (job.date && pro.timeOff?.includes(job.date)) return "day off"
+  if (job.date && pro.availability) {
+    const weekday = new Date(`${job.date}T12:00:00Z`).getUTCDay()
+    if (!pro.availability[String(weekday)]?.includes(job.window)) return "not working then"
+  }
+  if (pro.zones?.length && job.area !== pro.area && !pro.zones.includes(job.area)) return "doesn't cover this area"
+  return null
+}
+
+export const available = (pro: Pro, job: Job) => unavailableReason(pro, job) === null
+
+/** Most visits a pro takes in a day (her own cap, or the default). */
+export const dailyCap = (pro: Pro) => pro.dailyCap ?? OPS.maxJobsPerPro
+
+/** Day-level limits Route Brain also respects. `zoneCaps`: most visits a day per area (mission control → Zones). */
+export type PlanLimits = { zoneCaps?: Record<string, number> }
+
 const LOCKED = ["en_route", "checked_in", "checked_out"]
 
 export type Stop = { jobId: string; area: string; window: string; eta: string; travelMin: number; durationMin: number }
@@ -77,7 +100,7 @@ export type RoutePlan = { byPro: Record<string, Stop[]>; unassigned: { jobId: st
  * eligible pro with the lowest cost (travel + waiting + load), only if they can reach it inside
  * its arrival window. Repeat customers prefer the pro who served them before.
  */
-export function planRoutes(jobs: Job[], pros: Pro[], history: Job[], cat: OpsCatalog): RoutePlan {
+export function planRoutes(jobs: Job[], pros: Pro[], history: Job[], cat: OpsCatalog, limits: PlanLimits = {}): RoutePlan {
   const open = jobs.filter((j) => j.status !== "cancelled" && j.status !== "completed").sort((a, b) => arrivalStart(a) - arrivalStart(b))
   const state = new Map<string, { lastArea: string; lastEnd: number; stops: Stop[] }>()
   for (const p of pros) state.set(p.id, { lastArea: p.area, lastEnd: 0, stops: [] })
@@ -85,6 +108,7 @@ export function planRoutes(jobs: Job[], pros: Pro[], history: Job[], cat: OpsCat
   for (const h of history) if (h.proId && h.status === "completed") previousPro.set(h.customer.phone, h.proId)
 
   const unassigned: RoutePlan["unassigned"] = []
+  const perZone = new Map<string, number>()
   let travelTotal = 0
   for (const job of open) {
     const ws = arrivalStart(job)
@@ -92,12 +116,21 @@ export function planRoutes(jobs: Job[], pros: Pro[], history: Job[], cat: OpsCat
     const dur = jobMinutes(job, cat)
     // Jobs already under way stay with their pro; everything else is (re)planned.
     const locked = Boolean(job.proId && LOCKED.includes(job.status))
+    const zoneCap = limits.zoneCaps?.[job.area]
+    if (!locked && zoneCap !== undefined && (perZone.get(job.area) ?? 0) >= zoneCap) {
+      unassigned.push({ jobId: job.id, reason: "The area is fully booked for the day" })
+      continue
+    }
     let best: { pro: Pro; start: number; travel: number; cost: number } | null = null
     let reason = locked ? "Its pro is no longer listed" : "No active pro has the right skills"
     for (const pro of pros) {
       if (locked ? pro.id !== job.proId : !eligible(pro, job, cat)) continue
+      if (!locked && !available(pro, job)) {
+        reason = "No suitable pro works then or covers the area"
+        continue
+      }
       const st = state.get(pro.id)!
-      if (!locked && st.stops.length >= OPS.maxJobsPerPro) {
+      if (!locked && st.stops.length >= dailyCap(pro)) {
         reason = "All suitable pros are fully booked"
         continue
       }
@@ -119,6 +152,7 @@ export function planRoutes(jobs: Job[], pros: Pro[], history: Job[], cat: OpsCat
     st.lastArea = job.area
     st.lastEnd = best.start + dur
     travelTotal += best.travel
+    perZone.set(job.area, (perZone.get(job.area) ?? 0) + 1)
   }
   const byPro: Record<string, Stop[]> = {}
   for (const [id, st] of state) if (st.stops.length) byPro[id] = st.stops

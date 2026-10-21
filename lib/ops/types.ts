@@ -1,8 +1,9 @@
 // Shared ops types (used by the server, the ops console and the pro app).
 
 export type JobStatus = "new" | "assigned" | "en_route" | "checked_in" | "checked_out" | "completed" | "cancelled" | "no_show"
-export type JobEventType = "assigned" | "en_route" | "checked_in" | "checked_out" | "completed" | "cancelled" | "no_show" | "safe" | "sos" | "alert_ping" | "alert_escalated" | "note" | "payment"
-export type JobEvent = { type: JobEventType; at: string; by: "ops" | "pro" | "system"; note?: string; lat?: number; lng?: number }
+export type JobEventType = "assigned" | "en_route" | "checked_in" | "checked_out" | "completed" | "cancelled" | "no_show" | "safe" | "sos" | "alert_ping" | "alert_escalated" | "note" | "payment" | "rescheduled"
+/** `actor`: exactly who (a staff email or a pro id), when known. */
+export type JobEvent = { type: JobEventType; at: string; by: "ops" | "pro" | "system"; actor?: string; note?: string; lat?: number; lng?: number }
 
 export type PaymentRecord = {
   amount: number
@@ -64,7 +65,31 @@ export type Pro = {
   pinHash?: string
   createdAt: string
   applicationId?: string
+  // Set in mission control (the core engine). Missing means "no limit set".
+  zones?: string[] // the areas she travels to, besides her home area (none set: anywhere)
+  dailyCap?: number // most visits a day
+  commissionRate?: number // Mjazo's share, 0–0.5
+  availability?: Record<string, string[]> // weekday ("0" = Sunday) → arrival windows she works
+  timeOff?: string[] // days off (YYYY-MM-DD), from yesterday on
+  verification?: Verification
 }
+
+/**
+ * The verification checklist. A CNIC is checked in person and never stored online: only who
+ * checked it, when, and its last 4 digits.
+ */
+export const VERIFICATION_ITEMS = [
+  { key: "cnic", label: "CNIC checked in person", hint: "Look at the original card. Only its last 4 digits are kept." },
+  { key: "references", label: "Two references called" },
+  { key: "address", label: "Home address confirmed" },
+  { key: "practical", label: "Practical test passed" },
+  { key: "training", label: "Safety and hygiene training done" },
+  { key: "conduct", label: "Code of conduct signed" },
+] as const
+export type VerificationKey = (typeof VERIFICATION_ITEMS)[number]["key"]
+export type VerificationItem = { by: string; at: string; note?: string; last4?: string }
+export type Verification = Partial<Record<VerificationKey, VerificationItem>>
+export const isVerified = (p: Pick<Pro, "verification">) => VERIFICATION_ITEMS.every((i) => p.verification?.[i.key])
 
 export type InterviewTurn = { role: "user" | "assistant"; text: string }
 export type Scores = { experience: number; skills: number; hygiene: number; availability: number; transport: number; communication: number }

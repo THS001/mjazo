@@ -2,10 +2,11 @@ import { all } from "@/lib/server/docs"
 import { aiEnabled } from "@/lib/ai/anthropic"
 import { karachiNow, nextDays } from "@/lib/time"
 import { handle } from "@/lib/server/api"
-import { requireOps } from "@/lib/server/session"
+import { requireStaff } from "@/lib/server/staff"
 import { getComplaints, getOpenSos, getPros, publicPro, safetySweep, syncJobs } from "@/lib/server/ops"
 import type { Job } from "@/lib/ops/types"
 import { paymentNeedsCheck, windowIndex } from "@/lib/ops/logic"
+import { ROLE_INFO } from "@/lib/cms/roles"
 
 // Everything the ops console's live board needs, in one poll. Also runs the Safety Guardian sweep.
 
@@ -13,7 +14,7 @@ const lite = (j: Job) => (j.paymentRecord?.screenshot ? { ...j, paymentRecord: {
 
 export async function GET(req: Request) {
   return handle(async () => {
-    await requireOps()
+    const me = await requireStaff("ops.view")
     const today = karachiNow().date
     const q = new URL(req.url).searchParams.get("date") ?? ""
     const date = /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : today
@@ -40,6 +41,17 @@ export async function GET(req: Request) {
     }
     const days = nextDays(8).map((d) => d.iso)
     const counts = days.map((d) => ({ date: d, count: jobs.filter((j) => j.date === d && j.status !== "cancelled").length }))
-    return { today, date, jobs: dayJobs.sort((a, b) => windowIndex(a.window) - windowIndex(b.window) || (a.routeOrder ?? 9) - (b.routeOrder ?? 9)).map(lite), alerts: alerts.map(lite), sos, pros: pros.map(publicPro), stats, days: counts, ai: aiEnabled() }
+    return {
+      me: { name: me.name, email: me.email, role: me.role, roleLabel: ROLE_INFO[me.role].label, perms: me.perms },
+      today,
+      date,
+      jobs: dayJobs.sort((a, b) => windowIndex(a.window) - windowIndex(b.window) || (a.routeOrder ?? 9) - (b.routeOrder ?? 9)).map(lite),
+      alerts: alerts.map(lite),
+      sos,
+      pros: pros.map(publicPro),
+      stats,
+      days: counts,
+      ai: aiEnabled(),
+    }
   })
 }

@@ -4,7 +4,8 @@ import { SITE_URL } from "@/lib/site"
 import { getCatalog } from "@/lib/cms/read"
 import { karachiNow } from "@/lib/time"
 import { handle, readJson } from "@/lib/server/api"
-import { hashPin, requireOps } from "@/lib/server/session"
+import { hashPin } from "@/lib/server/session"
+import { requireStaff } from "@/lib/server/staff"
 import { get, put } from "@/lib/server/docs"
 import { OpsError, getPros, nowIso, savePro, syncApplications, syncJobs } from "@/lib/server/ops"
 import { SKILL_TO_CATEGORIES, demandForecast } from "@/lib/ops/logic"
@@ -20,7 +21,7 @@ const body = z.discriminatedUnion("action", [
 
 export async function GET() {
   return handle(async () => {
-    await requireOps()
+    await requireStaff("ops.recruit")
     const [apps, jobs, pros] = await Promise.all([syncApplications(), syncJobs(), getPros()])
     return {
       applications: apps.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((a) => ({ ...a, link: `${SITE_URL}/partner/interview/${a.token}` })),
@@ -31,14 +32,14 @@ export async function GET() {
 
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireOps()
+    const me = await requireStaff("ops.recruit")
     const b = body.parse(await readJson(req))
     const app = await get<Application>("applications", b.id)
     if (!app) throw new OpsError("Application not found")
     if (b.action === "status") {
       Object.assign(app, { status: b.status, decisionNote: b.note ?? app.decisionNote })
       await put("applications", app)
-      await audit("ops", "applicant " + b.status, app.id, b.note)
+      await audit(me.email, "applicant " + b.status, app.id, b.note)
       return { application: app }
     }
     if (app.proId) throw new OpsError("Already hired")
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
     await savePro(pro)
     Object.assign(app, { status: "hired", proId: pro.id, decisionNote: b.note ?? app.decisionNote })
     await put("applications", app)
-    await audit("ops", "hired applicant", app.id, pro.id)
+    await audit(me.email, "hired applicant", app.id, pro.id)
     return { application: app }
   })
 }

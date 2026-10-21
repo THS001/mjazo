@@ -40,7 +40,7 @@ type BookingRow = {
   created_at: string
 }
 type ItemRow = { booking_id: string; position: number; name: string; category: string; service: string; options: string[]; add_ons: string[]; qty: number; unit_price: number }
-type EventRow = { booking_id: string; type: JobEvent["type"]; at: string; by: JobEvent["by"]; note: string | null; lat: number | null; lng: number | null }
+type EventRow = { booking_id: string; type: JobEvent["type"]; at: string; by: JobEvent["by"]; actor: string | null; note: string | null; lat: number | null; lng: number | null }
 type PaymentRow = { booking_id: string; amount: number; method: PaymentRecord["method"]; at: string; screenshot: string | null; ocr: PaymentRecord["ocr"] | null; status: PaymentRecord["status"]; checked: boolean; note: string | null }
 type RatingRow = { booking_id: string; stars: number; tags: string[]; comment: string | null; at: string }
 
@@ -79,6 +79,7 @@ async function hydrate(db: Db, rows: BookingRow[]): Promise<Job[]> {
       status: b.status,
       events: (eventsBy.get(b.id) ?? []).map((e) => {
         const ev: JobEvent = { type: e.type, at: e.at, by: e.by }
+        if (e.actor != null) ev.actor = e.actor
         if (e.note != null) ev.note = e.note
         if (e.lat != null) ev.lat = e.lat
         if (e.lng != null) ev.lng = e.lng
@@ -250,7 +251,7 @@ export async function importJobs(db: Db, jobs: Job[]): Promise<number> {
 // ---------------------------------------------------------------------------
 
 const insertEvent = (db: Db, bookingId: string, e: JobEvent) =>
-  db.query("insert into booking_events (booking_id, type, at, by, note, lat, lng) values ($1, $2, $3, $4, $5, $6, $7)", [bookingId, e.type, e.at, e.by, e.note ?? null, e.lat ?? null, e.lng ?? null])
+  db.query("insert into booking_events (booking_id, type, at, by, actor, note, lat, lng) values ($1, $2, $3, $4, $5, $6, $7, $8)", [bookingId, e.type, e.at, e.by, e.actor ?? null, e.note ?? null, e.lat ?? null, e.lng ?? null])
 
 const writePayment = (db: Db, bookingId: string, p: PaymentRecord) =>
   db.query(
@@ -423,20 +424,54 @@ export async function importLegacy(db: Db, load: () => Promise<{ pros: Pro[]; jo
 // Pros
 // ---------------------------------------------------------------------------
 
-type ProRow = { id: string; name: string; phone: string; home_zone: string; skills: string[]; women: boolean; status: string; pin_hash: string | null; application_id: string | null; created_at: string }
+type ProRow = {
+  id: string
+  name: string
+  phone: string
+  home_zone: string
+  zones: string[] | null
+  skills: string[]
+  women: boolean
+  status: string
+  pin_hash: string | null
+  application_id: string | null
+  commission_rate: number
+  daily_cap: number
+  verification: Pro["verification"] | null
+  created_at: string
+}
 
 const toPro = (r: ProRow): Pro => {
   const p: Pro = { id: r.id, name: r.name, phone: r.phone, area: r.home_zone, skills: r.skills ?? [], women: r.women, status: r.status === "active" ? "active" : "paused", createdAt: r.created_at }
   if (r.pin_hash) p.pinHash = r.pin_hash
   if (r.application_id) p.applicationId = r.application_id
+  if (r.zones?.length) p.zones = r.zones
+  p.dailyCap = r.daily_cap
+  p.commissionRate = r.commission_rate
+  if (r.verification && Object.keys(r.verification).length) p.verification = r.verification
   return p
 }
 
-export const listPros = async (db: Db) => (await db.query<ProRow>("select * from pros order by created_at, id")).map(toPro)
+/** Adds each pro's weekly availability and days off (from yesterday on). */
+async function withSchedule(db: Db, pros: Pro[]): Promise<Pro[]> {
+  if (!pros.length) return pros
+  const ids = pros.map((p) => p.id)
+  const avail = await db.query<{ pro_id: string; weekday: number; windows: string[] }>("select pro_id, weekday, windows from pro_availability where pro_id = any($1::text[])", [ids])
+  const off = await db.query<{ pro_id: string; day: string }>("select pro_id, day from pro_time_off where pro_id = any($1::text[]) and day >= $2 order by day", [ids, isoDaysAgo(1)])
+  for (const p of pros) {
+    const a = avail.filter((x) => x.pro_id === p.id)
+    if (a.length) p.availability = Object.fromEntries(a.map((x) => [String(x.weekday), x.windows ?? []]))
+    const o = off.filter((x) => x.pro_id === p.id).map((x) => x.day)
+    if (o.length) p.timeOff = o
+  }
+  return pros
+}
+
+export const listPros = async (db: Db) => withSchedule(db, (await db.query<ProRow>("select * from pros order by created_at, id")).map(toPro))
 
 export async function getProRow(db: Db, id: string) {
   const r = await db.one<ProRow>("select * from pros where id = $1", [id])
-  return r ? toPro(r) : null
+  return r ? (await withSchedule(db, [toPro(r)]))[0] : null
 }
 
 /** Creates or updates a pro (the fields the Pro type carries). */

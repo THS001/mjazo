@@ -4,7 +4,7 @@ import { aiEnabled } from "@/lib/ai/anthropic"
 import { draftComplaint } from "@/lib/ai/staff-agents"
 import { karachiNow } from "@/lib/time"
 import { handle, readJson } from "@/lib/server/api"
-import { requireOps } from "@/lib/server/session"
+import { requireStaff } from "@/lib/server/staff"
 import { get, put } from "@/lib/server/docs"
 import { OpsError, getComplaints, getJob, getPros, nowIso, syncJobs, updateJob } from "@/lib/server/ops"
 import type { Complaint } from "@/lib/ops/types"
@@ -22,11 +22,12 @@ const body = z.discriminatedUnion("action", [
 
 export async function GET(req: Request) {
   return handle(async () => {
-    await requireOps()
+    await requireStaff("ops.requests", "ops.money")
     const shot = new URL(req.url).searchParams.get("shot")
     if (shot) return { screenshot: (await getJob(shot))?.paymentRecord?.screenshot ?? null }
     const media = new URL(req.url).searchParams.get("media")
     if (media) {
+      await requireStaff("ops.requests")
       const c = await get<Complaint>("complaints", media)
       return { photo: c?.photo ?? null, audio: c?.audio ?? null }
     }
@@ -46,16 +47,17 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireOps()
     const b = body.parse(await readJson(req))
+    // Checking or recording a payment changes the books: Finance. Complaints: Support.
+    const me = await requireStaff(b.action === "verify" || b.action === "record" ? "ops.money" : "ops.requests")
     if (b.action === "verify" || b.action === "record") {
       await updateJob(b.jobId, (job) => {
-        if (b.action === "record") job.paymentRecord = { amount: b.amount, method: b.method, at: nowIso(), status: b.method === "cash" ? "cash" : "matched", checked: true, note: "Recorded by ops" }
-        else if (job.paymentRecord) Object.assign(job.paymentRecord, { checked: true, note: b.note || "Checked by ops" })
+        if (b.action === "record") job.paymentRecord = { amount: b.amount, method: b.method, at: nowIso(), status: b.method === "cash" ? "cash" : "matched", checked: true, note: `Recorded by ${me.email}` }
+        else if (job.paymentRecord) Object.assign(job.paymentRecord, { checked: true, note: b.note || `Checked by ${me.email}` })
         else throw new OpsError("No payment recorded yet")
-        job.events.push({ type: "payment", at: nowIso(), by: "ops", note: job.paymentRecord.note })
+        job.events.push({ type: "payment", at: nowIso(), by: "ops", actor: me.email, note: job.paymentRecord.note })
       })
-      await audit("ops", b.action === "record" ? "recorded payment" : "checked payment", b.jobId, b.action === "record" ? b.method + " " + b.amount : b.note)
+      await audit(me.email, b.action === "record" ? "recorded payment" : "checked payment", b.jobId, b.action === "record" ? b.method + " " + b.amount : b.note)
       return { ok: true }
     }
     const c = await get<Complaint>("complaints", b.id)
@@ -66,7 +68,7 @@ export async function POST(req: Request) {
       c.status = "draft_ready"
     } else Object.assign(c, { status: "resolved", resolution: b.resolution, resolvedAt: nowIso() })
     await put("complaints", c)
-    await audit(b.action === "draft" ? "system" : "ops", b.action === "draft" ? "drafted complaint resolution" : "resolved complaint", c.id, b.action === "resolve" ? b.resolution : c.draft?.resolution)
+    await audit(b.action === "draft" ? `system (for ${me.email})` : me.email, b.action === "draft" ? "drafted complaint resolution" : "resolved complaint", c.id, b.action === "resolve" ? b.resolution : c.draft?.resolution)
     return { complaint: { ...c, photo: c.photo ? "1" : undefined, audio: c.audio ? "1" : undefined } }
   })
 }

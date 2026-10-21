@@ -1,5 +1,5 @@
 import type { Job, Pro } from "@/lib/ops/types"
-import { eligible, planRoutes, type OpsCatalog } from "@/lib/ops/logic"
+import { eligible, planRoutes, type OpsCatalog, type PlanLimits } from "@/lib/ops/logic"
 import { WINDOW_LABELS, windowAvailable } from "@/lib/time"
 
 // Slot capacity. A window is open for a new booking only if Route Brain (the same planner ops
@@ -22,11 +22,11 @@ function candidate(need: SlotNeed, date: string, window: string): Job {
 export const anyoneCan = (need: SlotNeed, pros: Pro[], cat: OpsCatalog) => pros.some((p) => eligible(p, candidate(need, "", WINDOW_LABELS[0]), cat))
 
 /** Open windows on one day, given that day's jobs and the pros. */
-export function windowsForDay(date: string, dayJobs: Job[], pros: Pro[], need: SlotNeed, cat: OpsCatalog): { label: string; open: boolean }[] {
+export function windowsForDay(date: string, dayJobs: Job[], pros: Pro[], need: SlotNeed, cat: OpsCatalog, limits: PlanLimits = {}): { label: string; open: boolean }[] {
   const jobs = dayJobs.filter((j) => j.date === date && busy(j))
-  const base = new Set(planRoutes(jobs, pros, [], cat).unassigned.map((u) => u.jobId))
+  const base = new Set(planRoutes(jobs, pros, [], cat, limits).unassigned.map((u) => u.jobId))
   return WINDOW_LABELS.map((label) => {
-    const plan = planRoutes([...jobs, candidate(need, date, label)], pros, [], cat)
+    const plan = planRoutes([...jobs, candidate(need, date, label)], pros, [], cat, limits)
     const left = plan.unassigned.map((u) => u.jobId)
     return { label, open: !left.includes(CANDIDATE) && left.every((id) => base.has(id)) }
   })
@@ -36,17 +36,17 @@ export function windowsForDay(date: string, dayJobs: Job[], pros: Pro[], need: S
  * Slots for the next days. `leadHours` closes windows that start too soon today (the policy
  * value). In "open" mode only the lead time applies.
  */
-export function slots(dates: string[], jobs: Job[], pros: Pro[], need: SlotNeed, cat: OpsCatalog, leadHours: number): { mode: SlotMode; days: DaySlots[] } {
+export function slots(dates: string[], jobs: Job[], pros: Pro[], need: SlotNeed, cat: OpsCatalog, leadHours: number, limits: PlanLimits = {}): { mode: SlotMode; days: DaySlots[] } {
   const mode: SlotMode = anyoneCan(need, pros, cat) ? "capacity" : "open"
   const days = dates.map((date) => {
-    const fits = mode === "capacity" ? windowsForDay(date, jobs, pros, need, cat) : WINDOW_LABELS.map((label) => ({ label, open: true }))
+    const fits = mode === "capacity" ? windowsForDay(date, jobs, pros, need, cat, limits) : WINDOW_LABELS.map((label) => ({ label, open: true }))
     return { date, windows: fits.map((w, i) => ({ label: w.label, open: w.open && windowAvailable(date, i, leadHours) })) }
   })
   return { mode, days }
 }
 
 /** Whether one window is still open (checked again when the booking is placed). */
-export function windowOpen(date: string, window: string, jobs: Job[], pros: Pro[], need: SlotNeed, cat: OpsCatalog) {
+export function windowOpen(date: string, window: string, jobs: Job[], pros: Pro[], need: SlotNeed, cat: OpsCatalog, limits: PlanLimits = {}) {
   if (!anyoneCan(need, pros, cat)) return true
-  return windowsForDay(date, jobs, pros, need, cat).find((w) => w.label === window)?.open ?? false
+  return windowsForDay(date, jobs, pros, need, cat, limits).find((w) => w.label === window)?.open ?? false
 }

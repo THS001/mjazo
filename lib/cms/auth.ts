@@ -43,8 +43,11 @@ export async function supabaseAuth() {
 export const getCmsUser = cache(async (): Promise<CmsUser | null> => {
   const mode = authMode()
   if (mode === "dev") {
+    // The cookie holds the local role ("1" from older sessions means Owner), so each role can be tried locally.
     const v = (await cookies()).get(DEV_COOKIE)?.value
-    return v ? { id: "local-owner", email: "owner@localhost", name: "Local owner", role: "owner", mfa: "ok" } : null
+    if (!v) return null
+    const role: Role = (ROLES as readonly string[]).includes(v) ? (v as Role) : "owner"
+    return { id: `local-${role}`, email: `${role}@localhost`, name: `Local ${role}`, role, mfa: "ok" }
   }
   if (mode !== "supabase") return null
   const sb = await supabaseAuth()
@@ -80,6 +83,8 @@ export async function pageUser(): Promise<CmsUser> {
   const u = await getCmsUser()
   if (!u) redirect("/admin/login")
   if (u.mfa && u.mfa !== "ok") redirect("/admin/two-step")
+  // Operations roles have no CMS access: their home is mission control.
+  if (!can(u.role, "view")) redirect("/ops")
   return u
 }
 

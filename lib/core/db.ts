@@ -154,7 +154,9 @@ export async function openLite(dataDir?: string): Promise<Db & { close(): Promis
 // The shared handle
 // ---------------------------------------------------------------------------
 
-let current: Promise<Db> | null = null
+// One handle per process, kept on globalThis: the dev server re-runs modules after each edit, and
+// a second PGlite opened on the same folder splits the local data in two (and can corrupt it).
+const shared = globalThis as typeof globalThis & { __mjazoCore?: Promise<Db> | null }
 let override: Db | null | undefined
 
 /** The core database, or null when the core is off (production without DATABASE_URL). */
@@ -162,13 +164,13 @@ export async function core(): Promise<Db | null> {
   if (override !== undefined) return override
   const mode = coreMode()
   if (mode === "off") return null
-  if (!current) {
-    current = (mode === "postgres" ? postgres() : openLite(path.join(process.cwd(), ".data", "pglite"))).catch((e) => {
-      current = null
+  if (!shared.__mjazoCore) {
+    shared.__mjazoCore = (mode === "postgres" ? postgres() : openLite(path.join(process.cwd(), ".data", "pglite"))).catch((e) => {
+      shared.__mjazoCore = null
       throw e
     })
   }
-  return current
+  return shared.__mjazoCore
 }
 
 /** The core database; throws when the core is off. */

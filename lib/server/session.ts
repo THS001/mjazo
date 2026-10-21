@@ -2,17 +2,22 @@ import "server-only"
 import crypto from "crypto"
 import { cookies } from "next/headers"
 
-// Staff sessions: an HMAC-signed cookie (SESSION_SECRET). Ops log in with OPS_PASSCODE;
-// pros log in with phone + PIN (scrypt-hashed, set by ops). Without both env vars the staff
-// areas stay switched off.
+// Pro app sessions: an HMAC-signed cookie (SESSION_SECRET). Pros log in with phone + PIN
+// (scrypt-hashed, set by ops). Without SESSION_SECRET in production the pro app stays switched
+// off; locally a fixed development secret is used. Staff (mission control and the CMS) sign in
+// with their own email instead: lib/server/staff.ts.
 
 const COOKIE = "mjz_staff"
-export type Session = { role: "ops"; exp: number } | { role: "pro"; proId: string; exp: number }
+export type Session = { role: "pro"; proId: string; exp: number }
 
-export const staffEnabled = () => Boolean(process.env.SESSION_SECRET && process.env.OPS_PASSCODE)
+const DEV_SECRET = "local-dev-session-secret-not-for-production"
+const secret = () => process.env.SESSION_SECRET || (process.env.NODE_ENV !== "production" ? DEV_SECRET : "")
+
+/** Whether the pro app can sign people in. */
+export const proEnabled = () => Boolean(secret())
 
 function sig(data: string) {
-  return crypto.createHmac("sha256", process.env.SESSION_SECRET!).update(data).digest("base64url")
+  return crypto.createHmac("sha256", secret()).update(data).digest("base64url")
 }
 
 export function safeEqual(a: string, b: string) {
@@ -21,7 +26,7 @@ export function safeEqual(a: string, b: string) {
   return x.length === y.length && crypto.timingSafeEqual(x, y)
 }
 
-export async function setSession(s: { role: "ops" } | { role: "pro"; proId: string }, maxAgeSec: number) {
+export async function setSession(s: { role: "pro"; proId: string }, maxAgeSec: number) {
   const payload = Buffer.from(JSON.stringify({ ...s, exp: Date.now() + maxAgeSec * 1000 })).toString("base64url")
   const jar = await cookies()
   jar.set(COOKIE, `${payload}.${sig(payload)}`, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: maxAgeSec })
@@ -32,30 +37,27 @@ export async function clearSession() {
 }
 
 export async function getSession(): Promise<Session | null> {
-  if (!staffEnabled()) return null
+  if (!proEnabled()) return null
   const raw = (await cookies()).get(COOKIE)?.value
   if (!raw) return null
   const [payload, mac] = raw.split(".")
   if (!payload || !mac || !safeEqual(mac, sig(payload))) return null
   try {
     const s = JSON.parse(Buffer.from(payload, "base64url").toString()) as Session
-    return s.exp > Date.now() ? s : null
+    return s.exp > Date.now() && s.role === "pro" ? s : null
   } catch {
     return null
   }
 }
 
+/** Not signed in (the console or app shows its sign-in screen). */
 export class AuthError extends Error {}
-
-export async function requireOps() {
-  const s = await getSession()
-  if (!s || s.role !== "ops") throw new AuthError("ops")
-  return s
-}
+/** Signed in, but not allowed to do this. */
+export class ForbiddenError extends Error {}
 
 export async function requirePro() {
   const s = await getSession()
-  if (!s || s.role !== "pro") throw new AuthError("pro")
+  if (!s) throw new AuthError("pro")
   return s
 }
 

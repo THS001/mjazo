@@ -3,7 +3,7 @@ import { db } from "@/lib/server/store"
 import { SITE_URL } from "@/lib/site"
 import { addAudit } from "./store"
 import { CmsAuthError, type CmsUser } from "./auth"
-import { ROLES, type Role } from "./roles"
+import { can, OWNER_GRANTED, ROLE_INFO, ROLES, type Role } from "./roles"
 
 // People who can sign in to /admin (Supabase Auth users + a role in cms_users).
 
@@ -29,10 +29,10 @@ export async function twoStepOn(ids: string[]): Promise<Record<string, boolean>>
   return out
 }
 
-/** Only Owners may create or change Owners; nobody can demote or deactivate themselves. */
+/** Only Owners may make someone an Owner or Finance (who approves money); nobody can change their own role or access. */
 export function guard(actor: CmsUser, role: Role, targetId?: string) {
   if (!ROLES.includes(role)) throw new CmsAuthError("Unknown role.")
-  if (role === "owner" && actor.role !== "owner") throw new CmsAuthError("Only an Owner can make someone an Owner.")
+  if (OWNER_GRANTED.includes(role) && actor.role !== "owner") throw new CmsAuthError(`Only an Owner can make someone ${role === "owner" ? "an Owner" : ROLE_INFO[role].label}.`)
   if (targetId && targetId === actor.id) throw new CmsAuthError("You can't change your own role or access. Ask another Owner.")
 }
 
@@ -41,7 +41,8 @@ export async function inviteUser(actor: CmsUser, email: string, name: string, ro
   guard(actor, role)
   const clean = email.trim().toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) throw new CmsAuthError("That email address doesn't look right.")
-  const redirectTo = `${SITE_URL}/admin/auth/callback?next=/admin/account`
+  // Operations roles start in mission control; everyone else in the CMS.
+  const redirectTo = `${SITE_URL}/admin/auth/callback?next=${can(role, "view") ? "/admin/account" : "/ops"}`
   let userId: string | undefined
   const invited = await db.auth.admin.inviteUserByEmail(clean, { redirectTo, data: { name } })
   if (invited.data.user) userId = invited.data.user.id
@@ -63,7 +64,7 @@ export async function updateUser(actor: CmsUser, id: string, patch: { role?: Rol
   if (!db) throw new Error("Managing people needs Supabase.")
   const { data: target } = await db.from("cms_users").select("*").eq("id", id).maybeSingle()
   if (!target) throw new CmsAuthError("That person isn't in the CMS.")
-  if (target.role === "owner" && actor.role !== "owner") throw new CmsAuthError("Only an Owner can change another Owner.")
+  if (OWNER_GRANTED.includes(target.role) && actor.role !== "owner") throw new CmsAuthError(`Only an Owner can change ${target.role === "owner" ? "another Owner" : "a Finance person"}.`)
   guard(actor, patch.role ?? target.role, patch.role !== undefined || patch.active !== undefined ? id : undefined)
   const { error } = await db.from("cms_users").update(patch).eq("id", id)
   if (error) throw error

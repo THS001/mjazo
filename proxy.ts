@@ -7,7 +7,8 @@ import { localePath, stripLocale } from "@/lib/i18n"
 // - Public site: English lives at plain paths (/services), served by app/[locale] with locale "en";
 //   Urdu lives under /ur. /en/... redirects to the plain path so each page has one English address.
 // - Redirects from the CMS (/admin/redirects) run first, in both languages.
-// - /admin and /api/cms: keeps the Supabase sign-in session fresh (Server Components can't write cookies).
+// - /admin, /api/cms, mission control (/ops) and /api/ops: keeps the staff's Supabase sign-in session
+//   fresh (Server Components can't write cookies).
 
 // Redirect rules, cached per server instance (a minute on Vercel, a few seconds locally).
 let rules: { at: number; rows: Redirect[] } | null = null
@@ -25,7 +26,7 @@ async function redirectRules(): Promise<Redirect[]> {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-  if (pathname === "/admin" || pathname.startsWith("/admin/") || pathname.startsWith("/api/cms")) return refreshSession(request)
+  if (pathname === "/admin" || pathname.startsWith("/admin/") || pathname.startsWith("/api/cms") || pathname === "/ops" || pathname.startsWith("/ops/") || pathname.startsWith("/api/ops")) return refreshSession(request)
 
   if (pathname === "/en" || pathname.startsWith("/en/")) {
     const url = request.nextUrl.clone()
@@ -67,7 +68,7 @@ async function refreshSession(request: NextRequest) {
   return response
 }
 
-// Everything except other APIs, Next's own files, the staff apps, root metadata files and static files.
+// Everything except other APIs, Next's own files, the pro app, root metadata files and static files.
 export const config = {
-  matcher: ["/((?!api/(?!cms)|_next/|ops(?:/|$)|pro(?:/|$)|icon|apple-icon|opengraph-image|twitter-image|manifest\\.webmanifest|robots\\.txt|sitemap\\.xml|favicon\\.ico|.*\\.[a-zA-Z0-9]+$).*)"],
+  matcher: ["/((?!api/(?!cms|ops)|_next/|pro(?:/|$)|icon|apple-icon|opengraph-image|twitter-image|manifest\\.webmanifest|robots\\.txt|sitemap\\.xml|favicon\\.ico|.*\\.[a-zA-Z0-9]+$).*)"],
 }

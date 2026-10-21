@@ -255,6 +255,49 @@ export async function allProBalances(db: Db) {
   return new Map(rows.map((r) => [r.owner_id, { cashHeld: r.cash, payable: r.payable }]))
 }
 
+/**
+ * Cash held and payable for every pro as they stood at `cutOff` (an ISO time), for a payout run.
+ * Payout settlements always count, whenever they were posted, so a payout already made is never
+ * paid again by a run with an earlier cut-off.
+ */
+export async function allProBalancesAt(db: Db, cutOff: string) {
+  const rows = await db.query<{ owner_id: string; cash: number; payable: number }>(
+    `select a.owner_id,
+       coalesce(sum(p.amount) filter (where a.id like '%:cash'), 0)::int as cash,
+       (-coalesce(sum(p.amount) filter (where a.id like '%:payable'), 0))::int as payable
+     from ledger_accounts a join postings p on p.account_id = a.id join journal_entries e on e.id = p.entry_id
+     where a.owner_type = 'pro' and (e.at <= $1 or e.kind = 'payout') group by a.owner_id`,
+    [cutOff],
+  )
+  return new Map(rows.map((r) => [r.owner_id, { cashHeld: r.cash, payable: r.payable }]))
+}
+
+/** What was paid for a booking (cash or digital, as counted in the books), and refunded from it. */
+export async function bookingPaid(db: Db, bookingId: string) {
+  const r = await db.one<{ paid: number; refunded: number }>(
+    `select coalesce(sum(p.amount) filter (where e.kind = 'payment' and (p.account_id = $2 or p.account_id like 'pro:%:cash')), 0)::int as paid,
+       coalesce(sum(p.amount) filter (where e.kind = 'refund' and p.account_id = $3), 0)::int as refunded
+     from journal_entries e join postings p on p.entry_id = e.id where e.booking_id = $1`,
+    [bookingId, ACC.bank, ACC.refunds],
+  )
+  return { paid: r?.paid ?? 0, refunded: r?.refunded ?? 0 }
+}
+
+/** Every entry posted for a booking, oldest first, with its postings. */
+export async function bookingEntries(db: Db, bookingId: string) {
+  const rows = await db.query<{ id: number; at: string; kind: string; memo: string | null; actor: string | null; account_id: string; amount: number }>(
+    "select e.id, e.at, e.kind, e.memo, e.actor, p.account_id, p.amount from journal_entries e join postings p on p.entry_id = e.id where e.booking_id = $1 order by e.id, p.id",
+    [bookingId],
+  )
+  const out: { id: number; at: string; kind: string; memo: string | null; actor: string | null; postings: Posting[] }[] = []
+  for (const r of rows) {
+    let e = out.at(-1)
+    if (!e || e.id !== r.id) out.push((e = { id: r.id, at: r.at, kind: r.kind, memo: r.memo, actor: r.actor, postings: [] }))
+    e.postings.push({ account: r.account_id, amount: r.amount })
+  }
+  return out
+}
+
 /** What a pro earned from visits completed since an ISO time, and how many visits that was. */
 export async function earnedSince(db: Db, proId: string, since: string) {
   const r = await db.one<{ earned: number; visits: number }>(

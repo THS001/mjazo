@@ -5,7 +5,7 @@ import { getCatalog } from "@/lib/cms/read"
 import { handle, readJson } from "@/lib/server/api"
 import { audit } from "@/lib/server/audit"
 import { all, get, mutate } from "@/lib/server/docs"
-import { requireOps } from "@/lib/server/session"
+import { requireStaff } from "@/lib/server/staff"
 import { OpsError, insertJobs, nowIso } from "@/lib/server/ops"
 import { weddingJobs } from "@/lib/server/weddings"
 import type { WeddingDoc } from "@/app/api/shaadi/submit/route"
@@ -16,7 +16,7 @@ const body = z.object({ action: z.enum(["approve", "decline"]), id: z.string(), 
 
 export async function GET() {
   return handle(async () => {
-    await requireOps()
+    await requireStaff("ops.view")
     const today = karachiNow().date
     const docs = (await all<WeddingDoc>("weddings")).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     const cat = await getCatalog()
@@ -26,7 +26,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireOps()
+    const me = await requireStaff("ops.dispatch")
     const b = body.parse(await readJson(req))
     const today = karachiNow().date
     const doc = await get<WeddingDoc>("weddings", b.id)
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
         throw e
       }
     }
-    await audit("ops", b.action === "approve" ? "approved wedding plan" : "declined wedding plan", b.id, b.action === "approve" ? `${jobIds.length} visits created` : b.note)
+    await audit(me.email, b.action === "approve" ? "approved wedding plan" : "declined wedding plan", b.id, b.action === "approve" ? `${jobIds.length} visits created` : b.note)
     return { wedding: saved, created: jobIds.length }
   })
 }
