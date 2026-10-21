@@ -248,7 +248,7 @@ async function setupCore(exists) {
   await client.end()
   if (core.rows[0].n !== 3) fail("The core tables weren't created. Send Claude the output above.")
   say("  ✓ Core tables ready")
-  if (!replace) return true
+  if (!replace) return "tables"
 
   say("\n2. Finding the database address for the site (Supabase's transaction pooler)")
   let url = await findPooler(password)
@@ -304,9 +304,9 @@ const cronOnly = process.argv.includes("--cron")
 const migrateOnly = process.argv.includes("--migrate")
 let changed = false
 if (migrateOnly) {
-  changed = await setupCore(has("DATABASE_URL"))
-  changed = (await setupProApp(has("SESSION_SECRET"))) || changed
-  say(changed ? "\nDone. Tell Claude it worked: it redeploys the site so the new settings take effect." : "\nNothing changed.")
+  const core = await setupCore(has("DATABASE_URL"))
+  changed = (await setupProApp(has("SESSION_SECRET"))) || core === true
+  say(changed ? "\nDone. Tell Claude it worked: it redeploys the site so the new settings take effect." : core === "tables" ? "\nDone. The database is up to date. No redeploy needed for this (the site's settings didn't change)." : "\nNothing changed.")
   process.exit(0)
 }
 if (!cronOnly) {
@@ -316,7 +316,7 @@ if (!cronOnly) {
   }
 }
 if (cronOnly || (await yes("\nSet up scheduled publishing and the other background jobs (CRON_SECRET)?", true))) changed = (await setupCron(has("CRON_SECRET"))) || changed
-if (!cronOnly && (await yes("\nConnect the core engine (bookings, pros, the money ledger)?", true))) changed = (await setupCore(has("DATABASE_URL"))) || changed
+if (!cronOnly && (await yes("\nConnect the core engine (bookings, pros, the money ledger)?", true))) changed = (await setupCore(has("DATABASE_URL"))) === true || changed
 if (!cronOnly) changed = (await setupProApp(has("SESSION_SECRET"))) || changed
 
 say(changed ? "\nDone. Tell Claude it worked: it redeploys the site so the new settings take effect." : "\nNothing changed.")
