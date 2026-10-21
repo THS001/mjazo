@@ -433,7 +433,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
 ## 10. Notes for developers
 
 - **Content lives in the CMS.** Built-in defaults are in `lib/catalog.ts`, `lib/content.ts`, `lib/site.ts` and the types in `lib/cms/types/*`. Pages read it with `getPage()`, `getCatalog()`, `getContent()`, `getSettings()` and `getUi()`. Client components use `useCatalog()`, `useSite()`, `useNav()` and `useT()`.
-- **Every page under `app/[locale]`** must call `await pageLocale(params)` first, in both the page and `generateMetadata`.
+- **Every page under `app/[locale]`** must call `await pageLocale(params)` first, in both the page and `generateMetadata`. It 404s anything but `en`/`ur` in the locale's place: a missing file like `/x.pdf` skips `proxy.ts` and arrives as locale "x.pdf", and used to show the home page with a 200. Only the root layout uses `layoutLocale()`, which falls back to English so the 404 page has a layout.
 - **Use the locale-aware link and router.** Use `Link` and `useRouter` from `@/components/site/locale-link`, not `next/link` or `next/navigation`, so Urdu pages keep their `/ur` links.
 - **Never make a server component async** (e.g. `FAQ`) if it renders inside the layout's client wrappers: it causes a React `useId` hydration mismatch.
 - **Booking arrival windows are fixed** in `lib/time.ts` and must not be made editable, because jobs store their labels. Urdu display labels come from `windowLabel()`.

@@ -12,21 +12,23 @@ import { PreviewBridge } from "@/components/cms/preview-bridge"
 import { SITE_URL } from "@/lib/site"
 import { dirOf, LOCALES, OG_LOCALE } from "@/lib/i18n"
 import { browserCatalog, getCatalogData, getNav, getSeoSettings, getSettings, getUi, isPreview } from "@/lib/cms/read"
-import { pageLocale } from "@/lib/cms/locale"
+import { layoutLocale } from "@/lib/cms/locale"
 import { CmsProvider } from "@/components/cms/provider"
 import { fontVars } from "../fonts"
 import "../globals.css"
 
 // The public site's root layout, once per locale (/ and /ur). Staff apps have their own in (staff).
 // No `dynamicParams = false` here: it would apply to every page below, so services, posts and block
-// pages published after a deploy would 404 until the next one. proxy.ts only ever sends en or ur.
+// pages published after a deploy would 404 until the next one. proxy.ts sends en or ur; a path
+// ending in a file extension skips it and lands here with anything as the locale: the page below
+// then 404s (pageLocale), while this layout falls back to English so the 404 page has one.
 
 export function generateStaticParams() {
   return LOCALES.map((locale) => ({ locale }))
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
-  const locale = await pageLocale(params)
+  const locale = await layoutLocale(params)
   const [{ flags }, seo] = await Promise.all([getSettings(locale), getSeoSettings(locale)])
   return {
     metadataBase: new URL(SITE_URL),
@@ -46,7 +48,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 export const viewport: Viewport = { themeColor: "#f4a437", width: "device-width", initialScale: 1, viewportFit: "cover" }
 
 export default async function RootLayout({ children, params }: Readonly<{ children: React.ReactNode; params: Promise<{ locale: string }> }>) {
-  const locale = await pageLocale(params)
+  const locale = await layoutLocale(params)
   const [catalog, settings, nav, ui, preview] = await Promise.all([getCatalogData(locale), getSettings(locale), getNav(locale), getUi(locale), isPreview()])
   const { site } = settings
   const areas = catalog.areas
