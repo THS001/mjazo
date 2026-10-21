@@ -49,6 +49,14 @@ export const schemas = {
         hasPhotos: z.boolean().optional(),
       })
       .optional(),
+    // The client account (stage 4): a promo code, the wallet credit, "book her again", the map pin
+    // and the saved address. Credit and saved addresses only count for a signed-in customer.
+    promo: z.string().max(20).optional(),
+    useCredit: z.boolean().optional(),
+    preferredProId: z.string().max(40).optional(),
+    lat: z.number().min(-90).max(90).optional(),
+    lng: z.number().min(-180).max(180).optional(),
+    addressId: z.string().max(40).optional(),
   }),
   request: z.object({ name: z.string().min(2), phone, area: z.string(), services: z.string(), when: z.string().optional() }),
   waitlist: z.object({ phone, name: z.string().optional(), area: z.string(), category: z.string(), source: z.string() }),

@@ -21,6 +21,8 @@ export interface LocalBooking {
   notes?: string
   items: CartItem[]
   total: number
+  /** Paid from the customer's Mjazo credit: they pay total − credit after the visit. */
+  credit?: number
 }
 
 const KEY = "mjazo-bookings"

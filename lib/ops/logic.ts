@@ -3,6 +3,7 @@
 
 import type { Catalog } from "@/lib/catalog"
 import { WINDOW_HOURS, WINDOW_LABELS } from "@/lib/time"
+import { AREA_CENTERS, kmBetween } from "@/lib/geo"
 import type { Job, Pro, SafetyStatus } from "./types"
 
 /** The catalogue lookups ops logic needs (pass getCatalog() on the server, useCatalog() in the browser). */
@@ -16,29 +17,13 @@ export const OPS = {
   lateArrivalMin: 30, // not checked in this long after the window ends → late
 }
 
-// Approximate centre of each neighbourhood (for travel estimates only).
-const COORDS: Record<string, [number, number]> = {
-  dha: [24.795, 67.064],
-  clifton: [24.818, 67.03],
-  pechs: [24.868, 67.068],
-  bahadurabad: [24.881, 67.071],
-  gulshan: [24.921, 67.096],
-  jauhar: [24.913, 67.132],
-  "north-nazimabad": [24.937, 67.041],
-  bahria: [25.028, 67.309],
-}
-
 /** Driving minutes between two neighbourhoods: road distance ≈ 1.35× straight line at ~20 km/h, plus parking. */
 export function travelMinutes(a: string, b: string) {
   if (a === b) return 15
-  const p = COORDS[a]
-  const q = COORDS[b]
+  const p = AREA_CENTERS[a]
+  const q = AREA_CENTERS[b]
   if (!p || !q) return 45
-  const R = 6371
-  const dLat = ((q[0] - p[0]) * Math.PI) / 180
-  const dLng = ((q[1] - p[1]) * Math.PI) / 180
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos((p[0] * Math.PI) / 180) * Math.cos((q[0] * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
-  const km = 2 * R * Math.asin(Math.sqrt(h)) * 1.35
+  const km = kmBetween(p, q) * 1.35
   return Math.round((km / 20) * 60 + 10)
 }
 

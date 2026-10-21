@@ -53,6 +53,25 @@ export function readSession(raw: string | null | undefined): Session | null {
   }
 }
 
+/** Any small value, signed with the same secret and given an expiry (e.g. the local test sign-in for customers). */
+export function signPayload(data: Record<string, unknown>, maxAgeSec: number) {
+  const payload = Buffer.from(JSON.stringify({ ...data, exp: Date.now() + maxAgeSec * 1000 })).toString("base64url")
+  return `${payload}.${sig(payload)}`
+}
+
+/** A value signed by signPayload, or null when it's forged or expired. */
+export function readPayload<T extends Record<string, unknown>>(raw: string | null | undefined): T | null {
+  if (!raw || !proEnabled()) return null
+  const [payload, mac, extra] = raw.split(".")
+  if (!payload || !mac || extra !== undefined || !safeEqual(mac, sig(payload))) return null
+  try {
+    const v = JSON.parse(Buffer.from(payload, "base64url").toString()) as T & { exp: number }
+    return typeof v.exp === "number" && v.exp > Date.now() ? v : null
+  } catch {
+    return null
+  }
+}
+
 export async function setSession(value: string, maxAgeSec: number) {
   ;(await cookies()).set(COOKIE, value, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: maxAgeSec })
 }

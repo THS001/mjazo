@@ -12,6 +12,8 @@ import { Field, inputCls } from "@/components/site/forms"
 import { RateVisit, isRated } from "@/components/site/rate-visit"
 import { fill, useCatalog, useLocale, useT } from "@/components/cms/provider"
 import { windowLabel } from "@/lib/time"
+import { useAccount } from "@/lib/client/customer"
+import { AddressBook, LiveBookings, LiveOverview, PhoneLink, SignInPrompt } from "./customer-views"
 
 const BEAUTY = ["womens-salon", "hair", "makeup-mehndi", "nails-lashes", "spa-women"]
 
@@ -24,7 +26,8 @@ const readContact = (): Contact => {
   }
 }
 
-export function AccountShell({ title, children }: { title: string; children: React.ReactNode }) {
+/** `sub`: the line under the title (null: none, e.g. once signed in). */
+export function AccountShell({ title, sub, children }: { title: string; sub?: string | null; children: React.ReactNode }) {
   const t = useT().account
   return (
     <div className="bg-zinc-50 min-h-screen pt-28 sm:pt-32 pb-24">
@@ -35,7 +38,7 @@ export function AccountShell({ title, children }: { title: string; children: Rea
           ))}
         </nav>
         <h1 className="font-serif text-5xl mb-2">{title}</h1>
-        <p className="text-sm text-zinc-500 mb-10">{t.sub}</p>
+        {sub === null ? <div className="mb-8" /> : <p className="text-sm text-zinc-500 mb-10">{sub ?? t.sub}</p>}
         {children}
       </div>
     </div>
@@ -43,6 +46,18 @@ export function AccountShell({ title, children }: { title: string; children: Rea
 }
 
 export function AccountOverview() {
+  const a = useT().account
+  const acc = useAccount()
+  if (acc.state === "loading") return <AccountShell title={a.yourAccount} sub={null}><Skeleton /></AccountShell>
+  if (acc.state === "phone") return <AccountShell title={a.yourAccount} sub={null}><PhoneLink me={acc.me} /></AccountShell>
+  if (acc.state === "in") return <AccountShell title={fill(a.hi, { name: acc.me.customer.name.split(" ")[0] || acc.me.email })} sub={null}><LiveOverview me={acc.me} /></AccountShell>
+  return <DeviceOverview />
+}
+
+const Skeleton = () => <div className="h-40 rounded-3xl bg-white border border-zinc-200 animate-pulse" />
+
+/** Signed out: what's saved on this device, and a sign-in prompt. */
+function DeviceOverview() {
   const a = useT().account
   const [c, setC] = useState<Contact>({})
   const [n, setN] = useState(0)
@@ -60,6 +75,7 @@ export function AccountOverview() {
   ]
   return (
     <AccountShell title={c.name ? fill(a.hi, { name: c.name.split(" ")[0] }) : a.yourAccount}>
+      <SignInPrompt className="mb-6" />
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {tiles.map((t) => (
           <Link key={t.href} href={t.href} className="group rounded-3xl bg-white border border-zinc-200 p-6 hover:border-zinc-400 transition-colors">
@@ -74,6 +90,16 @@ export function AccountOverview() {
 }
 
 export function BookingsList() {
+  const a = useT().account
+  const acc = useAccount()
+  if (acc.state === "loading") return <AccountShell title={a.yourBookings} sub={null}><Skeleton /></AccountShell>
+  if (acc.state === "phone") return <AccountShell title={a.yourBookings} sub={null}><PhoneLink me={acc.me} /></AccountShell>
+  if (acc.state === "in") return <AccountShell title={a.yourBookings} sub={null}><LiveBookings me={acc.me} /></AccountShell>
+  return <DeviceBookings />
+}
+
+/** Signed out: the bookings made on this device. */
+function DeviceBookings() {
   const a = useT().account
   const locale = useLocale()
   const [list, setList] = useState<LocalBooking[] | null>(null)
@@ -95,6 +121,7 @@ export function BookingsList() {
 
   return (
     <AccountShell title={a.yourBookings}>
+      <SignInPrompt className="mb-6" />
       {list === null ? null : list.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-zinc-300 bg-white p-12 text-center">
           <p className="font-serif text-3xl">{a.noBookings}</p>
@@ -137,6 +164,17 @@ export function BookingsList() {
 
 export function SavedDetails() {
   const a = useT().account
+  const m = useT().myAccount
+  const acc = useAccount()
+  if (acc.state === "loading") return <AccountShell title={a.savedDetails} sub={null}><Skeleton /></AccountShell>
+  if (acc.state === "phone") return <AccountShell title={a.savedDetails} sub={null}><PhoneLink me={acc.me} /></AccountShell>
+  if (acc.state === "in") return <AccountShell title={m.addresses} sub={null}><AddressBook me={acc.me} /></AccountShell>
+  return <DeviceDetails />
+}
+
+/** Signed out: name, number and address saved on this device. */
+function DeviceDetails() {
+  const a = useT().account
   const { getArea, liveAreas } = useCatalog()
   const [c, setC] = useState<Contact>({})
   const [saved, setSaved] = useState(false)
@@ -152,6 +190,7 @@ export function SavedDetails() {
   }
   return (
     <AccountShell title={a.savedDetails}>
+      <SignInPrompt className="mb-6" />
       <form onSubmit={save} className="rounded-3xl bg-white border border-zinc-200 p-6 sm:p-8 grid sm:grid-cols-2 gap-5">
         <Field label={a.name}><input className={inputCls} value={c.name ?? ""} onChange={(e) => set("name", e.target.value)} /></Field>
         <Field label={a.phone}><input className={inputCls} value={c.phone ?? ""} onChange={(e) => set("phone", e.target.value)} inputMode="tel" /></Field>

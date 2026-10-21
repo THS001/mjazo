@@ -90,10 +90,11 @@ export function getRef(): string | null {
   }
 }
 
-export async function submit(type: "booking" | "request" | "waitlist" | "apply" | "enquiry", data: Record<string, unknown>) {
+/** `token`: a signed-in customer's sign-in (their credit and saved addresses can be used). */
+export async function submit(type: "booking" | "request" | "waitlist" | "apply" | "enquiry", data: Record<string, unknown>, token?: string | null) {
   const res = await fetch("/api/submit", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ type, data, attribution: getAttribution(), page: window.location.pathname }),
   })
   if (!res.ok) {
@@ -101,5 +102,5 @@ export async function submit(type: "booking" | "request" | "waitlist" | "apply" 
     throw Object.assign(new Error(body?.error ?? "Something went wrong"), { code: body?.code as string | undefined })
   }
   // total: what the booking actually costs, priced on the server (bookings only).
-  return (await res.json()) as { id: string; total?: number }
+  return (await res.json()) as { id: string; total?: number; credit?: number }
 }

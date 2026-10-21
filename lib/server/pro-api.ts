@@ -51,6 +51,10 @@ function visitView(j: Job & { safety: { level: string; message: string } }, pro:
     customer: j.customer,
     items: j.items,
     total: j.total,
+    // Paid from the customer's Mjazo credit; she collects the rest (due).
+    credit: j.credit ?? 0,
+    due: j.total - (j.credit ?? 0),
+    askedForYou: j.preferredProId === pro.id,
     earn: visitEarning(j, pro),
     payment: j.payment,
     notes: j.notes ?? null,
@@ -132,27 +136,28 @@ export async function proVisitAction(pro: Pro, jobId: string, b: VisitAction): P
   if (!job || job.proId !== proId) throw new OpsError("This visit isn't yours")
   if (job.status === "checked_in") job = await addJobEvent(jobId, "checked_out", "pro", g, { proId })
   if (job.status !== "checked_out") throw new OpsError("Check in first, then finish the visit")
+  const due = job.total - (job.credit ?? 0)
   let record: PaymentRecord = { amount: p.amount, method: p.method, at: nowIso(), status: p.method === "cash" ? "cash" : "pending" }
   let message = p.method === "cash" ? `Cash ${formatPKR(p.amount)} recorded.` : "Payment saved. Ops will check it."
   if (p.method !== "cash") {
     record.screenshot = p.screenshot
     if (aiEnabled() && p.screenshot) {
       try {
-        const r = await readReceipt(p.screenshot.split(",")[1] ?? p.screenshot, job.total)
+        const r = await readReceipt(p.screenshot.split(",")[1] ?? p.screenshot, due)
         record = { ...record, status: r.status, ocr: r.ocr }
         message =
           r.status === "matched"
             ? `Payment checked: ${formatPKR(r.ocr.amount ?? p.amount)} matches.`
             : r.status === "mismatch"
-              ? `The screenshot shows ${formatPKR(r.ocr.amount ?? 0)}, but the visit total is ${formatPKR(job.total)}. Ops will check.`
+              ? `The screenshot shows ${formatPKR(r.ocr.amount ?? 0)}, but the visit's amount to collect is ${formatPKR(due)}. Ops will check.`
               : "We couldn't read the screenshot. Ops will check it."
       } catch (e) {
         console.error("[pro] receipt read failed", e)
       }
     }
   }
-  if (record.status === "cash" && p.amount !== job.total) {
-    message = `Cash ${formatPKR(p.amount)} recorded (total was ${formatPKR(job.total)}). Ops will check.`
+  if (record.status === "cash" && p.amount !== due) {
+    message = `Cash ${formatPKR(p.amount)} recorded (${formatPKR(due)} was due). Ops will check.`
     record.status = "mismatch"
   }
   await updateJob(jobId, (j) => {
@@ -197,7 +202,7 @@ export async function proOffers(pro: Pro) {
         expiresAt: o.expiresAt,
         respondedAt: o.respondedAt,
         reason: o.reason,
-        visit: j && { id: j.id, date: j.date, window: j.window, area: areaName(cat, j.area), subArea: j.subArea ?? null, services: services(j), minutes: jobMinutes(j, cat), earn: visitEarning(j, pro), payment: j.payment, hasBrief: Boolean(j.brief) },
+        visit: j && { id: j.id, date: j.date, window: j.window, area: areaName(cat, j.area), subArea: j.subArea ?? null, services: services(j), minutes: jobMinutes(j, cat), earn: visitEarning(j, pro), payment: j.payment, hasBrief: Boolean(j.brief), askedForYou: j.preferredProId === pro.id },
       }
     })
     .filter((o) => o.visit)

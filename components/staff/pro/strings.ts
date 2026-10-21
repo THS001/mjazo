@@ -66,6 +66,9 @@ export const T = {
   noVisits: { en: "No visits", ur: "کوئی وزٹ نہیں", ro: "Koi visit nahi" },
   tomorrow: { en: "Tomorrow", ur: "کل", ro: "Kal" },
   youEarn: { en: "You earn", ur: "آپ کی کمائی", ro: "Aapki kamai" },
+  collect: { en: "Collect", ur: "وصول کریں", ro: "Wasool karein" },
+  creditUsed: { en: "paid from their Mjazo credit", ur: "ان کے مجازو کریڈٹ سے ادا", ro: "unke Mjazo credit se ada" },
+  askedForYou: { en: "The customer asked for you", ur: "کسٹمر نے آپ کو مانگا ہے", ro: "Customer ne aapko manga hai" },
 
   // Offers
   noOffers: { en: "No offers right now. Visits ops offer you appear here.", ur: "ابھی کوئی آفر نہیں۔ آپریشنز کی بھیجی گئی آفرز یہاں آئیں گی۔", ro: "Abhi koi offer nahi. Ops ki bheji offers yahan aayengi." },

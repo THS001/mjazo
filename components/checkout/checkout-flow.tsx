@@ -4,7 +4,7 @@ import Link from "@/components/site/locale-link"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "@/components/site/locale-link"
 import { motion } from "framer-motion"
-import { Banknote, Check, ClipboardCheck, Gift, Loader2, Lock, MessageCircle, ShieldCheck, ShoppingBag, Smartphone, Zap } from "lucide-react"
+import { Banknote, Check, ClipboardCheck, Gift, Loader2, Lock, MapPinned, MessageCircle, ShieldCheck, ShoppingBag, Smartphone, Tag, UserRound, Wallet, X, Zap } from "lucide-react"
 import { formatPKR } from "@/lib/catalog"
 import { getRef, submit, track } from "@/lib/site"
 import { cartTotal, useCart, useLocation } from "@/lib/store"
@@ -17,6 +17,9 @@ import { CartLines, MinOrderBar } from "@/components/site/cart-drawer"
 import { EASE } from "@/components/site/primitives"
 import { fill, fillNodes, useCatalog, useLocale, useSite, useT } from "@/components/cms/provider"
 import type { UiStrings } from "@/lib/cms/types/ui"
+import { customerApi, customerToken, useAccount } from "@/lib/client/customer"
+import type { Address } from "@/lib/core/customers"
+import { MapPin, type Pin } from "@/components/account/map-pin"
 
 const payments = (t: UiStrings["checkout"]) =>
   [
@@ -67,6 +70,22 @@ export function CheckoutFlow() {
   const [ref, setRef] = useState<string | null>(null)
   const [brief, setBrief] = useState<SavedBrief | null>(null)
   const [sendBrief, setSendBrief] = useState(true)
+  // The client account: saved addresses, the map pin, promo codes, wallet credit, "book her again".
+  const m = t.myAccount
+  const acc = useAccount()
+  const signedIn = acc.state === "in" ? acc.me : null
+  const [saved, setSaved] = useState<Address[]>([])
+  const [addressId, setAddressId] = useState<string | null>(null)
+  const [saveAddr, setSaveAddr] = useState(true)
+  const [pin, setPin] = useState<Pin | null>(null)
+  const [showMap, setShowMap] = useState(false)
+  const [promoInput, setPromoInput] = useState("")
+  const [promo, setPromo] = useState<{ code: string; discount: number } | null>(null)
+  const [promoError, setPromoError] = useState("")
+  const [promoBusy, setPromoBusy] = useState(false)
+  const [useCredit, setUseCredit] = useState(true)
+  const [withPro, setWithPro] = useState<{ id: string; name: string } | null>(null)
+  const [proNote, setProNote] = useState("")
   const started = useRef(false)
   const days = useMemo(() => nextDays(7, { locale, today: t.duration.today, tomorrow: t.duration.tomorrow }), [locale, t])
   // Real availability per day and window (null: no capacity data, so only the time rules apply).
@@ -75,6 +94,8 @@ export function CheckoutFlow() {
 
   useEffect(() => {
     setMounted(true)
+    const q = new URLSearchParams(window.location.search)
+    if (q.get("with")) setWithPro({ id: q.get("with")!, name: q.get("name") ?? "" })
     let mine: string | null = null
     try {
       mine = localStorage.getItem("mjazo-my-ref")
@@ -102,8 +123,77 @@ export function CheckoutFlow() {
 
   const list = mounted ? items : []
   const subtotal = cartTotal(list)
-  const discount = ref && subtotal > 0 ? Math.min(referral.friendOff, subtotal) : 0
+  // One discount per booking: the larger of the friend's referral and the promo code (the server decides the same way).
+  const referralOff = ref && subtotal > 0 ? Math.min(referral.friendOff, subtotal) : 0
+  const promoOff = promo ? Math.min(promo.discount, subtotal) : 0
+  const usingPromo = promoOff > 0 && promoOff >= referralOff
+  const discount = Math.max(referralOff, promoOff)
   const total = subtotal - discount
+  const creditAvailable = signedIn?.credit.available ?? 0
+  const credit = signedIn && useCredit ? Math.min(creditAvailable, total) : 0
+  const due = total - credit
+
+  // Signed in: their name and number, and their saved addresses (the default one to start with).
+  const applyAddress = (a: Address | null) => {
+    setAddressId(a?.id ?? null)
+    if (!a) {
+      setAddress("")
+      setLandmark("")
+      setPin(null)
+      return
+    }
+    setArea(a.area)
+    setSubArea(a.subArea ?? "")
+    setAddress(a.line)
+    setLandmark(a.landmark ?? "")
+    setPin(a.lat != null && a.lng != null ? { lat: a.lat, lng: a.lng, area: a.area } : null)
+    loc.set(a.area, a.subArea ?? null)
+  }
+  useEffect(() => {
+    if (!signedIn) return
+    const c = signedIn.customer
+    if (c.name) setName((n) => n || c.name)
+    if (c.phone) setPhone((p) => p || c.phone!)
+    customerApi<{ addresses: Address[] }>("/api/v1/customer/addresses").then((r) => {
+      setSaved(r.addresses)
+      const d = r.addresses.find((a) => a.isDefault)
+      if (d) applyAddress(d)
+    }, () => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signedIn?.customer.id])
+
+  const promoProblem = (p?: string, min?: number) =>
+    p === "notYet" ? m.promoNotYet : p === "expired" ? m.promoExpired : p === "minOrder" ? fill(m.promoMinOrder, { min: formatPKR(min ?? 0) }) : p === "usedUp" ? m.promoUsedUp : p === "used" ? m.promoUsed : m.promoInvalid
+  const checkCode = async (code: string) => {
+    const r = await customerApi<{ ok: boolean; code: string; discount?: number; problem?: string; minOrder?: number }>("/api/v1/customer/promo", { code, items: list.map((i) => ({ name: i.name, category: i.category, service: i.service, options: i.options, addOns: i.addOns.map((a) => a.name), qty: i.qty })) })
+    if (r.ok) {
+      setPromo({ code: r.code, discount: r.discount ?? 0 })
+      setPromoError("")
+    } else {
+      setPromo(null)
+      setPromoError(promoProblem(r.problem, r.minOrder))
+    }
+    return r.ok
+  }
+  const applyPromo = async () => {
+    if (!promoInput.trim()) return
+    setPromoBusy(true)
+    try {
+      if (await checkCode(promoInput.trim())) {
+        track("promo_applied", { code: promoInput.trim().toUpperCase() })
+        setPromoInput("")
+      }
+    } catch (e) {
+      setPromoError((e as Error).message)
+    } finally {
+      setPromoBusy(false)
+    }
+  }
+  // The cart changed: check the code again (a percentage or a minimum order depends on it).
+  useEffect(() => {
+    if (promo && list.length) void checkCode(promo.code).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtotal])
   useEffect(() => {
     if (mounted && list.length && !started.current) {
       started.current = true
@@ -111,14 +201,20 @@ export function CheckoutFlow() {
     }
   }, [mounted, list.length, total])
 
-  const slotKey = mounted && area && list.length ? JSON.stringify([area, list.map((i) => [i.category, i.service, i.qty]), slotTick]) : ""
+  const slotKey = mounted && area && list.length ? JSON.stringify([area, list.map((i) => [i.category, i.service, i.qty]), slotTick, withPro?.id ?? ""]) : ""
   useEffect(() => {
     if (!slotKey) return setSlotMap(null)
     const ctl = new AbortController()
     const timer = setTimeout(() => {
-      fetch("/api/v1/slots", { method: "POST", headers: { "content-type": "application/json" }, signal: ctl.signal, body: JSON.stringify({ area, items: list.map((i) => ({ category: i.category, service: i.service, qty: i.qty })) }) })
+      fetch("/api/v1/slots", { method: "POST", headers: { "content-type": "application/json" }, signal: ctl.signal, body: JSON.stringify({ area, proId: withPro?.id, items: list.map((i) => ({ category: i.category, service: i.service, qty: i.qty })) }) })
         .then((r) => r.json())
         .then((r: { mode: string; days: { date: string; windows: { label: string; open: boolean }[] }[] }) => {
+          if (r.mode === "unavailable" && withPro) {
+            // She can't do this booking: any available pro instead.
+            setProNote(fill(m.proUnavailable, { name: withPro.name }))
+            setWithPro(null)
+            return
+          }
           setSlotMap(r.mode === "capacity" ? Object.fromEntries(r.days.map((d) => [d.date, Object.fromEntries(d.windows.map((w) => [w.label, w.open]))])) : null)
         })
         .catch(() => {})
@@ -173,13 +269,21 @@ export function CheckoutFlow() {
         date,
         window: win,
         payment: payment as "cash",
-        notes: [notes.trim(), ref ? `Referral ${ref}: ${formatPKR(discount)} off` : ""].filter(Boolean).join(" · ") || undefined,
+        notes: [notes.trim(), ref && !usingPromo ? `Referral ${ref}: ${formatPKR(discount)} off` : ""].filter(Boolean).join(" · ") || undefined,
         items: list.map((i) => ({ name: i.name, category: i.category, service: i.service, options: i.options, addOns: i.addOns.map((a) => a.name), qty: i.qty, unitPrice: i.unitPrice })),
         total,
         brief: brief && sendBrief ? { kind: brief.kind, title: brief.title, text: brief.text, causes: brief.causes, parts: brief.parts, pins: brief.pins, hasPhotos: brief.photos.length > 0 } : undefined,
         referral: ref ?? undefined,
+        promo: usingPromo ? promo!.code : undefined,
+        useCredit: credit > 0 || undefined,
+        preferredProId: withPro?.id,
+        lat: pin?.area ? pin.lat : undefined,
+        lng: pin?.area ? pin.lng : undefined,
+        addressId: addressId ?? undefined,
       }
-      const placed = await submit("booking", data)
+      const placed = await submit("booking", data, signedIn ? await customerToken() : null)
+      // A new address, saved to their account if they asked (best effort: the booking is placed).
+      if (signedIn && !addressId && saveAddr) await customerApi("/api/v1/customer/addresses", { area, subArea: subArea || null, line: data.address, landmark: data.landmark ?? null, lat: data.lat ?? null, lng: data.lng ?? null }).catch(() => {})
       const id = placed.id
       // The server prices the booking itself; show what it will actually cost.
       if (placed.total !== undefined) data.total = placed.total
@@ -188,7 +292,7 @@ export function CheckoutFlow() {
         if (brief.photos.length) await fetch("/api/booking/attach", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ bookingId: id, phone: data.phone, photos: brief.photos.slice(0, 3) }) }).catch(() => {})
         clearBrief()
       }
-      saveBooking({ id, createdAt: new Date().toISOString(), ...data, areaName: areaObj?.name ?? area, items: list })
+      saveBooking({ id, createdAt: new Date().toISOString(), ...data, areaName: areaObj?.name ?? area, items: list, credit: placed.credit ?? 0 })
       try {
         localStorage.setItem("mjazo-contact", JSON.stringify({ name: data.name, phone: data.phone, area, address: data.address, landmark: data.landmark }))
       } catch {}
@@ -197,6 +301,13 @@ export function CheckoutFlow() {
       router.push(`/booking/confirmed?id=${encodeURIComponent(id)}`)
     } catch (err) {
       const code = (err as { code?: string }).code
+      if (code?.startsWith("promo-")) {
+        setPromo(null)
+        setPromoError(promoProblem(code.slice(6)))
+        document.getElementById("summary")?.scrollIntoView({ behavior: "smooth", block: "start" })
+        setBusy(false)
+        return
+      }
       setServerError(code === "slotFull" ? t.checkout.slotFull : code === "unavailable" ? t.checkout.unavailable : (err as Error).message)
       if (code === "slotFull") {
         setWin("")
@@ -228,11 +339,27 @@ export function CheckoutFlow() {
       <div className="space-y-5 min-w-0">
         <Step n={1} title={t.checkout.where} done={done.where} id="step-where">
           <div className="space-y-5 min-w-0">
+            {saved.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-2">{m.savedAddresses}</p>
+                <div className="flex flex-wrap gap-2">
+                  {saved.map((a) => (
+                    <button key={a.id} type="button" aria-pressed={addressId === a.id} onClick={() => applyAddress(a)} className={cn("rounded-2xl border px-4 py-2 text-start text-sm max-w-[16rem] transition-colors", addressId === a.id ? "bg-foreground text-background border-foreground" : "border-zinc-300 hover:border-zinc-500")}>
+                      <span className="block font-medium truncate">{a.label || getArea(a.area)?.name}</span>
+                      <span className={cn("block text-xs truncate", addressId === a.id ? "text-white/70" : "text-zinc-500")}>{a.line}</span>
+                    </button>
+                  ))}
+                  <button type="button" aria-pressed={!addressId} onClick={() => applyAddress(null)} className={cn("rounded-2xl border px-4 py-2 text-sm", !addressId ? "bg-foreground text-background border-foreground" : "border-zinc-300 hover:border-zinc-500")}>
+                    {m.newAddress}
+                  </button>
+                </div>
+              </div>
+            )}
             <div>
               <p className="text-sm font-medium mb-2">{t.checkout.area}</p>
               <div className="flex flex-wrap gap-2">
                 {liveAreas.map((a) => (
-                  <button key={a.slug} type="button" aria-pressed={area === a.slug} onClick={() => { setArea(a.slug); setSubArea(""); loc.set(a.slug, null) }} className={cn("rounded-full border h-11 px-5 text-sm transition-colors", area === a.slug ? "bg-foreground text-background border-foreground" : "border-zinc-300 hover:border-zinc-500")}>
+                  <button key={a.slug} type="button" aria-pressed={area === a.slug} onClick={() => { setArea(a.slug); setSubArea(""); setAddressId(null); loc.set(a.slug, null) }} className={cn("rounded-full border h-11 px-5 text-sm transition-colors", area === a.slug ? "bg-foreground text-background border-foreground" : "border-zinc-300 hover:border-zinc-500")}>
                     {a.name}
                   </button>
                 ))}
@@ -252,16 +379,58 @@ export function CheckoutFlow() {
             )}
             <div className="grid sm:grid-cols-2 gap-4">
               <Field label={t.checkout.address} error={errors.address}>
-                <input className={inputCls} value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="street-address" placeholder={t.checkout.addressHint} aria-invalid={!!errors.address} />
+                <input className={inputCls} value={address} onChange={(e) => (setAddress(e.target.value), setAddressId(null))} autoComplete="street-address" placeholder={t.checkout.addressHint} aria-invalid={!!errors.address} />
               </Field>
               <Field label={t.checkout.landmark}>
                 <input className={inputCls} value={landmark} onChange={(e) => setLandmark(e.target.value)} placeholder={t.checkout.landmarkHint} />
               </Field>
             </div>
+            <div>
+              {showMap || pin ? (
+                <div>
+                  <p className="text-sm font-medium">{m.pinTitle}</p>
+                  <p className="text-xs text-zinc-500 mt-0.5 mb-2">{m.pinSub}</p>
+                  <MapPin
+                    value={pin}
+                    area={area}
+                    areas={liveAreas.map((a) => a.slug)}
+                    onChange={(p) => {
+                      setPin(p)
+                      if (p.area && p.area !== area) {
+                        setArea(p.area)
+                        setSubArea("")
+                        setAddressId(null)
+                      }
+                    }}
+                    labels={{ myLocation: m.myLocation }}
+                  />
+                  {pin && <p className={cn("text-xs mt-2", pin.area ? "text-brand-ink" : "text-destructive")}>{pin.area ? fill(m.pinArea, { area: getArea(pin.area)?.name ?? pin.area }) : m.pinOutside}</p>}
+                </div>
+              ) : (
+                <button type="button" onClick={() => setShowMap(true)} className="h-10 px-4 rounded-full border border-zinc-300 text-sm flex items-center gap-2 hover:border-zinc-500">
+                  <MapPinned className="w-4 h-4" /> {m.pinTitle}
+                </button>
+              )}
+            </div>
+            {signedIn && !addressId && (
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={saveAddr} onChange={(e) => setSaveAddr(e.target.checked)} className="w-4 h-4 accent-black" />
+                {m.saveThisAddress}
+              </label>
+            )}
           </div>
         </Step>
 
         <Step n={2} title={t.checkout.when} done={done.when} id="step-when">
+          {withPro && (
+            <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-brand-soft text-brand-ink px-4 py-2 text-sm">
+              <UserRound className="w-4 h-4" /> {fill(m.withPro, { name: withPro.name })}
+              <button type="button" aria-label={m.anyPro} onClick={() => setWithPro(null)} className="ms-1 opacity-70 hover:opacity-100">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </p>
+          )}
+          {proNote && <p className="mb-4 text-sm text-zinc-600">{proNote}</p>}
           <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
             {days.map((d) => {
               const full = dayFull(d.iso)
@@ -293,6 +462,13 @@ export function CheckoutFlow() {
         </Step>
 
         <Step n={3} title={t.checkout.who} done={done.who} id="step-who">
+          {acc.state === "out" && (
+            <p className="mb-4 text-sm text-zinc-500">
+              <Link href="/login" className="underline underline-offset-4 hover:text-black">
+                {m.signInPerks}
+              </Link>
+            </p>
+          )}
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label={t.form.name} error={errors.name}>
               <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" aria-invalid={!!errors.name} />
@@ -350,9 +526,44 @@ export function CheckoutFlow() {
           <CartLines items={list} />
           <div className="pt-4 border-t border-zinc-100 space-y-2 text-sm">
             <div className="flex justify-between text-zinc-500"><span>{t.common.visitFee}</span><span>{t.common.free}</span></div>
-            {discount > 0 && <div className="flex justify-between text-brand-ink"><span className="flex items-center gap-1.5"><Gift className="w-4 h-4" />{fill(t.checkout.friendWelcome, { code: ref ?? "" })}</span><span>− {formatPKR(discount)}</span></div>}
+            {discount > 0 && !usingPromo && <div className="flex justify-between text-brand-ink"><span className="flex items-center gap-1.5"><Gift className="w-4 h-4" />{fill(t.checkout.friendWelcome, { code: ref ?? "" })}</span><span>− {formatPKR(discount)}</span></div>}
+            {usingPromo && (
+              <div className="flex justify-between text-brand-ink">
+                <span className="flex items-center gap-1.5">
+                  <Tag className="w-4 h-4" />
+                  {promo!.code}
+                  <button type="button" onClick={() => setPromo(null)} className="text-xs underline text-zinc-500">
+                    {m.remove}
+                  </button>
+                </span>
+                <span>− {formatPKR(discount)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-base"><span>{t.common.total}</span><span className="font-medium">{formatPKR(total)}</span></div>
+            {credit > 0 && (
+              <>
+                <div className="flex justify-between text-brand-ink"><span className="flex items-center gap-1.5"><Wallet className="w-4 h-4" />{m.credit}</span><span>− {formatPKR(credit)}</span></div>
+                <div className="flex justify-between font-medium"><span>{m.payAfter}</span><span>{formatPKR(due)}</span></div>
+              </>
+            )}
           </div>
+          {!usingPromo && (
+            <div className="mt-4">
+              <div className="flex gap-2">
+                <input className={cn(inputCls, "h-10 uppercase")} value={promoInput} onChange={(e) => setPromoInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void applyPromo())} placeholder={m.promo} aria-label={m.promo} maxLength={20} />
+                <button type="button" onClick={applyPromo} disabled={!promoInput.trim() || promoBusy} className="h-10 px-4 rounded-full border border-zinc-300 text-sm disabled:opacity-40 flex items-center gap-1.5">
+                  {promoBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />} {m.apply}
+                </button>
+              </div>
+              {promoError && <p className="text-xs text-destructive mt-1.5">{promoError}</p>}
+            </div>
+          )}
+          {creditAvailable > 0 && (
+            <label className="mt-4 flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={useCredit} onChange={(e) => setUseCredit(e.target.checked)} className="w-4 h-4 accent-black" />
+              {fill(m.useCredit, { amount: formatPKR(creditAvailable) })}
+            </label>
+          )}
           <div className="mt-4"><MinOrderBar total={subtotal} /></div>
           {errors.cart && <p className="text-xs text-destructive mt-2">{errors.cart}</p>}
           <button onClick={place} disabled={busy} className="mt-6 w-full h-14 rounded-full bg-foreground text-background text-base font-medium flex items-center justify-center gap-2 hover:bg-brand hover:text-foreground transition-colors disabled:opacity-60">
@@ -373,7 +584,7 @@ export function CheckoutFlow() {
         <div className="flex items-center gap-3 rounded-full bg-white/95 backdrop-blur border border-zinc-200 shadow-lg ps-5 pe-1.5 py-1.5">
           <div className="flex-1 min-w-0">
             <p className="text-[11px] text-zinc-500">{t.checkout.totalPayAfter}</p>
-            <p className="text-sm font-medium">{formatPKR(total)}</p>
+            <p className="text-sm font-medium">{formatPKR(due)}</p>
           </div>
           <button onClick={place} disabled={busy} className="h-11 px-5 rounded-full bg-foreground text-background text-sm font-medium disabled:opacity-60 flex items-center gap-2">
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}{t.checkout.confirm}

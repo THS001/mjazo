@@ -89,3 +89,36 @@ export async function savePromo(db: Db, p: PromoInput, by: string, create: boole
   })
   return code
 }
+
+export type PromoProblem = "invalid" | "notYet" | "expired" | "minOrder" | "usedUp" | "used"
+
+/** A promo code typed at checkout that can't be used (`problem` says why, for the customer's language). */
+export class PromoError extends InputError {
+  constructor(
+    readonly problem: PromoProblem,
+    readonly minOrder?: number,
+  ) {
+    super(problem === "minOrder" ? `This code needs an order of at least PKR ${minOrder}` : "This promo code can't be used")
+  }
+}
+export type PromoCheck = { ok: true; code: string; discount: number } | { ok: false; code: string; problem: PromoProblem; minOrder?: number }
+
+/**
+ * Whether a code can be used on an order now, and what it takes off. Uses count only bookings that
+ * weren't cancelled; `customerId` (the phone's or the account's customer) is checked against the
+ * per-customer limit. The checkout shows the problem in the customer's language.
+ */
+export async function checkPromo(db: Db, raw: string, o: { subtotal: number; customerId?: string | null; now?: Date }): Promise<PromoCheck> {
+  const code = normaliseCode(raw)
+  const now = o.now ?? new Date()
+  const p = await db.one<PromoRow>("select *, 0 as uses, 0 as given from promo_codes where code = $1", [code])
+  if (!p || !p.active) return { ok: false, code, problem: "invalid" }
+  if (p.starts_at && now < new Date(p.starts_at)) return { ok: false, code, problem: "notYet" }
+  if (p.ends_at && now >= new Date(p.ends_at)) return { ok: false, code, problem: "expired" }
+  if (o.subtotal < p.min_order) return { ok: false, code, problem: "minOrder", minOrder: p.min_order }
+  const used = (sql: string, vals: unknown[]) => db.one<{ n: number }>(`select count(*)::int as n from promo_redemptions r join bookings b on b.id = r.booking_id where r.code = $1 and b.status <> 'cancelled'${sql}`, [code, ...vals])
+  if (p.max_uses != null && (await used("", []))!.n >= p.max_uses) return { ok: false, code, problem: "usedUp" }
+  if (o.customerId && (await used(" and r.customer_id = $2", [o.customerId]))!.n >= p.per_customer) return { ok: false, code, problem: "used" }
+  const discount = promoDiscount({ kind: p.kind, value: p.value, minOrder: p.min_order, maxDiscount: p.max_discount, startsAt: p.starts_at, endsAt: p.ends_at, active: p.active }, o.subtotal, now)
+  return discount > 0 ? { ok: true, code, discount } : { ok: false, code, problem: "invalid" }
+}

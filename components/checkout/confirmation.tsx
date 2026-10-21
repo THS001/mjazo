@@ -18,7 +18,7 @@ const bookingMessage = (b: LocalBooking) =>
     `When: ${formatBookingDate(b.date)}, ${b.window}`,
     `Where: ${[b.address, b.landmark, b.subArea, b.areaName].filter(Boolean).join(", ")}`,
     `Name: ${b.name} · ${b.phone}`,
-    `Total: ${formatPKR(b.total)} (${b.payment}, pay after)`,
+    `Total: ${formatPKR(b.total - (b.credit ?? 0))} (${b.payment}, pay after${b.credit ? `; ${formatPKR(b.credit)} from Mjazo credit` : ""})`,
     b.notes ? `Notes: ${b.notes}` : "",
   ]
     .filter(Boolean)
@@ -59,7 +59,7 @@ export function Confirmation() {
           <div className="grid sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-zinc-100">
             <div className="p-6"><p className="text-xs text-zinc-500 mb-1 flex items-center gap-1.5"><CalendarPlus className="w-3.5 h-3.5" />{t.confirmation.when}</p><p className="font-medium">{formatBookingDate(b.date, locale)}</p><p className="text-sm text-zinc-600">{windowLabel(b.window, locale)}</p></div>
             <div className="p-6"><p className="text-xs text-zinc-500 mb-1 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" />{t.confirmation.where}</p><p className="font-medium">{b.address}</p><p className="text-sm text-zinc-600">{[b.subArea, b.areaName].filter(Boolean).join(", ")}</p></div>
-            <div className="p-6"><p className="text-xs text-zinc-500 mb-1 flex items-center gap-1.5"><Wallet className="w-3.5 h-3.5" />{t.confirmation.payAfter}</p><p className="font-medium">{formatPKR(b.total)}</p><p className="text-sm text-zinc-600 capitalize">{b.payment === "online" ? "Online" : b.payment}</p></div>
+            <div className="p-6"><p className="text-xs text-zinc-500 mb-1 flex items-center gap-1.5"><Wallet className="w-3.5 h-3.5" />{t.confirmation.payAfter}</p><p className="font-medium">{formatPKR(b.total - (b.credit ?? 0))}</p>{!!b.credit && <p className="text-xs text-zinc-500">{fill(t.myAccount.creditPaid, { amount: formatPKR(b.credit) })}</p>}<p className="text-sm text-zinc-600 capitalize">{b.payment === "online" ? "Online" : b.payment}</p></div>
           </div>
           <ul className="border-t border-zinc-100 p-6 space-y-2">
             {b.items.map((i) => (

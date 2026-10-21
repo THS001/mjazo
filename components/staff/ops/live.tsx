@@ -110,9 +110,9 @@ function JobCard({ job: j, pros, offer, reload }: { job: OpsJob; pros: OpsData["
     .filter((p) => p.status === "active")
     .map((p) => {
       const why = !eligible(p as Pro, j, cat) ? "skills don't match" : unavailableReason(p as Pro, j)
-      return { p, ok: !why, why: [why, isVerified(p) ? null : "not verified"].filter(Boolean).join(", ") }
+      return { p, ok: !why, why: [p.id === j.preferredProId ? "asked for" : null, why, isVerified(p) ? null : "not verified"].filter(Boolean).join(", ") }
     })
-    .sort((a, b) => Number(b.ok) - Number(a.ok))
+    .sort((a, b) => Number(b.p.id === j.preferredProId) - Number(a.p.id === j.preferredProId) || Number(b.ok) - Number(a.ok))
   const locked = !["new", "assigned", "en_route", "cancelled"].includes(j.status) || !can("ops.dispatch")
   const run = async (key: string, body: unknown) => {
     setBusy(key)
@@ -132,6 +132,7 @@ function JobCard({ job: j, pros, offer, reload }: { job: OpsJob; pros: OpsData["
         <Badge className={STATUS[j.status].cls}>{STATUS[j.status].label}</Badge>
         {j.safety.level !== "ok" && <Badge className={cn("border", safety.cls)}>{safety.label}</Badge>}
         {j.channel && j.channel !== "web" && <Badge className="bg-violet-100 text-violet-800">{j.channel === "concierge-whatsapp" ? "WhatsApp AI" : "Concierge"}</Badge>}
+        {j.preferredProId && <Badge className="bg-sky-100 text-sky-900">Asked for {pros.find((p) => p.id === j.preferredProId)?.name.split(" ")[0] ?? j.preferredProId}</Badge>}
         <span className="ml-auto text-xs text-zinc-400 font-mono">{j.id}</span>
       </div>
       <p className="mt-3 text-lg font-semibold leading-snug">

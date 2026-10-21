@@ -4,9 +4,11 @@ import type { Catalog } from "@/lib/catalog"
 import type { Job, JobEvent, JobItem, PaymentRecord, Pro, Rating } from "@/lib/ops/types"
 import { karachiNow } from "@/lib/time"
 import { emit } from "./events"
-import { settlePayment, visitCompleted, type PayMethod } from "./ledger"
+import { applyCredit, customerBalances, settlePayment, visitCompleted, type PayMethod } from "./ledger"
+import { creditFor } from "./customers"
 import { coreId, normalisePhone } from "./phone"
 import { priceItems, type ClientItem } from "./pricing"
+import { checkPromo, PromoError } from "./promos"
 
 // Bookings and pros in the core tables, read and written in the shapes the ops console and the
 // pro app already use (lib/ops/types.ts). A booking is an ops job from the moment it's made.
@@ -22,6 +24,8 @@ type BookingRow = {
   sub_area: string | null
   address: string
   landmark: string | null
+  lat: number | null
+  lng: number | null
   day: string
   arrival_window: string
   status: Job["status"]
@@ -37,6 +41,8 @@ type BookingRow = {
   brief: Job["brief"] | null
   wedding: Job["event"] | null
   visit_notes: string[] | null
+  preferred_pro_id: string | null
+  credit_used: number | null
   created_at: string
 }
 type ItemRow = { booking_id: string; position: number; name: string; category: string; service: string; options: string[]; add_ons: string[]; qty: number; unit_price: number }
@@ -95,6 +101,9 @@ async function hydrate(db: Db, rows: BookingRow[]): Promise<Job[]> {
     if (b.brief) job.brief = b.brief
     if (b.wedding) job.event = b.wedding
     if (b.visit_notes?.length) job.visitNotes = b.visit_notes
+    if (b.lat != null && b.lng != null) Object.assign(job, { lat: b.lat, lng: b.lng })
+    if (b.credit_used) job.credit = b.credit_used
+    if (b.preferred_pro_id) job.preferredProId = b.preferred_pro_id
     const p = payBy.get(b.id)
     if (p) {
       const rec: PaymentRecord = { amount: p.amount, method: p.method, at: p.at, status: p.status }
@@ -119,6 +128,11 @@ const isoDaysAgo = (n: number) => new Date(new Date(`${karachiNow().date}T00:00:
 export async function listJobs(db: Db, opts: { sinceDays?: number } = {}): Promise<Job[]> {
   const rows = await db.query<BookingRow>("select * from bookings where day >= $1 order by day, created_at", [isoDaysAgo(opts.sinceDays ?? 180)])
   return hydrate(db, rows)
+}
+
+/** One customer's bookings, newest visit first. */
+export async function listCustomerJobs(db: Db, customerId: string, limit = 60): Promise<Job[]> {
+  return hydrate(db, await db.query<BookingRow>("select * from bookings where customer_id = $1 order by day desc, created_at desc limit $2", [customerId, limit]))
 }
 
 export async function getJob(db: Db, id: string): Promise<Job | null> {
@@ -167,11 +181,24 @@ export type NewBooking = {
   createdAt?: string
   /** A friend's referral code: the first booking from a new phone number gets the referral discount. */
   referral?: string
+  /** A signed-in customer's own record (otherwise the customer is found, or made, by phone). */
+  customerId?: string
+  /** A promo code typed at checkout; PromoError when it can't be used. */
+  promo?: string
+  /** Use the customer's wallet credit (signed-in customers only): set aside now, taken when the visit is done. */
+  useCredit?: boolean
+  /** "Book her again": the pro the customer asked for. */
+  preferredProId?: string
+  lat?: number
+  lng?: number
+  /** The saved address it was booked to. */
+  addressId?: string
 }
 
 export type BookingRules = {
   /** PKR off a new customer's first booking when they come with a referral code (CMS settings). */
   referralOff: number
+  now?: Date
 }
 
 /**
@@ -182,20 +209,36 @@ export async function createBooking(db: Db, b: NewBooking, cat: Catalog, rules: 
   const priced = priceItems(b.items, cat)
   return db.tx(async (t) => {
     if (await t.one("select 1 from bookings where id = $1", [b.id])) return (await getJob(t, b.id))!
-    const customerId = await ensureCustomer(t, b.name, b.phone)
+    const customerId = b.customerId ?? (await ensureCustomer(t, b.name, b.phone))
     // Referral discount: only on a customer's first booking (same rule the checkout shows).
     const firstBooking = !(await t.one("select 1 from bookings where customer_id = $1 and status not in ('cancelled')", [customerId]))
-    const discount = b.referral && firstBooking ? Math.min(rules.referralOff, priced.subtotal) : 0
+    const referralOff = b.referral && firstBooking ? Math.min(rules.referralOff, priced.subtotal) : 0
+    let promo: { code: string; discount: number } | null = null
+    if (b.promo?.trim()) {
+      const c = await checkPromo(t, b.promo, { subtotal: priced.subtotal, customerId, now: rules.now })
+      if (!c.ok) throw new PromoError(c.problem, c.minOrder)
+      promo = c
+    }
+    // One discount per booking: the larger of the friend's referral and the promo code.
+    const usePromo = Boolean(promo && promo.discount >= referralOff)
+    const discount = usePromo ? promo!.discount : referralOff
     const total = priced.subtotal - discount
+    const credit = b.useCredit && b.customerId ? Math.min((await creditFor(t, customerId)).available, total) : 0
+    const preferred = b.preferredProId && (await t.one("select 1 from pros where id = $1 and status = 'active'", [b.preferredProId])) ? b.preferredProId : null
+    const pin = b.lat !== undefined && b.lng !== undefined ? [b.lat, b.lng] : [null, null]
+    const addressId = b.addressId && (await t.one("select 1 from addresses where id = $1 and customer_id = $2", [b.addressId, customerId])) ? b.addressId : null
     await t.query(
-      `insert into bookings (id, customer_id, name, phone, zone, sub_area, address, landmark, day, arrival_window, status, subtotal, discount, total, client_total, payment_method, notes, channel, brief, created_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'new', $11, $18, $19, $12, $13, $14, $15, $16::jsonb, coalesce($17::timestamptz, now()))`,
-      [b.id, customerId, b.name.trim(), normalisePhone(b.phone), b.area, b.subArea ?? null, b.address, b.landmark ?? null, b.date, b.window, priced.subtotal, b.total ?? null, b.payment, b.notes ?? null, b.channel ?? "web", json(b.brief), b.createdAt ?? null, discount, total],
+      `insert into bookings (id, customer_id, name, phone, zone, sub_area, address, landmark, day, arrival_window, status, subtotal, discount, total, client_total, payment_method, notes, channel, brief, created_at, credit_used, preferred_pro_id, lat, lng, address_id)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'new', $11, $18, $19, $12, $13, $14, $15, $16::jsonb, coalesce($17::timestamptz, now()), $20, $21, $22, $23, $24)`,
+      [b.id, customerId, b.name.trim(), normalisePhone(b.phone), b.area, b.subArea ?? null, b.address, b.landmark ?? null, b.date, b.window, priced.subtotal, b.total ?? null, b.payment, b.notes ?? null, b.channel ?? "web", json(b.brief), b.createdAt ?? null, discount, total, credit, preferred, pin[0], pin[1], addressId],
     )
-    if (discount) await t.query("update bookings set promo_code = $2 where id = $1", [b.id, `REF:${b.referral!.slice(0, 40)}`])
+    if (usePromo) {
+      await t.query("update bookings set promo_code = $2 where id = $1", [b.id, promo!.code])
+      await t.query("insert into promo_redemptions (code, booking_id, customer_id, amount) values ($1, $2, $3, $4)", [promo!.code, b.id, customerId, discount])
+    } else if (discount) await t.query("update bookings set promo_code = $2 where id = $1", [b.id, `REF:${b.referral!.slice(0, 40)}`])
     await insertItems(t, b.id, priced.items)
-    if (priced.changed || (b.total !== undefined && b.total !== total)) console.warn(`[core] ${b.id}: browser total ${b.total} replaced by ${total}`)
-    await emit(t, "booking.created", { bookingId: b.id, customerId }, { total, discount, channel: b.channel ?? "web" })
+    if (priced.changed || (b.total !== undefined && b.total !== total - credit && b.total !== total)) console.warn(`[core] ${b.id}: browser total ${b.total} replaced by ${total}`)
+    await emit(t, "booking.created", { bookingId: b.id, customerId, proId: preferred ?? undefined }, { total, discount, credit, promo: usePromo ? promo!.code : null, preferredProId: preferred, channel: b.channel ?? "web" })
     return (await getJob(t, b.id))!
   })
 }
@@ -286,6 +329,10 @@ const COLUMNS: [keyof Job | "customer.name" | "customer.phone", string, (j: Job)
   ["channel", "channel", (j) => j.channel ?? "web"],
   ["customer.name", "name", (j) => j.customer.name],
   ["customer.phone", "phone", (j) => normalisePhone(j.customer.phone)],
+  ["lat", "lat", (j) => j.lat ?? null],
+  ["lng", "lng", (j) => j.lng ?? null],
+  ["credit", "credit_used", (j) => j.credit ?? 0],
+  ["preferredProId", "preferred_pro_id", (j) => j.preferredProId ?? null],
 ]
 const JSON_COLUMNS: [string, (j: Job) => unknown][] = [
   ["brief", (j) => j.brief ?? null],
@@ -385,6 +432,9 @@ async function postLedger(db: Db, id: string, before: Job | null, after: Job) {
   if (completedNow) {
     const pro = await db.one<{ commission_rate: number }>("select commission_rate from pros where id = $1", [after.proId])
     await visitCompleted(db, { bookingId: id, customerId, proId: after.proId, subtotal: b!.subtotal, discount: b!.discount, total: b!.total, commissionRate: pro?.commission_rate ?? 0.25 })
+    // The wallet credit set aside at booking pays part of it (as much as is still there).
+    const use = Math.min(after.credit ?? 0, (await customerBalances(db, customerId)).credit)
+    if (use > 0) await applyCredit(db, { customerId, bookingId: id, amount: use })
   }
   if (payChanged) await settlePayment(db, { bookingId: id, customerId, proId: after.proId, amount: pay?.amount ?? 0, method: pay?.method ?? (after.paymentRecord?.method as PayMethod) ?? "cash" })
 }

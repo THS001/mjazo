@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 21 October 2026 (platform stage 3: the pro app, live)._
+_Last updated 21 October 2026 (platform stage 4: the client account, built and checked locally, not yet deployed)._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -34,7 +34,8 @@ accounts, and what's left.
 | **Platform stage 1: core engine** (bookings, pros, money ledger, slot capacity) | **Live 21 Oct 2026**: migration 0005 run on Supabase, `DATABASE_URL` set, deployed and checked |
 | **Platform stage 2: mission control** (staff accounts and roles, booking page, money approvals, payout runs, promo codes, KPIs, audit log) | **Live 21 Oct 2026** (section 3c): migration 0006 run on Supabase, deployed and checked. Next: give the team their roles in `/admin/people` |
 | **Platform stage 3: the pro app** (versioned `/api/v1/pro` API, job offers, schedule, earnings from the ledger, payouts, ratings, availability, email sign-in) | **Live 21 Oct 2026** (section 3d): migration 0007 run, `SESSION_SECRET` set, deployed and checked. Next: PINs (and emails) for the real pros in mission control |
-| Platform stages 4–6 (client account, automation, mobile apps) | Planned, in order (section 9) |
+| **Platform stage 4: the client account** (email sign-in, live bookings, change and cancel, saved addresses with a map pin, promo codes, wallet credit, book a pro again, `/api/v1/customer`) | **Built and checked locally 21 Oct 2026** (section 3e). Not deployed: needs migration 0008 (`--migrate`), Supabase sign-in settings and the owner's OK |
+| Platform stages 5–6 (automation, mobile apps) | Planned, in order (section 9) |
 
 ---
 
@@ -55,6 +56,7 @@ accounts, and what's left.
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 | 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
+| 21 Oct 2026 | **Stage 4, the client account, built:** customers sign in with an emailed link and see their bookings live (steps, their pro's first name), move or cancel them within the free-change hours, save addresses with a map pin, use promo codes and their Mjazo credit at checkout, and book a pro they liked again. `/api/v1/customer` for the coming app. Not deployed yet |
 | 21 Oct 2026 | **Stage 3, the pro app, built:** the `/api/v1/pro` API the phone app will use, job offers pros accept or decline, a week's schedule, earnings and payouts from the ledger, ratings, pros setting their own availability, and email sign-in next to phone + PIN. `/pro` rebuilt on it. Migration 0007 run, `SESSION_SECRET` set and **deployed the same day** |
 | 21 Oct 2026 | **Stage 1 live** (migration 0005 run, `DATABASE_URL` set, deployed). **Stage 2, mission control, built:** per-person staff sign-in with Dispatcher, Support, Finance and Recruiter roles, every action in an audit log, money moves approved by a second person, payout runs, promo codes and KPIs. Migration 0006 run and **deployed the same day** |
 | 19 Oct 2026 | **Interface text phase 2:** the text inside Ghar Scan, Home Pulse, Glam Mirror, the Shaadi Orchestrator, the Concierge, account screens, offers, ratings, the hero phone and the pro pages is editable in `/admin`, with hand-written Urdu. The AI tools answer in Urdu on `/ur` |
@@ -236,6 +238,39 @@ Built on 21 October 2026, checked locally, and **live the same day** (migration 
   - The booking's timeline, audit log and ledger in mission control recorded each step.
 - **Checked live after the deploy:** `/pro` shows the sign-in with the email option; PIN sign-in answers (wrong PIN: 401, so the app is switched on); every `/api/v1/pro` screen answers 401 when signed out; the email link's first step answers the same for any email; the old `/api/pro` routes are gone.
 
+## 3e. The client account (platform stage 4)
+
+Built on 21 October 2026; **checked locally, not deployed yet.** Schema change:
+`supabase/migrations/0008_client_account.sql` (a booking's requested pro, credit used and saved address).
+
+- **Sign-in** (`/login`): an emailed link (Supabase). Anyone can make an account.
+  - The website and the coming phone app both call `/api/v1/customer` with the Supabase access token (`lib/server/customer-auth.ts`), so the API is the same for both.
+  - Locally without Supabase, a test sign-in (any email) gives a signed `mjc.` token, refused anywhere else.
+- **Joining the phone number.** After the first sign-in the customer adds their number, which brings in the bookings made with it (`lib/core/customers.ts`).
+  - A number that already has bookings needs proof: a booking made on this device with that number (sent automatically), or a booking number from one of its confirmations. Otherwise anyone could type someone else's number and see their bookings and address.
+  - A number already on another account is refused, and so is a second number for the same account (changing it is a WhatsApp job).
+- **Bookings, live** (`/account/bookings`): upcoming and past visits with their steps (booked → pro assigned → on the way → arrived → done), the pro's first name and ETA, and what's paid from credit.
+  - Online **change and cancel** run until the CMS's free-change hours before the window (3). Later, the page points to WhatsApp. A move re-checks capacity, and the pro they had becomes the one they asked for.
+  - Past visits can be rated, reported, or **booked again**, with the same pro when she still works with Mjazo.
+- **Saved addresses** (`/account/addresses`): up to 10, one default. Each has a map pin (Leaflet + OpenStreetMap, no API key): the pin stays in the middle and they move the map, or use their location.
+  - The area is worked out from the pin (`lib/geo.ts`: the nearest area centre within 6 km). Pins outside the areas we cover are refused.
+- **Checkout:**
+  - signed-in customers get their name, number and default address filled in, can pick another saved address, and save a new one;
+  - anyone can drop a map pin (it goes to the pro with the booking);
+  - **promo codes** are checked as they're typed in (`/api/v1/customer/promo`), and the reason a code can't be used shows in English or Urdu;
+  - one discount per booking: the larger of a friend's referral and the code;
+  - **Mjazo credit** (signed in only) is set aside when they book and taken from the ledger when the visit is done, and the pro collects the rest;
+  - **book her again** shows only that pro's free windows; if she can't do it, any pro is offered.
+- **Mission control and the pro app:** the board and booking page show "Asked for …" (and that pro first in the picker), and the credit used. The pro app shows "The customer asked for you", and collects only what's due after credit.
+- **Interface text:** the new "Customer account" group in `/admin` → Buttons & labels (91 texts, with Urdu). Existing texts weren't reworded, because a saved CMS copy would keep the old wording.
+- **Tests:** 376 in total (up from 353). New: the core rules (12: proof, addresses and pins, promo codes and limits, credit through to the ledger) and the API through its real routes (11: sign-in, one customer never reaching another's bookings or addresses, booking with a promo code, credit and a requested pro, moving and cancelling, the free-change time, the requested pro's slots).
+- **Checked in the browser** (dev server, the local test sign-in):
+  - Signed in and added the number of an earlier test booking: it asked for proof, and the booking number joined it, bringing in two past visits and the PKR 500 credit from the stage 2 test.
+  - Saved a "Home" address with its pin in DHA.
+  - "Book Test again": checkout showed the saved address, the pro, the credit and the code WELCOME10. Total PKR 4,050, PKR 3,550 to pay after the visit.
+  - Placed it: the account showed it live with "You asked for Test". Mission control showed "Asked for", the credit, the code and the pin.
+  - Moved it to Friday, then cancelled it, and the credit was free again. Urdu checked.
+
 ## 4. Brand kit
 
 Saved in `F:\mjazo\brand\`, outside this repo. A copy of the PDF is in the user's Downloads folder.
@@ -385,6 +420,7 @@ Project `xjyafabyscamelebzrsb` (https://xjyafabyscamelebzrsb.supabase.co), set u
 | `0005_core.sql` | The core engine: customers, addresses, zones, pros (+ availability, time off), bookings (+ lines, events, payments, ratings), the ledger (accounts, entries, postings), payouts, promo codes, events, notifications, audit log, core_meta. Run on the live database on 21 Oct 2026 |
 | `0006_mission_control.sql` | Mission control: the operations roles on `cms_users`, `money_requests` (refunds and credits waiting for approval), `payout_runs` (+ new payout columns), `ops_requests` (the requests inbox's status), who changed each promo code. Run on the live database on 21 Oct 2026 |
 | `0007_pro_app.sql` | The pro app: `job_offers` (one open offer per visit), and pros found by email without regard to case. Run on the live database on 21 Oct 2026 |
+| `0008_client_account.sql` | The client account: a booking's `preferred_pro_id`, `credit_used` and `address_id`, and indexes for customers' emails, addresses and promo uses. **Not run on the live database yet** |
 
 With Supabase connected, the cross-page flows (apply → interview link, booking → ops console,
 complaint → Trust Desk) can now work end to end on the live site. They haven't been re-tested live yet.
@@ -423,7 +459,12 @@ All are listed with explanations in [.env.example](.env.example).
    - It asks for the database password, creates the new tables, then asks for Supabase's "Transaction pooler" connection string (Connect → Transaction pooler), checks it and saves it to Vercel as `DATABASE_URL`.
    - Then Claude redeploys.
    - Run again on 21 Oct 2026 for mission control (migration 0006). The script runs every migration; each is safe to run again. If `DATABASE_URL` is already set it first asks "Replace it? (y/N)": answer that, then type the password.
-9. In `/admin/translate`, run "Translate everything missing". Have someone review the Urdu, then switch on the Urdu site under Settings → Feature switches.
+9. **For the client account (stage 4):**
+   - run `node F:\mjazo\website\scripts\setup-supabase.mjs --migrate` once more (it adds migration 0008; press Enter at "Replace it?");
+   - in Supabase → Authentication, make sure new sign-ups are allowed (customers make their account with the emailed link);
+   - if the Redirect URLs aren't a wildcard, add `https://mjazo.vercel.app/account` and `https://mjazo.vercel.app/ur/account`;
+   - add an SMTP sender (e.g. Resend) before telling customers about it: Supabase's own email sends only a few an hour.
+10. In `/admin/translate`, run "Translate everything missing". Have someone review the Urdu, then switch on the Urdu site under Settings → Feature switches.
 
 ---
 
@@ -455,7 +496,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
    1. ~~Core engine~~: built and live 21 October (section 3b). Until pros are added in the core, checkout runs in "open" mode (every window open, the team confirms).
    2. ~~Mission control~~: live 21 October (section 3c). Still to do: give the team their operations roles in `/admin/people` (needs SMTP in Supabase for invites, section 7).
    3. ~~Pro app~~: live 21 October (section 3d). Still to do: give the real pros a PIN (and an email, for email sign-in) in mission control → Pros.
-   4. **Client account:** email-link sign-in, live booking status, reschedule/cancel, saved addresses with a map pin, promo codes, credits, rebook your pro. Needs SMTP in Supabase.
+   4. ~~Client account~~: built and checked locally 21 October (section 3e). **To go live:** section 7, item 9 (`--migrate` for 0008, Supabase sign-in settings, SMTP), then deploy with the owner's OK.
    5. **Automation:** the outbox worker and these automations:
       - WhatsApp/email/push messages, logged until providers are set
       - auto-assign (off / suggest / auto)
@@ -513,5 +554,11 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - Offers change visits only through `lib/core/offers.ts` (it uses `mutateJob()`); the board's direct assign, reschedule and cancel withdraw an open offer (`lib/server/ops.ts`).
   - Before a pro accepts, an offer must not carry the customer's name, phone or address (`proOffers`).
   - The app's text is in `components/staff/pro/strings.ts` (English, Urdu, Roman Urdu).
+- **The client account (`/api/v1/customer`):**
+  - Handlers use `asCustomer` (signed in, number added) or `asAccount` (signed in) from `lib/server/customer-auth.ts`; the logic is in `lib/server/customer-api.ts` and `lib/core/customers.ts`. Only ever touch the customer's own bookings and addresses (`ownBooking`).
+  - A pro is shown to customers by her first name only.
+  - The browser sends the sign-in with `customerApi()` (`lib/client/customer.ts`); `useAccount()` says whether someone is signed out, needs to add their number, or is in.
+  - Wallet credit is set aside on the booking (`credit_used`) and posted with `applyCredit` when the visit completes (`postLedger` in `lib/core/jobs.ts`). What the pro collects is total − credit.
+  - Locally, `/login` offers the test sign-in (`/api/v1/customer/dev-login`); the browser keeps its token in localStorage.
 - **Staff tools locally:** start the `mjazo-web-staff` preview configuration (`.claude/launch.json`). Without Supabase, `/ops` offers "Continue as local …" for any role (`/api/ops/dev-login`, refused in production); pros get PINs from ops.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (353 tests), then `npx next build` (828 pages, plus two per published block page).
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (376 tests), then `npx next build` (828 pages, plus two per published block page).

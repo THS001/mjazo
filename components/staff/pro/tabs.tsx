@@ -137,6 +137,7 @@ export function OffersTab({ lang, onAnswered, toast }: { lang: Lang; onAnswered:
               {v.subArea ? `${v.subArea}, ` : ""}
               {v.area}
             </p>
+            {v.askedForYou && <p className={cn("mt-2 inline-flex rounded-full bg-black text-[var(--brand)] text-xs font-medium px-2.5 py-1", ur)}>{T.askedForYou[lang]}</p>}
             <ul className="mt-3 space-y-0.5 text-[15px]">
               {v.services.map((s, k) => (
                 <li key={k}>

@@ -3,7 +3,7 @@
 export type JobStatus = "new" | "assigned" | "en_route" | "checked_in" | "checked_out" | "completed" | "cancelled" | "no_show"
 export type JobEventType = "assigned" | "en_route" | "checked_in" | "checked_out" | "completed" | "cancelled" | "no_show" | "safe" | "sos" | "alert_ping" | "alert_escalated" | "note" | "payment" | "rescheduled"
 /** `actor`: exactly who (a staff email or a pro id), when known. */
-export type JobEvent = { type: JobEventType; at: string; by: "ops" | "pro" | "system"; actor?: string; note?: string; lat?: number; lng?: number }
+export type JobEvent = { type: JobEventType; at: string; by: "ops" | "pro" | "system" | "customer"; actor?: string; note?: string; lat?: number; lng?: number }
 
 export type PaymentRecord = {
   amount: number
@@ -27,9 +27,13 @@ export type Job = {
   subArea?: string
   address: string
   landmark?: string
+  lat?: number // the customer's map pin, when they set one
+  lng?: number
   customer: { name: string; phone: string }
   items: JobItem[]
   total: number
+  credit?: number // the customer's wallet credit used on this visit: the pro collects total − credit
+  preferredProId?: string // the customer asked for this pro ("book her again")
   payment: string
   notes?: string
   channel?: string

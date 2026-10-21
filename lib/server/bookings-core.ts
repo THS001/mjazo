@@ -3,6 +3,9 @@ import { z } from "zod"
 import { core } from "@/lib/core/db"
 import { slots, windowOpen, type SlotNeed } from "@/lib/core/capacity"
 import { createBooking, listJobs, listPros } from "@/lib/core/jobs"
+import { checkPromo, PromoError } from "@/lib/core/promos"
+import { normalisePhone } from "@/lib/core/phone"
+import { eligible } from "@/lib/ops/logic"
 import { zoneCaps } from "@/lib/core/pros"
 import { PricingError, priceItems } from "@/lib/core/pricing"
 import { getCatalog, getSettings } from "@/lib/cms/read"
@@ -16,7 +19,8 @@ import { saveSubmission, schemas, ValidationError } from "./store"
 
 type BookingData = z.infer<typeof schemas.booking>
 
-export async function placeBooking(raw: unknown, attribution: Record<string, unknown> = {}, page?: string): Promise<{ id: string; total?: number }> {
+/** `customerId`: the signed-in customer placing it (their wallet credit and saved addresses can be used). */
+export async function placeBooking(raw: unknown, attribution: Record<string, unknown> = {}, page?: string, customerId?: string): Promise<{ id: string; total?: number; credit?: number }> {
   const parsed = schemas.booking.safeParse(raw)
   if (!parsed.success) throw new ValidationError(parsed.error.issues[0]?.message ?? "Invalid data")
   const d: BookingData = parsed.data
@@ -43,10 +47,15 @@ export async function placeBooking(raw: unknown, attribution: Record<string, unk
   }
   if (full) throw new ValidationError("That time just filled up. Please pick another window.", "slotFull")
 
+  // A promo code that can't be used is turned down before anything is saved.
+  if (d.promo?.trim()) {
+    const c = await checkPromo(db, d.promo, { subtotal: priceItems(d.items, cat).subtotal, customerId: customerId ?? (await customerIdForPhone(db, d.phone)) })
+    if (!c.ok) throw new ValidationError(new PromoError(c.problem, c.minOrder).message, `promo-${c.problem}`)
+  }
   const { id } = await saveSubmission("booking", d, attribution, page)
   try {
-    const job = await createBooking(db, { id, ...d }, cat, { referralOff: settings.referral.friendOff })
-    return { id, total: job.total }
+    const job = await createBooking(db, { id, ...d, customerId, useCredit: Boolean(customerId && d.useCredit) }, cat, { referralOff: settings.referral.friendOff })
+    return { id, total: job.total, credit: job.credit ?? 0 }
   } catch (e) {
     // The submission is safe; the ops catch-up (syncJobs) imports it on the next read.
     console.error(`[booking] ${id}: core write failed`, e)
@@ -54,8 +63,12 @@ export async function placeBooking(raw: unknown, attribution: Record<string, unk
   }
 }
 
+const customerIdForPhone = async (db: NonNullable<Awaited<ReturnType<typeof core>>>, phone: string) => (await db.one<{ id: string }>("select id from customers where phone = $1", [normalisePhone(phone)]))?.id ?? null
+
 const slotBody = z.object({
   area: z.string().max(60),
+  /** "Book her again": only this pro's free windows. */
+  proId: z.string().max(40).optional(),
   items: z.array(z.object({ category: z.string().max(80), service: z.string().max(120), qty: z.number().int().min(1).max(10) })).min(1).max(20),
 })
 
@@ -67,5 +80,12 @@ export async function slotsFor(raw: unknown) {
   const [cat, settings] = await Promise.all([getCatalog("en"), getSettings("en")])
   const [jobs, pros, caps] = [await listJobs(db, { sinceDays: 0 }), await listPros(db), await zoneCaps(db)]
   const need: SlotNeed = { area: b.area, items: b.items.map((i) => ({ name: "", category: i.category, service: i.service, options: [], addOns: [], qty: i.qty, unitPrice: 0 })) }
+  if (b.proId) {
+    // Her own day only: her visits, her windows and days off. She has to be able to do all of it.
+    const her = pros.find((p) => p.id === b.proId && p.status === "active")
+    const probe = { id: "", createdAt: "", date: "", window: "", area: b.area, address: "", customer: { name: "", phone: "" }, items: need.items, total: 0, payment: "", status: "new" as const, events: [] }
+    if (!her || !eligible(her, probe, cat)) return { mode: "unavailable" as const, days: [] }
+    return slots(nextDays(7).map((d) => d.iso), jobs.filter((j) => j.proId === her.id), [her], need, cat, settings.policy.leadHours)
+  }
   return slots(nextDays(7).map((d) => d.iso), jobs, pros, need, cat, settings.policy.leadHours, { zoneCaps: caps })
 }

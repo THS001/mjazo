@@ -50,6 +50,7 @@ export function VisitCard({ visit: j, n, lang, focus, busy, onAct, onPay }: { vi
             {j.customer.name.split(" ")[0]} · {j.subArea ?? j.area}
           </p>
           <p className="text-sm opacity-70 mt-0.5 leading-snug">{place}</p>
+          {j.askedForYou && !done && <p className={cn("mt-1.5 inline-flex rounded-full bg-[var(--brand)] text-black text-xs font-medium px-2.5 py-1", ur)}>{T.askedForYou[lang]}</p>}
         </div>
       </div>
 
@@ -110,9 +111,14 @@ export function VisitCard({ visit: j, n, lang, focus, busy, onAct, onPay }: { vi
           )}
           <p className="mt-4 flex items-center gap-2 text-sm">
             <Wallet className="w-4 h-4 opacity-60" />
-            <span className="font-semibold">{formatPKR(j.total)}</span>
+            <span className="font-semibold">{formatPKR(j.due)}</span>
             <span className="opacity-60">· {j.payment} after service</span>
           </p>
+          {j.credit > 0 && (
+            <p className={cn("mt-1 pl-6 text-sm opacity-60", ur)}>
+              {formatPKR(j.total)} − {formatPKR(j.credit)} {T.creditUsed[lang]}
+            </p>
+          )}
           <p className={cn("mt-1 pl-6 text-sm opacity-60", ur)}>
             {T.youEarn[lang]} {formatPKR(j.earn)}
           </p>
@@ -177,7 +183,7 @@ const METHODS = [
 export function PaySheet({ visit, lang, onDone }: { visit: Visit; lang: Lang; onDone: (msg: string) => void }) {
   const initial = METHODS.find((m) => m.id === visit.payment)?.id ?? "cash"
   const [method, setMethod] = useState<(typeof METHODS)[number]["id"]>(initial)
-  const [amount, setAmount] = useState(String(visit.total))
+  const [amount, setAmount] = useState(String(visit.due))
   const [shot, setShot] = useState<string>()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
@@ -199,8 +205,13 @@ export function PaySheet({ visit, lang, onDone }: { visit: Visit; lang: Lang; on
     <div>
       <p className={cn("text-2xl font-semibold", ur)}>{T.pay[lang]}</p>
       <p className="text-white/55 mt-1">
-        {T.total[lang]}: <span className="text-white font-semibold">{formatPKR(visit.total)}</span>
+        {T.collect[lang]}: <span className="text-white font-semibold">{formatPKR(visit.due)}</span>
       </p>
+      {visit.credit > 0 && (
+        <p className={cn("text-white/45 text-sm mt-0.5", ur)}>
+          {T.total[lang]} {formatPKR(visit.total)} − {formatPKR(visit.credit)} {T.creditUsed[lang]}
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-2 mt-5">
         {METHODS.map((m) => (
           <button key={m.id} onClick={() => setMethod(m.id)} aria-pressed={method === m.id} className={cn("h-14 rounded-2xl border text-[15px] font-medium transition-colors", method === m.id ? "bg-[var(--brand)] text-black border-transparent" : "border-white/15 text-white/80")}>

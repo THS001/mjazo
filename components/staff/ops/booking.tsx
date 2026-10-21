@@ -164,6 +164,7 @@ function Body({ d, pros, act, refresh }: { d: Detail; pros: OpsPro[]; act: Act; 
           <Fact k="Day" v={day(j.date)} />
           <Fact k="Window" v={j.eta ? `${j.window} · ETA ${j.eta}` : j.window} />
           <Fact k="Pro" v={pro?.name ?? (j.proId ? j.proId : "Not assigned")} />
+          {j.preferredProId && <Fact k="Customer asked for" v={pros.find((p) => p.id === j.preferredProId)?.name ?? j.preferredProId} />}
           <Fact k="Booked via" v={`${j.channel ?? "web"} · ${when(j.createdAt)}`} />
         </dl>
         {j.notes && <p className="mt-3 text-sm text-zinc-600">Customer note: {j.notes}</p>}
@@ -222,6 +223,8 @@ function Body({ d, pros, act, refresh }: { d: Detail; pros: OpsPro[]; act: Act; 
           <Row k="Subtotal" v={pkr(subtotal)} />
           {!!d.money?.discount && <Row k={`Discount${d.money.promo ? ` (${d.money.promo})` : ""}`} v={`− ${pkr(d.money.discount)}`} />}
           <Row k="Total" v={pkr(j.total)} strong />
+          {!!j.credit && <Row k="From their Mjazo credit" v={`− ${pkr(j.credit)}`} />}
+          {!!j.credit && <Row k="The pro collects" v={pkr(j.total - j.credit)} />}
           <Row k="Pays by" v={j.payment} />
         </div>
       </Card>
@@ -303,8 +306,8 @@ function AssignSelect({ job, pros, busy, onPick }: { job: Job; pros: OpsPro[]; b
   const cat = useCatalog()
   const fits = pros
     .filter((p) => p.status === "active")
-    .map((p) => ({ p, why: (!eligible(p as Pro, job, cat) ? "skills don't match" : unavailableReason(p as Pro, job)) ?? "" }))
-    .sort((a, b) => Number(Boolean(a.why)) - Number(Boolean(b.why)))
+    .map((p) => ({ p, why: [p.id === job.preferredProId ? "asked for" : null, !eligible(p as Pro, job, cat) ? "skills don't match" : unavailableReason(p as Pro, job)].filter(Boolean).join(", ") }))
+    .sort((a, b) => Number(b.p.id === job.preferredProId) - Number(a.p.id === job.preferredProId) || Number(Boolean(a.why)) - Number(Boolean(b.why)))
   return <ProPicker job={job} pro={pros.find((p) => p.id === job.proId)} fits={fits} disabled={busy} onPick={onPick} className="h-9 flex-none rounded-full border-black/15 bg-white max-w-[18rem]" />
 }
 

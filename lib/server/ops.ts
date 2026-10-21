@@ -384,7 +384,7 @@ export const addBookingNote = (id: string, note: string, actor: string) => addJo
  * same check as checkout) unless `force`; returns { full: true } and changes nothing when the
  * window is full. An assigned pro is taken off it, to be dispatched again.
  */
-export async function rescheduleJob(id: string, to: { date: string; window: string }, actor: string, opts: { reason?: string; force?: boolean } = {}): Promise<{ job: Job | null; full: boolean }> {
+export async function rescheduleJob(id: string, to: { date: string; window: string }, actor: string, opts: { reason?: string; force?: boolean; by?: "ops" | "customer" } = {}): Promise<{ job: Job | null; full: boolean }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(to.date) || to.date < karachiNow().date) throw new OpsError("Pick today or a later day")
   if (!WINDOW_LABELS.includes(to.window)) throw new OpsError("Pick an arrival window")
   const current = await getJob(id)
@@ -407,9 +407,11 @@ export async function rescheduleJob(id: string, to: { date: string; window: stri
       delete j.eta
       delete j.routeOrder
       j.status = "new"
+      // A customer who moves their visit most likely wants the same pro again.
+      if (opts.by === "customer") j.preferredProId ??= hadPro
     }
     const why = opts.reason?.trim() ? `: ${opts.reason.trim().slice(0, 200)}` : ""
-    j.events.push({ type: "rescheduled", at: nowIso(), by: "ops", actor, note: `From ${from} to ${to.date}, ${to.window}${why}${hadPro ? ` (${hadPro} taken off it)` : ""}${opts.force ? " (booked over capacity)" : ""}` })
+    j.events.push({ type: "rescheduled", at: nowIso(), by: opts.by ?? "ops", actor, note: `From ${from} to ${to.date}, ${to.window}${why}${hadPro ? ` (${hadPro} taken off it)` : ""}${opts.force ? " (booked over capacity)" : ""}` })
   })
   await withdrawOffers(id, actor, "The visit was moved")
   return { job, full: false }
