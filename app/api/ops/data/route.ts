@@ -7,6 +7,7 @@ import { getComplaints, getOpenSos, getPros, openOffers, publicPro, safetySweep,
 import type { Job } from "@/lib/ops/types"
 import { paymentNeedsCheck, windowIndex } from "@/lib/ops/logic"
 import { ROLE_INFO } from "@/lib/cms/roles"
+import { boardSuggestions, tickAutomation } from "@/lib/server/automation"
 
 // Everything the ops console's live board needs, in one poll. Also runs the Safety Guardian sweep.
 
@@ -40,6 +41,10 @@ export async function GET(req: Request) {
       weddingsPending: weddings.filter((w) => w.status === "submitted").length,
     }
     const offers = await openOffers(dayJobs.map((j) => j.id))
+    // Auto-assign's pick for each unassigned visit; and, while someone watches the board, the
+    // automation runs (in case the 5-minute pinger isn't set up).
+    const suggest = await boardSuggestions(dayJobs, pros)
+    tickAutomation()
     const days = nextDays(8).map((d) => d.iso)
     const counts = days.map((d) => ({ date: d, count: jobs.filter((j) => j.date === d && j.status !== "cancelled").length }))
     return {
@@ -50,6 +55,8 @@ export async function GET(req: Request) {
       alerts: alerts.map(lite),
       sos,
       offers: offers.map((o) => ({ id: o.id, jobId: o.bookingId, proId: o.proId, expiresAt: o.expiresAt })),
+      assignMode: suggest.mode,
+      suggestions: suggest.byJob,
       pros: pros.map(publicPro),
       stats,
       days: counts,

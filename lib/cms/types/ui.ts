@@ -425,6 +425,10 @@ export const UI_DEFAULTS = {
   myAccount: {
     signInTitle: "Sign in to Mjazo",
     badEmail: "Enter your email address",
+    messagesTitle: "Reminders and offers on WhatsApp",
+    messagesSub: "Now and then: when a visit is due again, or an offer. At most twice a month, never at night. Reply STOP to any of them to stop.",
+    messagesOn: "On",
+    messagesOff: "Off",
     signInSub: "We'll email you a sign-in link. No password to remember.",
     email: "Email",
     sendLink: "Email me a sign-in link",
@@ -941,6 +945,10 @@ export const UI_UR: UiStrings = {
   myAccount: {
     signInTitle: "مجازو میں سائن ان کریں",
     badEmail: "اپنا ای میل ایڈریس لکھیں",
+    messagesTitle: "واٹس ایپ پر یاد دہانیاں اور آفرز",
+    messagesSub: "کبھی کبھار: جب اگلی وزٹ کا وقت ہو، یا کوئی آفر۔ مہینے میں زیادہ سے زیادہ دو بار، رات کو کبھی نہیں۔ بند کرنے کے لیے کسی بھی پیغام کا جواب STOP میں دیں۔",
+    messagesOn: "آن",
+    messagesOff: "آف",
     signInSub: "ہم آپ کو سائن ان لنک ای میل کریں گے۔ کوئی پاس ورڈ یاد رکھنے کی ضرورت نہیں۔",
     email: "ای میل",
     sendLink: "مجھے سائن ان لنک ای میل کریں",

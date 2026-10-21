@@ -6,6 +6,8 @@ import { runConcierge } from "@/lib/ai/concierge"
 import { transcribe } from "@/lib/ai/stt"
 import { firstTime, loadConversation, saveConversation } from "@/lib/server/conversations"
 import { notifyOps, saveSubmission } from "@/lib/server/store"
+import { core } from "@/lib/core/db"
+import { optOut } from "@/lib/core/automation"
 
 // WhatsApp Cloud API webhook for the Mjazo Concierge.
 // Env: WHATSAPP_VERIFY_TOKEN, WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_APP_SECRET
@@ -59,11 +61,24 @@ async function send(to: string, body: string) {
   }).catch((e) => console.error("[whatsapp] send failed", e))
 }
 
+const STOP_WORDS = ["stop", "unsubscribe", "stop all", "band karo", "بند"]
+
 const localNumber = (from: string) => (from.startsWith("92") ? `0${from.slice(2)}` : from)
 
 async function handle(m: WaMessage) {
   const phone = localNumber(m.from)
   const content: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
+
+  // "STOP" (or "unsubscribe"): no more reminders or offers. Booking messages still go.
+  const said = (m.text?.body ?? m.button?.text ?? m.interactive?.button_reply?.title ?? "").trim().toLowerCase()
+  if (STOP_WORDS.includes(said)) {
+    const db = await core()
+    if (db) await optOut(db, phone, "whatsapp")
+    await send(m.from, "Done: no more reminders or offers from Mjazo. You'll still get messages about your bookings. To switch them back on, use your account page. Theek hai, ab koi offer nahi aayega.")
+    return
+  }
+  // Everything else is the Concierge's (STOP works without it).
+  if (!aiEnabled()) return
 
   if (m.type === "text" && m.text?.body) content.push({ type: "text", text: m.text.body })
   else if (m.type === "interactive" || m.type === "button") content.push({ type: "text", text: m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? m.button?.text ?? "" })
@@ -105,7 +120,7 @@ async function handle(m: WaMessage) {
 export async function POST(req: Request) {
   const raw = await req.text()
   if (!validSignature(raw, req.headers.get("x-hub-signature-256"))) return new Response("Bad signature", { status: 401 })
-  if (!enabled() || !aiEnabled()) return NextResponse.json({ ok: true, skipped: "not configured" })
+  if (!enabled()) return NextResponse.json({ ok: true, skipped: "not configured" })
 
   let payload: { entry?: { changes?: { value?: { messages?: WaMessage[] } }[] }[] }
   try {

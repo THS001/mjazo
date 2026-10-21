@@ -2,8 +2,8 @@
 
 const TZ = "Asia/Karachi"
 
-export function karachiNow() {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date())
+export function karachiNow(at = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(at)
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "0"
   return { date: `${get("year")}-${get("month")}-${get("day")}`, hour: Number(get("hour")) % 24 + Number(get("minute")) / 60 }
 }

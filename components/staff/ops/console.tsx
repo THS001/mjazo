@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { Activity, BarChart3, Bot, CalendarHeart, Banknote, Inbox, Lock, LogOut, Route, ScrollText, ShieldAlert, Tag, UserPlus, Users, Wallet } from "lucide-react"
+import { Activity, BarChart3, Bot, CalendarHeart, Banknote, Inbox, Lock, LogOut, Route, ScrollText, ShieldAlert, Tag, UserPlus, Users, Wallet, Zap } from "lucide-react"
 import type { Job, Pro, SafetyStatus } from "@/lib/ops/types"
 import type { OpsPerm } from "@/lib/ops/access"
 import { ROLES, ROLE_INFO } from "@/lib/cms/roles"
@@ -22,6 +22,7 @@ import { MoneyTab } from "./money"
 import { PromosTab } from "./promos"
 import { KpiTab } from "./kpi"
 import { AuditTab } from "./audit"
+import { AutomationsTab } from "./automations"
 
 export type OpsJob = Job & { safety: SafetyStatus }
 export type OpsPro = Omit<Pro, "pinHash"> & { hasPin: boolean }
@@ -34,6 +35,9 @@ export type OpsData = {
   sos: { id: string; proId: string; at: string; lat?: number; lng?: number }[]
   /** Visits offered to a pro and waiting for her answer (the pro app). */
   offers: OpsOffer[]
+  /** Auto-assign (mission control → Automations): off, suggest or auto, and its pick per unassigned visit. */
+  assignMode?: "off" | "suggest" | "auto"
+  suggestions?: Record<string, { proId: string; reasons: string[] }>
   pros: OpsPro[]
   stats: { jobs: number; unassigned: number; live: number; done: number; revenue: number; perProDay: number; unreconciled: number; openComplaints: number; weddingsPending: number }
   days: { date: string; count: number }[]
@@ -54,6 +58,7 @@ const TABS = [
   { id: "trust", label: "Trust Desk", icon: Wallet, perms: ["ops.requests", "ops.money"] },
   { id: "kpi", label: "KPIs", icon: BarChart3, perms: ["ops.kpi"] },
   { id: "audit", label: "Audit log", icon: ScrollText, perms: ["ops.audit"] },
+  { id: "automations", label: "Automations", icon: Zap, perms: ["ops.automations"] },
   { id: "ask", label: "Ask AI", icon: Bot, perms: ["ops.ai"] },
 ] as const satisfies readonly { id: string; label: string; icon: unknown; perms: readonly OpsPerm[] }[]
 type Tab = (typeof TABS)[number]["id"]
@@ -271,6 +276,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             {tab === "trust" && <TrustDesk reload={load} />}
             {tab === "kpi" && <KpiTab />}
             {tab === "audit" && <AuditTab />}
+            {tab === "automations" && <AutomationsTab />}
             {tab === "ask" && <AskOps ai={data.ai} />}
           </motion.div>
         )}

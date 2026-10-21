@@ -6,6 +6,7 @@ import { storedDefaults } from "./defaults"
 import { getType } from "./registry"
 import "./types"
 import { UI_DEFAULTS, UI_UR } from "./types/ui"
+import { MESSAGES, MESSAGES_UR } from "./types/messages"
 import { GHAR_SCAN_TEXT, GHAR_SCAN_TEXT_UR } from "./types/tool-text/ghar-scan"
 import { HOME_PULSE_TEXT, HOME_PULSE_TEXT_UR } from "./types/tool-text/home-pulse"
 import { GLAM_MIRROR_TEXT, GLAM_MIRROR_TEXT_UR } from "./types/tool-text/glam-mirror"
@@ -138,5 +139,11 @@ describe("engines with CMS wording", () => {
     expect(ur.events[0].tracks.flatMap((t) => t.blocks).find((b) => b.key === "party-makeup")?.label).toBe(SHAADI_TEXT_UR.words.looks["party-makeup"])
     expect(personMessage(plan, en, "p1")).toMatch(/^Assalam o Alaikum Ayesha! Your Mjazo glam plan for Our shaadi:/)
     expect(personMessage(plan, ur, "p1", { words: SHAADI_TEXT_UR.words, locale: "ur" })).toMatch(/^السلام علیکم Ayesha!/)
+  })
+})
+
+describe("the messages Mjazo sends by itself", () => {
+  it("has hand-written Urdu for every message, with the same {{tokens}}", () => {
+    expect(mismatches(MESSAGES, MESSAGES_UR)).toEqual([])
   })
 })

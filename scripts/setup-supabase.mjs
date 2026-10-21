@@ -200,7 +200,8 @@ Copy it, then set up a free 5-minute pinger, for example at https://cron-job.org
        Value: Bearer ${secret}
   5. Save. It should report "401 Unauthorized" until the site is redeployed, then "200 OK".
   6. Make a second cronjob the same way for ${SITE}/api/cron/safety
-     (the Safety Guardian for the staff tools).
+     (the Safety Guardian for the staff tools), and a third for
+     ${SITE}/api/cron/automation (reminders, offers to pros, the weekly payout draft).
 
 The weekly SEO check needs no pinger: Vercel runs it every Monday and sends the secret itself.
 Keep the secret private: anyone with it can trigger these jobs (they can't change content).`)

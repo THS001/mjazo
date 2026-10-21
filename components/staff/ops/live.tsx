@@ -89,7 +89,7 @@ export function LiveBoard({ data, reload }: { data: OpsData; reload: () => void 
             </h3>
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
               {g.jobs.map((j) => (
-                <JobCard key={j.id} job={j} pros={data.pros} offer={data.offers?.find((o) => o.jobId === j.id)} reload={reload} />
+                <JobCard key={j.id} job={j} pros={data.pros} offer={data.offers?.find((o) => o.jobId === j.id)} suggestion={data.suggestions?.[j.id]} reload={reload} />
               ))}
             </div>
           </section>
@@ -99,7 +99,7 @@ export function LiveBoard({ data, reload }: { data: OpsData; reload: () => void 
   )
 }
 
-function JobCard({ job: j, pros, offer, reload }: { job: OpsJob; pros: OpsData["pros"]; offer?: OpsOffer; reload: () => void }) {
+function JobCard({ job: j, pros, offer, suggestion, reload }: { job: OpsJob; pros: OpsData["pros"]; offer?: OpsOffer; suggestion?: { proId: string; reasons: string[] }; reload: () => void }) {
   const cat = useCatalog()
   const { getArea } = cat
   const { can, openBooking } = useOps()
@@ -154,6 +154,18 @@ function JobCard({ job: j, pros, offer, reload }: { job: OpsJob; pros: OpsData["
       </div>
 
       {offer && <OfferLine offer={offer} pros={pros} busy={busy === "withdraw_offer"} canWithdraw={can("ops.dispatch")} onWithdraw={() => run("withdraw_offer", { action: "withdraw_offer", jobId: j.id })} />}
+      {!offer && suggestion && j.status === "new" && (
+        <p className="mt-2 flex items-center gap-2 text-xs rounded-2xl bg-violet-50 text-violet-900 px-3 py-2">
+          <span className="flex-1 min-w-0">
+            Suggested: <b>{pros.find((p) => p.id === suggestion.proId)?.name ?? suggestion.proId}</b> · {suggestion.reasons.join(" · ")}
+          </span>
+          {can("ops.dispatch") && (
+            <button onClick={() => run("offer", { action: "offer", jobId: j.id, proId: suggestion.proId })} disabled={!!busy} className="underline disabled:opacity-50">
+              Offer
+            </button>
+          )}
+        </p>
+      )}
 
       {open && (
         <div className="mt-4 pt-4 border-t border-black/[0.06] space-y-4 text-sm">

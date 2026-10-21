@@ -18,6 +18,7 @@ export const OPS_PERMS = [
   "ops.kpi", // the KPI dashboard
   "ops.audit", // the audit log
   "ops.ai", // Ask AI
+  "ops.automations", // automations: switch rules on and off, auto-assign mode, WhatsApp templates, the send log
 ] as const
 export type OpsPerm = (typeof OPS_PERMS)[number]
 

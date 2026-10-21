@@ -11,6 +11,7 @@ import { PricingError, priceItems } from "@/lib/core/pricing"
 import { getCatalog, getSettings } from "@/lib/cms/read"
 import { nextDays } from "@/lib/time"
 import { saveSubmission, schemas, ValidationError } from "./store"
+import { kick } from "./kick"
 
 // Placing a booking. With the core engine on, the server prices every line from the catalogue,
 // checks the arrival window still has room, then saves the submission (kept as the email copy and
@@ -55,6 +56,7 @@ export async function placeBooking(raw: unknown, attribution: Record<string, unk
   const { id } = await saveSubmission("booking", d, attribution, page)
   try {
     const job = await createBooking(db, { id, ...d, customerId, useCredit: Boolean(customerId && d.useCredit) }, cat, { referralOff: settings.referral.friendOff })
+    kick()
     return { id, total: job.total, credit: job.credit ?? 0 }
   } catch (e) {
     // The submission is safe; the ops catch-up (syncJobs) imports it on the next read.

@@ -13,6 +13,7 @@ import { listRows, type Data, type EntryRow } from "./store"
 import type { ServiceCms } from "./types/catalog"
 import type { NavContent } from "./types/nav"
 import type { UiStrings } from "./types/ui"
+import type { MessageTexts } from "./types/messages"
 import type { Seo, SeoSettings } from "./types/seo"
 import "./types"
 
@@ -184,6 +185,9 @@ export const getNav = cache(async (locale: Locale = requestLocale()) => getSingl
 
 /** Buttons, labels and messages (Navigation → Buttons & labels). */
 export const getUi = cache(async (locale: Locale = requestLocale()) => getSingleton<UiStrings>("ui", locale))
+
+/** The messages Mjazo sends by itself (Settings → Customer messages), in English or Urdu. */
+export const getMessages = cache(async (locale: Locale = requestLocale()) => getSingleton<MessageTexts>("messages", locale))
 
 /** Site-wide SEO defaults and title patterns (Settings → SEO settings). */
 export const getSeoSettings = cache(async (locale: Locale = requestLocale()) => getSingleton<SeoSettings>("settings-seo", locale))

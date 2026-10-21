@@ -21,6 +21,7 @@ const WHO: Record<OpsPerm, Role[]> = {
   "ops.kpi": ["owner", "admin", "dispatcher", "finance"],
   "ops.audit": ["owner", "admin", "finance"],
   "ops.ai": ["owner", "admin", "dispatcher", "support"],
+  "ops.automations": ["owner", "admin"],
 }
 
 describe("mission control permissions", () => {

@@ -150,7 +150,47 @@ export function LiveOverview({ me }: { me: Me }) {
           </Link>
         ))}
       </div>
+      {me.customer && <MessagesSwitch initial={me.customer.marketingOk} />}
     </>
+  )
+}
+
+/** Win-back and offer messages: off until the customer switches them on (Reply STOP turns them off). */
+function MessagesSwitch({ initial }: { initial: boolean }) {
+  const m = useT().myAccount
+  const [on, setOn] = useState(initial)
+  const [busy, setBusy] = useState(false)
+  const flip = async () => {
+    setBusy(true)
+    try {
+      const r = await customerApi<{ customer: { marketingOk: boolean } }>("/api/v1/customer/me", { marketingOk: !on }, "PATCH")
+      setOn(r.customer.marketingOk)
+      track("messages_opt_in", { on: r.customer.marketingOk })
+    } catch {
+      // Unchanged; the switch shows what's saved.
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className={cn(card, "mt-4 p-6 flex items-start gap-4")}>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium">{m.messagesTitle}</p>
+        <p className="text-sm text-zinc-500 mt-1">{m.messagesSub}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label={m.messagesTitle}
+        disabled={busy}
+        onClick={flip}
+        className={cn("relative shrink-0 w-12 h-7 rounded-full transition-colors disabled:opacity-60", on ? "bg-black" : "bg-zinc-300")}
+      >
+        <span className="sr-only">{on ? m.messagesOn : m.messagesOff}</span>
+        <span className={cn("absolute top-1 start-1 w-5 h-5 rounded-full bg-white shadow transition-transform", on && "translate-x-5 rtl:-translate-x-5")} />
+      </button>
+    </div>
   )
 }
 

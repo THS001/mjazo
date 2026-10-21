@@ -47,7 +47,8 @@ vi.mock("@/lib/server/store", async (orig) => ({
 vi.mock("@/lib/cms/read", async () => {
   const { buildCatalog, DEFAULT_CATALOG } = await import("@/lib/catalog")
   const cat = buildCatalog(DEFAULT_CATALOG)
-  return { getCatalog: async () => cat, getSettings: async () => ({ referral: { friendOff: 500 }, policy: { leadHours: 2 } }) }
+  const { MESSAGES } = await import("@/lib/cms/types/messages")
+  return { getCatalog: async () => cat, getSettings: async () => ({ referral: { friendOff: 500 }, policy: { leadHours: 2 } }), getMessages: async () => MESSAGES }
 })
 vi.mock("next/headers", () => ({ headers: async () => new Headers(), cookies: async () => ({ get: () => undefined, set: () => {}, delete: () => {}, getAll: () => [] }) }))
 
@@ -81,6 +82,7 @@ beforeAll(async () => {
     "route-plan": await import("../../app/api/ops/route-plan/route"),
     weddings: await import("../../app/api/ops/weddings/route"),
     ask: await import("../../app/api/ops/ask/route"),
+    automations: await import("../../app/api/ops/automations/route"),
   } as Record<string, Mod>
   const cj = await import("@/lib/core/jobs")
   const { buildCatalog, DEFAULT_CATALOG } = await import("@/lib/catalog")
@@ -137,6 +139,9 @@ const CASES: Case[] = [
   { name: "see KPIs", roles: ["owner", "admin", "dispatcher", "finance"], run: () => get(R.kpi, "?days=7") },
   { name: "see the audit log", roles: ["owner", "admin", "finance"], run: () => get(R.audit) },
   { name: "ask the AI", roles: ["owner", "admin", "dispatcher", "support"], run: () => post(R.ask, { question: "How many bookings today?" }) },
+  { name: "see the automations", roles: ["owner", "admin"], run: () => get(R.automations) },
+  { name: "switch an automation on or off", roles: ["owner", "admin"], run: () => post(R.automations, { action: "save", key: "winBack", enabled: false }) },
+  { name: "run the automation now", roles: ["owner", "admin"], run: () => post(R.automations, { action: "run" }) },
 ]
 
 describe("mission control permission matrix", () => {

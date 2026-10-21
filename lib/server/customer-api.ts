@@ -2,6 +2,7 @@ import "server-only"
 import { z } from "zod"
 import { getCatalog, getSettings } from "@/lib/cms/read"
 import { requireCore } from "@/lib/core/db"
+import { optIn } from "@/lib/core/automation"
 import { creditFor, deleteAddress, linkAccount, listAddresses, saveAddress, updateCustomer, type AddressInput, type Customer } from "@/lib/core/customers"
 import { listCustomerJobs } from "@/lib/core/jobs"
 import { windowStart } from "@/lib/core/offers"
@@ -130,7 +131,11 @@ export async function linkCustomer(account: Account, b: { name: string; phone: s
   return linkAccount(await requireCore(), { userId: account.userId, email: account.email, ...b })
 }
 
-export const saveCustomer = async (c: Customer, p: { name?: string; lang?: string; marketingOk?: boolean }) => updateCustomer(await requireCore(), c.id, p)
+export async function saveCustomer(c: Customer, p: { name?: string; lang?: string; marketingOk?: boolean }) {
+  const db = await requireCore()
+  if (p.marketingOk && c.phone) await optIn(db, c.phone)
+  return updateCustomer(db, c.id, p)
+}
 
 /** A saved address as the API takes it. */
 export const addressBody = z.object({

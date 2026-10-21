@@ -20,6 +20,7 @@ import type { PlanLimits } from "@/lib/ops/logic"
 import { paymentNeedsCheck } from "@/lib/ops/logic"
 import { WINDOW_LABELS } from "@/lib/time"
 import { recentAudit } from "./audit"
+import { kick } from "./kick"
 import { normalisePhone } from "@/lib/core/phone"
 import { PricingError } from "@/lib/core/pricing"
 import { ALLOWED, FINAL, STATUS_FOR } from "@/lib/core/status"
@@ -190,7 +191,10 @@ export async function getJob(id: string): Promise<Job | null> {
 /** Atomic change to one job (applied to the latest copy); null when it doesn't exist. */
 async function changeJob(id: string, fn: (j: Job) => void): Promise<Job | null> {
   const db = await opsDb()
-  return db ? cj.mutateJob(db, id, fn) : mutate<Job>("jobs", id, fn)
+  const job = db ? await cj.mutateJob(db, id, fn) : await mutate<Job>("jobs", id, fn)
+  // A change can mean a message or an offer (automation): run it soon.
+  if (job && db) kick()
+  return job
 }
 
 /** Atomic update of one job (re-reads the latest copy); throws when the job doesn't exist. */
@@ -419,8 +423,16 @@ export async function rescheduleJob(id: string, to: { date: string; window: stri
 
 // Job offers (the pro app) -------------------------------------------------------
 
-export const offerJob = async (o: { bookingId: string; proId: string; by: string }) => offers.offerJob(await needCore(), o)
-export const answerOffer = async (a: Parameters<typeof offers.answerOffer>[1]) => offers.answerOffer(await needCore(), a)
+export async function offerJob(o: { bookingId: string; proId: string; by: string }) {
+  const r = await offers.offerJob(await needCore(), o)
+  kick()
+  return r
+}
+export async function answerOffer(a: Parameters<typeof offers.answerOffer>[1]) {
+  const r = await offers.answerOffer(await needCore(), a)
+  kick()
+  return r
+}
 export const listOffers = async (f: Parameters<typeof offers.listOffers>[1]) => offers.listOffers(await needCore(), f)
 
 /** Withdraws a visit's open offer, if there is one (nothing to do without the core). */
