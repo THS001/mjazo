@@ -4,9 +4,9 @@ import { useState } from "react"
 import { ChevronDown, ExternalLink, MapPin, Phone } from "lucide-react"
 import { eligible, jobMinutes, unavailableReason } from "@/lib/ops/logic"
 import { cn } from "@/lib/utils"
-import { isVerified, type Pro } from "@/lib/ops/types"
+import { isVerified, type Job, type Pro } from "@/lib/ops/types"
 import { api, Badge, Btn, clock, Empty, pkr, SAFETY, STATUS } from "../kit"
-import type { OpsData, OpsJob } from "./console"
+import type { OpsData, OpsJob, OpsOffer, OpsPro } from "./console"
 import { useOps } from "./context"
 import { useCatalog } from "@/components/cms/provider"
 import { WINDOW_LABELS } from "@/lib/time"
@@ -89,7 +89,7 @@ export function LiveBoard({ data, reload }: { data: OpsData; reload: () => void 
             </h3>
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
               {g.jobs.map((j) => (
-                <JobCard key={j.id} job={j} pros={data.pros} reload={reload} />
+                <JobCard key={j.id} job={j} pros={data.pros} offer={data.offers?.find((o) => o.jobId === j.id)} reload={reload} />
               ))}
             </div>
           </section>
@@ -99,7 +99,7 @@ export function LiveBoard({ data, reload }: { data: OpsData; reload: () => void 
   )
 }
 
-function JobCard({ job: j, pros, reload }: { job: OpsJob; pros: OpsData["pros"]; reload: () => void }) {
+function JobCard({ job: j, pros, offer, reload }: { job: OpsJob; pros: OpsData["pros"]; offer?: OpsOffer; reload: () => void }) {
   const cat = useCatalog()
   const { getArea } = cat
   const { can, openBooking } = useOps()
@@ -143,22 +143,7 @@ function JobCard({ job: j, pros, reload }: { job: OpsJob; pros: OpsData["pros"];
       </p>
 
       <div className="mt-4 flex items-center gap-2">
-        <select
-          value={j.proId ?? ""}
-          disabled={locked || !!busy}
-          onChange={(e) => run("assign", { action: "assign", jobId: j.id, proId: e.target.value || null })}
-          className="flex-1 min-w-0 h-11 rounded-2xl border border-black/10 bg-[oklch(0.975_0.008_80)] px-3 text-sm outline-none focus:border-black disabled:opacity-60"
-          aria-label="Assign pro"
-        >
-          <option value="">{pro ? "Unassign" : "Assign a pro…"}</option>
-          {pro && !fits.some((f) => f.p.id === pro.id) && <option value={pro.id}>{pro.name} (paused)</option>}
-          {fits.map(({ p, why }) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-              {why ? ` (${why})` : ""}
-            </option>
-          ))}
-        </select>
+        <ProPicker job={j} pro={pro} fits={fits} disabled={locked || !!busy} onPick={(action, proId) => run(action, { action, jobId: j.id, proId })} />
         <button onClick={() => openBooking(j.id)} aria-label="Open the booking page" title="Open the booking page" className="w-11 h-11 shrink-0 rounded-2xl border border-black/10 flex items-center justify-center hover:border-black/30">
           <ExternalLink className="w-4 h-4" />
         </button>
@@ -166,6 +151,8 @@ function JobCard({ job: j, pros, reload }: { job: OpsJob; pros: OpsData["pros"];
           <ChevronDown className={cn("w-4 h-4 transition-transform", open && "rotate-180")} />
         </button>
       </div>
+
+      {offer && <OfferLine offer={offer} pros={pros} busy={busy === "withdraw_offer"} canWithdraw={can("ops.dispatch")} onWithdraw={() => run("withdraw_offer", { action: "withdraw_offer", jobId: j.id })} />}
 
       {open && (
         <div className="mt-4 pt-4 border-t border-black/[0.06] space-y-4 text-sm">
@@ -237,5 +224,64 @@ function JobCard({ job: j, pros, reload }: { job: OpsJob; pros: OpsData["pros"];
         </div>
       )}
     </article>
+  )
+}
+
+type Fit = { p: OpsPro; why: string }
+
+/**
+ * Assign a pro, or (for an unassigned visit) offer it to one: she accepts or declines in the pro
+ * app. One menu, two groups. Used on the board and on the booking page.
+ */
+export function ProPicker({ job, pro, fits, disabled, onPick, className }: { job: OpsJob | Job; pro?: OpsPro; fits: Fit[]; disabled?: boolean; onPick: (action: "assign" | "offer", proId: string | null) => void; className?: string }) {
+  const canOffer = job.status === "new" && !job.proId
+  const label = (f: Fit) => `${f.p.name}${f.why ? ` (${f.why})` : ""}`
+  return (
+    <select
+      value={job.proId ? `assign:${job.proId}` : ""}
+      disabled={disabled}
+      onChange={(e) => {
+        const [action, proId] = e.target.value.split(":") as ["assign" | "offer" | "", string]
+        onPick(action === "offer" ? "offer" : "assign", proId || null)
+      }}
+      className={cn("flex-1 min-w-0 h-11 rounded-2xl border border-black/10 bg-[oklch(0.975_0.008_80)] px-3 text-sm outline-none focus:border-black disabled:opacity-60", className)}
+      aria-label="Assign or offer to a pro"
+    >
+      <option value="">{pro ? "Unassign" : "Assign or offer…"}</option>
+      <optgroup label="Assign to">
+        {pro && !fits.some((f) => f.p.id === pro.id) && <option value={`assign:${pro.id}`}>{pro.name} (paused)</option>}
+        {fits.map((f) => (
+          <option key={f.p.id} value={`assign:${f.p.id}`}>
+            {label(f)}
+          </option>
+        ))}
+      </optgroup>
+      {canOffer && (
+        <optgroup label="Offer to (she accepts in the pro app)">
+          {fits.map((f) => (
+            <option key={f.p.id} value={`offer:${f.p.id}`}>
+              {label(f)}
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </select>
+  )
+}
+
+/** "Offered to Sana · until 3:40 pm", with Withdraw. */
+export function OfferLine({ offer, pros, busy, canWithdraw, onWithdraw }: { offer: OpsOffer; pros: OpsPro[]; busy: boolean; canWithdraw: boolean; onWithdraw: () => void }) {
+  const name = pros.find((p) => p.id === offer.proId)?.name ?? offer.proId
+  return (
+    <p className="mt-2 flex items-center gap-2 text-xs rounded-2xl bg-sky-50 text-sky-900 px-3 py-2">
+      <span className="flex-1 min-w-0">
+        Offered to <b>{name}</b> · waiting for her answer until {clock(offer.expiresAt)}
+      </span>
+      {canWithdraw && (
+        <button onClick={onWithdraw} disabled={busy} className="underline disabled:opacity-50">
+          Withdraw
+        </button>
+      )}
+    </p>
   )
 }

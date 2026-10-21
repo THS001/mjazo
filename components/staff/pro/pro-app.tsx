@@ -2,42 +2,22 @@
 
 import { useEffect, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { Camera, Check, ChevronRight, Clock, LogOut, MapPin, Navigation, Phone, Play, ShieldAlert, ShieldCheck, Sparkles, Square, Wallet } from "lucide-react"
+import { Bell, CalendarDays, Home, LogOut, Phone, Play, ShieldAlert, ShieldCheck, Sparkles, Square, User, Wallet, type LucideIcon } from "lucide-react"
 import { formatPKR } from "@/lib/catalog"
 import type { Lang } from "@/lib/content"
-import type { Job, JobBrief, JobItem, JobStatus, SafetyStatus } from "@/lib/ops/types"
-import { locate, shrink, speak } from "@/lib/client/media"
-import { to12h } from "@/lib/shaadi"
+import { locate, speak } from "@/lib/client/media"
 import { cn } from "@/lib/utils"
 import { usePartnerLang } from "@/components/partner/lang"
-import { api, Btn, mapsLink, useNow, usePoll } from "../kit"
+import { browserSupabase } from "@/components/admin/supabase-browser"
+import { api, Btn, usePoll } from "../kit"
 import { ProCopilot } from "./copilot"
 import { T } from "./strings"
+import { MeTab, MoneyTab, OffersTab, ScheduleTab } from "./tabs"
+import { dayLabel, PaySheet, Sheet, urCls, VisitCard, type Schedule, type Visit } from "./visit"
 
-type ProJob = {
-  id: string
-  window: string
-  eta?: string
-  status: JobStatus
-  area: string
-  subArea?: string
-  address: string
-  landmark?: string
-  customer: { name: string; phone: string }
-  items: JobItem[]
-  total: number
-  payment: string
-  notes?: string
-  minutes: number
-  checkedInAt?: string
-  safety: SafetyStatus
-  paid: { status: string; amount: number; method: string } | null
-  lastNotes: string[]
-  brief: JobBrief | null
-  photos: string[]
-  event: Job["event"] | null
-}
-type Today = { pro: { id: string; name: string; area: string }; today: string; jobs: ProJob[]; upcoming: number; earnings: { visits: number; earned: number }; ai: boolean }
+// Mjazo Pro on the web (/pro): sign in with phone + PIN or an emailed link, then today's visits,
+// the week ahead, offers, earnings and her profile. Everything goes through /api/v1/pro, the
+// same API the phone app uses.
 
 const LANGS: { id: Lang; label: string }[] = [
   { id: "en", label: "EN" },
@@ -57,7 +37,7 @@ function DarkLang({ lang, set }: { lang: Lang; set: (l: Lang) => void }) {
   )
 }
 
-export function ProApp({ authed, enabled }: { authed: boolean; enabled: boolean }) {
+export function ProApp({ authed, enabled, emailSignIn, error }: { authed: boolean; enabled: boolean; emailSignIn: boolean; error?: string }) {
   const [lang, setLang] = usePartnerLang()
   const [isIn, setIn] = useState(authed)
   useEffect(() => {
@@ -67,23 +47,32 @@ export function ProApp({ authed, enabled }: { authed: boolean; enabled: boolean 
   }, [])
   return (
     <div className="min-h-[100svh] bg-[#0b0b0b] text-white">
-      <div className="max-w-md mx-auto min-h-[100svh] flex flex-col">{isIn ? <Home lang={lang} setLang={setLang} onLogout={() => setIn(false)} /> : <Login lang={lang} setLang={setLang} enabled={enabled} onIn={() => setIn(true)} />}</div>
+      <div className="max-w-md mx-auto min-h-[100svh] flex flex-col">
+        {isIn ? <Shell lang={lang} setLang={setLang} onLogout={() => setIn(false)} /> : <Login lang={lang} setLang={setLang} enabled={enabled} emailSignIn={emailSignIn} error={error} onIn={() => setIn(true)} />}
+      </div>
     </div>
   )
 }
 
-function Login({ lang, setLang, enabled, onIn }: { lang: Lang; setLang: (l: Lang) => void; enabled: boolean; onIn: () => void }) {
+// ---------------------------------------------------------------------------
+// Sign in
+// ---------------------------------------------------------------------------
+
+function Login({ lang, setLang, enabled, emailSignIn, error: linkError, onIn }: { lang: Lang; setLang: (l: Lang) => void; enabled: boolean; emailSignIn: boolean; error?: string; onIn: () => void }) {
+  const [mode, setMode] = useState<"pin" | "email">(linkError ? "email" : "pin")
   const [phone, setPhone] = useState("")
   const [pin, setPin] = useState("")
+  const [email, setEmail] = useState("")
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
-  const ur = lang === "ur" ? "font-urdu leading-[2]" : ""
-  const go = async (e: React.FormEvent) => {
+  const [error, setError] = useState(linkError === "no-pro" ? T.noPro[lang] : linkError ? T.linkError[lang] : "")
+  const [sent, setSent] = useState(false)
+  const ur = urCls(lang)
+  const signIn = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true)
     setError("")
     try {
-      await api("/api/pro/login", { phone, pin })
+      await api("/api/v1/pro/session", { phone, pin })
       onIn()
     } catch (err) {
       setError((err as Error).message)
@@ -91,6 +80,22 @@ function Login({ lang, setLang, enabled, onIn }: { lang: Lang; setLang: (l: Lang
       setBusy(false)
     }
   }
+  const sendLink = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    setError("")
+    try {
+      await api("/api/v1/pro/session/email", { email })
+      // New sign-ups are off: the server made the account only if a pro has this email.
+      await browserSupabase()?.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: `${window.location.origin}/pro/auth/callback`, shouldCreateUser: false } })
+      setSent(true)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const field = "mt-2 w-full h-14 rounded-2xl bg-white/[0.07] border border-white/10 px-5 outline-none focus:border-[var(--brand)]"
   return (
     <div className="flex-1 flex flex-col px-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-8">
       <div className="flex justify-end">
@@ -105,22 +110,47 @@ function Login({ lang, setLang, enabled, onIn }: { lang: Lang; setLang: (l: Lang
         </h1>
         <p className={cn("text-white/60 mt-3 text-lg", ur)}>{T.appSub[lang]}</p>
         {!enabled ? (
-          <p className="mt-10 rounded-3xl bg-white/[0.06] p-5 text-white/70">The pro app isn't switched on yet. Ops need to set it up first.</p>
-        ) : (
-          <form onSubmit={go} className="mt-10 space-y-4">
+          <p className="mt-10 rounded-3xl bg-white/[0.06] p-5 text-white/70">The pro app isn&apos;t switched on yet. Ops need to set it up first.</p>
+        ) : mode === "pin" ? (
+          <form onSubmit={signIn} className="mt-10 space-y-4">
             <label className="block">
               <span className={cn("text-sm text-white/60", ur)}>{T.phone[lang]}</span>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel" placeholder="03xx xxxxxxx" className="mt-2 w-full h-14 rounded-2xl bg-white/[0.07] border border-white/10 px-5 text-[18px] tracking-wide outline-none focus:border-[var(--brand)]" />
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel" placeholder="03xx xxxxxxx" className={cn(field, "text-[18px] tracking-wide")} />
             </label>
             <label className="block">
               <span className={cn("text-sm text-white/60", ur)}>{T.pin[lang]}</span>
-              <input value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" type="password" autoComplete="current-password" placeholder="••••" className="mt-2 w-full h-14 rounded-2xl bg-white/[0.07] border border-white/10 px-5 text-[22px] tracking-[0.5em] outline-none focus:border-[var(--brand)]" />
+              <input value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" type="password" autoComplete="current-password" placeholder="••••" className={cn(field, "text-[22px] tracking-[0.5em]")} />
             </label>
-            {error && <p className="text-sm text-red-300">{error}</p>}
+            {error && <p className={cn("text-sm text-red-300", ur)}>{error}</p>}
             <Btn variant="brand" size="lg" busy={busy} className="w-full" disabled={phone.length < 10 || pin.length < 4}>
               <span className={ur}>{T.login[lang]}</span>
             </Btn>
             <p className={cn("text-sm text-white/45 text-center", ur)}>{T.forgot[lang]}</p>
+            {emailSignIn && (
+              <button type="button" onClick={() => (setMode("email"), setError(""))} className={cn("block mx-auto text-sm underline text-white/70", ur)}>
+                {T.orEmail[lang]}
+              </button>
+            )}
+          </form>
+        ) : (
+          <form onSubmit={sendLink} className="mt-10 space-y-4">
+            {sent ? (
+              <p className={cn("rounded-3xl bg-white/[0.06] p-5 text-white/80", ur)}>{T.linkSent[lang]}</p>
+            ) : (
+              <>
+                <label className="block">
+                  <span className={cn("text-sm text-white/60", ur)}>{T.email[lang]}</span>
+                  <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" inputMode="email" autoComplete="email" placeholder="name@example.com" className={cn(field, "text-[17px]")} />
+                </label>
+                {error && <p className={cn("text-sm text-red-300", ur)}>{error}</p>}
+                <Btn variant="brand" size="lg" busy={busy} className="w-full" disabled={!/^\S+@\S+\.\S+$/.test(email.trim())}>
+                  <span className={ur}>{T.sendLink[lang]}</span>
+                </Btn>
+              </>
+            )}
+            <button type="button" onClick={() => (setMode("pin"), setSent(false), setError(""))} className={cn("block mx-auto text-sm underline text-white/70", ur)}>
+              {T.orPin[lang]}
+            </button>
           </form>
         )}
       </div>
@@ -128,19 +158,26 @@ function Login({ lang, setLang, enabled, onIn }: { lang: Lang; setLang: (l: Lang
   )
 }
 
-function Home({ lang, setLang, onLogout }: { lang: Lang; setLang: (l: Lang) => void; onLogout: () => void }) {
-  const [data, setData] = useState<Today | null>(null)
+// ---------------------------------------------------------------------------
+// The signed-in app
+// ---------------------------------------------------------------------------
+
+type Tab = "today" | "schedule" | "offers" | "money" | "me"
+
+function Shell({ lang, setLang, onLogout }: { lang: Lang; setLang: (l: Lang) => void; onLogout: () => void }) {
+  const [tab, setTab] = useState<Tab>("today")
+  const [data, setData] = useState<Schedule | null>(null)
   const [error, setError] = useState("")
   const [busy, setBusy] = useState<string | null>(null)
-  const [paying, setPaying] = useState<ProJob | null>(null)
+  const [paying, setPaying] = useState<Visit | null>(null)
   const [sos, setSos] = useState<"closed" | "confirm" | "sent">("closed")
   const [copilot, setCopilot] = useState(false)
   const [toast, setToast] = useState("")
-  const ur = lang === "ur" ? "font-urdu leading-[2]" : ""
+  const ur = urCls(lang)
 
   const load = async () => {
     try {
-      setData(await api<Today>("/api/pro/today"))
+      setData(await api<Schedule>("/api/v1/pro/jobs?days=7"))
       setError("")
     } catch (e) {
       setError((e as Error).message)
@@ -153,12 +190,15 @@ function Home({ lang, setLang, onLogout }: { lang: Lang; setLang: (l: Lang) => v
     return () => clearTimeout(t)
   }, [toast])
 
-  const act = async (job: ProJob | null, action: string) => {
-    setBusy(`${job?.id}:${action}`)
+  const today = data?.days[0]?.visits ?? []
+  const act = async (visit: Visit | null, action: string) => {
+    setBusy(`${visit?.id}:${action}`)
     try {
       const where = action === "check_in" || action === "sos" || action === "en_route" ? await locate() : {}
-      await api("/api/pro/job", { action, jobId: job?.id, ...where })
-      if (action === "sos") setSos("sent")
+      if (action === "sos") {
+        await api("/api/v1/pro/sos", { jobId: visit?.id, ...where })
+        setSos("sent")
+      } else await api(`/api/v1/pro/jobs/${encodeURIComponent(visit!.id)}`, { action, ...where })
       await load()
     } catch (e) {
       setToast((e as Error).message)
@@ -166,94 +206,120 @@ function Home({ lang, setLang, onLogout }: { lang: Lang; setLang: (l: Lang) => v
       setBusy(null)
     }
   }
-
   const logout = async () => {
-    await api("/api/staff/logout", {}).catch(() => {})
+    await api("/api/v1/pro/session", undefined, "DELETE").catch(() => {})
     onLogout()
   }
 
-  const alert = data?.jobs.find((j) => ["overdue", "escalated"].includes(j.safety.level))
-  const active = data?.jobs.find((j) => ["en_route", "checked_in", "checked_out"].includes(j.status))
-  const first = data?.pro.name.split(" ")[0]
-  const left = data?.jobs.filter((j) => j.status !== "completed").length ?? 0
+  const alert = today.find((j) => ["overdue", "escalated"].includes(j.safety.level))
+  const active = today.find((j) => ["en_route", "checked_in", "checked_out"].includes(j.status))
+  const left = today.filter((j) => j.status !== "completed").length
+  const TABS: { id: Tab; label: string; icon: LucideIcon; badge?: number }[] = [
+    { id: "today", label: T.tabToday[lang], icon: Home },
+    { id: "schedule", label: T.tabSchedule[lang], icon: CalendarDays },
+    { id: "offers", label: T.tabOffers[lang], icon: Bell, badge: data?.openOffers },
+    { id: "money", label: T.tabMoney[lang], icon: Wallet },
+    { id: "me", label: T.tabMe[lang], icon: User },
+  ]
 
   return (
     <>
       <header className="px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-2 flex items-center gap-3">
         <div className="flex-1 min-w-0">
-          <p className={cn("text-white/50 text-sm", ur)}>
-            {T.salaam[lang]}
-            {first ? `, ${first}` : ""}
-          </p>
-          <p className="font-serif text-2xl truncate">{data ? new Date(`${data.today}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : "…"}</p>
+          <p className={cn("text-white/50 text-sm", ur)}>{tab === "today" ? T.salaam[lang] : TABS.find((t) => t.id === tab)!.label}</p>
+          <p className="font-serif text-2xl truncate">{data ? dayLabel(data.today, lang) : "…"}</p>
         </div>
-        <DarkLang lang={lang} set={setLang} />
-        <button onClick={logout} aria-label={T.logout[lang]} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-          <LogOut className="w-4 h-4" />
-        </button>
+        {tab === "today" && (
+          <>
+            <DarkLang lang={lang} set={setLang} />
+            <button onClick={logout} aria-label={T.logout[lang]} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+              <LogOut className="w-4 h-4" />
+            </button>
+          </>
+        )}
       </header>
 
-      <div className="flex-1 px-5 pb-36 space-y-4">
+      <div className="flex-1 px-5 pb-44 space-y-4">
         {error && <p className="text-sm text-red-300">{error}</p>}
 
-        <AnimatePresence>
-          {alert && (
-            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-[28px] bg-amber-400 text-black p-5">
-              <p className={cn("text-xl font-semibold", ur)}>{T.safeQ[lang]}</p>
-              <p className={cn("text-sm mt-1 text-black/75", ur)}>{T.safeBody[lang]}</p>
-              <div className="flex gap-2 mt-4">
-                <Btn size="lg" className="flex-1" busy={busy === `${alert.id}:safe`} onClick={() => act(alert, "safe")}>
-                  <ShieldCheck className="w-5 h-5" />
-                  <span className={ur}>{T.safe[lang]}</span>
-                </Btn>
-                <Btn size="lg" variant="danger" onClick={() => setSos("confirm")}>
-                  SOS
-                </Btn>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {tab === "today" && (
+          <>
+            <AnimatePresence>
+              {alert && (
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-[28px] bg-amber-400 text-black p-5">
+                  <p className={cn("text-xl font-semibold", ur)}>{T.safeQ[lang]}</p>
+                  <p className={cn("text-sm mt-1 text-black/75", ur)}>{T.safeBody[lang]}</p>
+                  <div className="flex gap-2 mt-4">
+                    <Btn size="lg" className="flex-1" busy={busy === `${alert.id}:safe`} onClick={() => act(alert, "safe")}>
+                      <ShieldCheck className="w-5 h-5" />
+                      <span className={ur}>{T.safe[lang]}</span>
+                    </Btn>
+                    <Btn size="lg" variant="danger" onClick={() => setSos("confirm")}>
+                      SOS
+                    </Btn>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-        <div className="grid grid-cols-3 gap-2.5">
-          <Stat value={data ? String(data.jobs.length) : "–"} label={T.visits[lang]} ur={ur} />
-          <Stat value={data ? String(left) : "–"} label={lang === "en" ? "still to go" : lang === "ur" ? "باقی" : "baqi"} ur={ur} />
-          <Stat value={data ? formatPKR(data.earnings.earned).replace("PKR ", "") : "–"} label={T.earned[lang]} ur={ur} small />
-        </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              <Stat value={data ? String(today.length) : "–"} label={T.visits[lang]} ur={ur} />
+              <Stat value={data ? String(left) : "–"} label={T.stillToGo[lang]} ur={ur} />
+              <Stat value={data ? formatPKR(data.week.earned).replace("PKR ", "") : "–"} label={T.earned[lang]} ur={ur} small />
+            </div>
 
-        {data?.ai && data.jobs.length > 0 && <Brief lang={lang} />}
+            {!!data?.openOffers && (
+              <button onClick={() => setTab("offers")} className={cn("w-full rounded-[28px] bg-[var(--brand)] text-black px-5 py-4 text-left font-semibold flex items-center gap-3", ur)}>
+                <Bell className="w-5 h-5" /> <span className="flex-1">{T.newOffers[lang]}</span>
+                <span className="min-w-7 h-7 px-2 rounded-full bg-black text-[var(--brand)] text-sm flex items-center justify-center">{data.openOffers}</span>
+              </button>
+            )}
 
-        {data && !data.jobs.length && <p className={cn("rounded-[28px] bg-white/[0.05] p-6 text-white/60", ur)}>{T.noJobs[lang]}</p>}
+            {data?.ai && today.length > 0 && <Brief lang={lang} />}
 
-        <ol className="space-y-3">
-          {data?.jobs.map((j, i) => (
-            <JobCard key={j.id} job={j} n={i + 1} lang={lang} focus={active?.id === j.id} busy={busy} onAct={act} onPay={() => setPaying(j)} />
-          ))}
-        </ol>
+            {data && !today.length && <p className={cn("rounded-[28px] bg-white/[0.05] p-6 text-white/60", ur)}>{T.noJobs[lang]}</p>}
 
-        {data && data.upcoming > 0 && (
-          <p className={cn("text-center text-sm text-white/45 pt-2", ur)}>
-            {data.upcoming} {T.upcoming[lang]}
-          </p>
+            <ol className="space-y-3">
+              {today.map((j, i) => (
+                <VisitCard key={j.id} visit={j} n={i + 1} lang={lang} focus={active?.id === j.id} busy={busy} onAct={act} onPay={() => setPaying(j)} />
+              ))}
+            </ol>
+          </>
         )}
+        {tab === "schedule" && <ScheduleTab schedule={data} lang={lang} />}
+        {tab === "offers" && <OffersTab lang={lang} toast={setToast} onAnswered={load} />}
+        {tab === "money" && <MoneyTab lang={lang} />}
+        {tab === "me" && <MeTab lang={lang} langSwitch={<DarkLang lang={lang} set={setLang} />} onLogout={logout} />}
       </div>
 
       <div className="fixed bottom-0 inset-x-0 z-40 pointer-events-none">
-        <div className="max-w-md mx-auto flex items-end justify-between px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-          <button onClick={() => setSos("confirm")} className="pointer-events-auto w-16 h-16 rounded-full bg-red-600 text-white font-bold tracking-wider shadow-[0_10px_30px_-5px_rgba(220,38,38,0.6)] active:scale-95 transition-transform" aria-label="SOS">
-            SOS
-          </button>
-          {data?.ai && (
-            <button onClick={() => setCopilot(true)} className="pointer-events-auto h-14 pl-4 pr-5 rounded-full bg-[var(--brand)] text-black font-medium flex items-center gap-2 shadow-[0_10px_30px_-8px_rgba(0,0,0,0.6)] active:scale-95 transition-transform">
-              <Sparkles className="w-5 h-5" />
-              <span className={ur}>{T.copilot[lang]}</span>
+        <div className="max-w-md mx-auto">
+          <div className="flex items-end justify-between px-5 pb-3">
+            <button onClick={() => setSos("confirm")} className="pointer-events-auto w-14 h-14 rounded-full bg-red-600 text-white font-bold tracking-wider shadow-[0_10px_30px_-5px_rgba(220,38,38,0.6)] active:scale-95 transition-transform" aria-label="SOS">
+              SOS
             </button>
-          )}
+            {data?.ai && (
+              <button onClick={() => setCopilot(true)} className="pointer-events-auto h-12 pl-4 pr-5 rounded-full bg-[var(--brand)] text-black font-medium flex items-center gap-2 shadow-[0_10px_30px_-8px_rgba(0,0,0,0.6)] active:scale-95 transition-transform">
+                <Sparkles className="w-5 h-5" />
+                <span className={ur}>{T.copilot[lang]}</span>
+              </button>
+            )}
+          </div>
+          <nav aria-label="Pro app" className="pointer-events-auto grid grid-cols-5 bg-[#141414]/95 backdrop-blur border-t border-white/10 pb-[env(safe-area-inset-bottom)]">
+            {TABS.map((t) => (
+              <button key={t.id} onClick={() => setTab(t.id)} aria-current={tab === t.id ? "page" : undefined} className={cn("relative h-16 flex flex-col items-center justify-center gap-1 text-[11px]", tab === t.id ? "text-[var(--brand)]" : "text-white/55")}>
+                <t.icon className="w-5 h-5" />
+                <span className={cn("max-w-full px-1 whitespace-nowrap", lang === "ur" ? "font-urdu leading-tight" : "truncate")}>{t.label}</span>
+                {!!t.badge && <span className="absolute top-2 right-[calc(50%-1.25rem)] min-w-5 h-5 px-1 rounded-full bg-[var(--brand)] text-black text-[11px] font-bold flex items-center justify-center">{t.badge}</span>}
+              </button>
+            ))}
+          </nav>
         </div>
       </div>
 
       <AnimatePresence>
         {toast && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed z-[60] left-4 right-4 bottom-28 max-w-md mx-auto rounded-2xl bg-white text-black px-5 py-4 text-sm shadow-xl" role="status">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed z-[60] left-4 right-4 bottom-40 max-w-md mx-auto rounded-2xl bg-white text-black px-5 py-4 text-sm shadow-xl" role="status">
             {toast}
           </motion.div>
         )}
@@ -291,7 +357,7 @@ function Home({ lang, setLang, onLogout }: { lang: Lang; setLang: (l: Lang) => v
       <Sheet open={!!paying} onClose={() => setPaying(null)}>
         {paying && (
           <PaySheet
-            job={paying}
+            visit={paying}
             lang={lang}
             onDone={async (msg) => {
               setPaying(null)
@@ -320,7 +386,7 @@ function Brief({ lang }: { lang: Lang }) {
   const [text, setText] = useState("")
   const [state, setState] = useState<"idle" | "loading" | "playing">("idle")
   const cache = useRef<Record<string, string>>({})
-  const ur = lang === "ur" ? "font-urdu leading-[2]" : ""
+  const ur = urCls(lang)
   const play = async () => {
     if (state === "playing") {
       window.speechSynthesis?.cancel()
@@ -328,7 +394,7 @@ function Brief({ lang }: { lang: Lang }) {
     }
     setState("loading")
     try {
-      const t = cache.current[lang] ?? (await api<{ text: string }>("/api/pro/copilot", { brief: true, lang })).text
+      const t = cache.current[lang] ?? (await api<{ text: string }>("/api/v1/pro/copilot", { brief: true, lang })).text
       cache.current[lang] = t
       setText(t)
       if (speak(t, lang === "en" ? "en-PK" : "ur-PK")) {
@@ -359,294 +425,6 @@ function Brief({ lang }: { lang: Lang }) {
         <p dir="auto" className={cn("mt-4 text-[15px] leading-relaxed text-black/85", lang === "ur" && "font-urdu leading-[2.1]")}>
           {text}
         </p>
-      )}
-    </div>
-  )
-}
-
-function JobCard({ job: j, n, lang, focus, busy, onAct, onPay }: { job: ProJob; n: number; lang: Lang; focus: boolean; busy: string | null; onAct: (j: ProJob, a: string) => void; onPay: () => void }) {
-  const now = useNow(30000)
-  const ur = lang === "ur" ? "font-urdu leading-[2]" : ""
-  const done = j.status === "completed"
-  const place = [j.address, j.landmark && `near ${j.landmark}`, j.subArea, j.area, "Karachi"].filter(Boolean).join(", ")
-  const checkedIn = j.status === "checked_in"
-  const elapsed = checkedIn && j.checkedInAt ? Math.max(0, Math.round((now - new Date(j.checkedInAt).getTime()) / 60000)) : 0
-  return (
-    <motion.li layout className={cn("rounded-[28px] p-5 transition-colors", done ? "bg-white/[0.03] text-white/50" : focus ? "bg-white text-black" : "bg-white/[0.06]")}>
-      <div className="flex items-start gap-3">
-        <span className={cn("w-9 h-9 shrink-0 rounded-full flex items-center justify-center font-semibold text-sm", done ? "bg-emerald-500/20 text-emerald-300" : focus ? "bg-black text-[var(--brand)]" : "bg-[var(--brand)] text-black")}>{done ? <Check className="w-4 h-4" /> : n}</span>
-        <div className="flex-1 min-w-0">
-          <p className="flex items-center gap-2 text-sm opacity-70">
-            <Clock className="w-3.5 h-3.5" /> {j.window}
-            {j.eta && !done && <span>· ETA {j.eta}</span>}
-          </p>
-          <p className="text-lg font-semibold leading-snug mt-0.5">
-            {j.customer.name.split(" ")[0]} · {j.subArea ?? j.area}
-          </p>
-          <p className="text-sm opacity-70 mt-0.5 leading-snug">{place}</p>
-        </div>
-      </div>
-
-      {!done && (
-        <>
-          <ul className="mt-4 space-y-1 text-[15px]">
-            {j.items.map((i, k) => (
-              <li key={k} className="flex gap-2">
-                <ChevronRight className="w-4 h-4 mt-1 shrink-0 opacity-50" />
-                <span>
-                  {i.name}
-                  {i.options.length > 0 && <span className="opacity-60"> · {i.options.join(", ")}</span>}
-                  {i.addOns.length > 0 && <span className="opacity-60"> + {i.addOns.join(", ")}</span>}
-                  {i.qty > 1 && <span className="opacity-60"> ×{i.qty}</span>}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {j.event && (
-            <div className={cn("mt-4 rounded-2xl p-3.5 text-sm", focus ? "bg-[var(--brand-soft)]" : "bg-[var(--brand)]/15")}>
-              <p className="font-semibold">
-                {j.event.name} · photos at {to12h(j.event.readyBy)} · {j.event.track}
-              </p>
-              <ol className="mt-2 space-y-1">
-                {j.event.people.map((p, k) => (
-                  <li key={k} className="flex gap-2">
-                    <span className="font-mono text-xs opacity-70 mt-0.5 shrink-0">
-                      {to12h(p.start)}–{to12h(p.end)}
-                    </span>
-                    <span>
-                      {p.name}: <span className="opacity-70">{p.services.join(", ")}</span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-          {j.brief && <BriefCard brief={j.brief} photos={j.photos} focus={focus} />}
-          {(j.notes || j.lastNotes.length > 0) && (
-            <div className={cn("mt-4 rounded-2xl p-3.5 text-sm space-y-2", focus ? "bg-black/[0.05]" : "bg-white/[0.05]")}>
-              {j.notes && (
-                <p>
-                  <span className={cn("font-semibold", ur)}>{T.notes[lang]}: </span>
-                  {j.notes}
-                </p>
-              )}
-              {j.lastNotes.length > 0 && (
-                <div>
-                  <p className={cn("font-semibold", ur)}>{T.last[lang]}</p>
-                  {j.lastNotes.map((x, k) => (
-                    <p key={k} className="opacity-75">
-                      {x}
-                    </p>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          <p className="mt-4 flex items-center gap-2 text-sm">
-            <Wallet className="w-4 h-4 opacity-60" />
-            <span className="font-semibold">{formatPKR(j.total)}</span>
-            <span className="opacity-60">· {j.payment} after service</span>
-          </p>
-          {checkedIn && (
-            <div className="mt-4">
-              <div className="h-1.5 rounded-full bg-black/10 overflow-hidden">
-                <div className="h-full bg-[var(--brand)] transition-[width] duration-700" style={{ width: `${Math.min(100, (elapsed / j.minutes) * 100)}%` }} />
-              </div>
-              <p className="text-xs opacity-60 mt-1.5">
-                {elapsed} {T.of[lang]} ~{j.minutes} {T.min[lang]}
-              </p>
-            </div>
-          )}
-          <div className="mt-5 flex flex-wrap gap-2">
-            {j.status === "assigned" && (
-              <Btn variant={focus ? "dark" : "brand"} size="lg" className="flex-1" busy={busy === `${j.id}:en_route`} onClick={() => onAct(j, "en_route")}>
-                <Navigation className="w-5 h-5" />
-                <span className={ur}>{T.onWay[lang]}</span>
-              </Btn>
-            )}
-            {(j.status === "en_route" || j.status === "assigned") && (
-              <Btn variant={j.status === "en_route" ? "dark" : "light"} size="lg" className={cn("flex-1", j.status === "assigned" && "bg-white/10 text-white border-white/15")} busy={busy === `${j.id}:check_in`} onClick={() => onAct(j, "check_in")}>
-                <MapPin className="w-5 h-5" />
-                <span className={ur}>{T.checkIn[lang]}</span>
-              </Btn>
-            )}
-            {(j.status === "checked_in" || j.status === "checked_out") && (
-              <Btn variant="dark" size="lg" className="flex-1" onClick={onPay}>
-                <Wallet className="w-5 h-5" />
-                <span className={ur}>{T.finish[lang]}</span>
-              </Btn>
-            )}
-            <div className="flex gap-2 w-full">
-              <a href={mapsLink(place)} target="_blank" rel="noreferrer" className={cn("flex-1 h-11 rounded-full inline-flex items-center justify-center gap-2 text-sm font-medium", focus ? "bg-black/[0.06]" : "bg-white/10")}>
-                <MapPin className="w-4 h-4" /> {T.map[lang]}
-              </a>
-              <a href={`tel:${j.customer.phone}`} className={cn("flex-1 h-11 rounded-full inline-flex items-center justify-center gap-2 text-sm font-medium", focus ? "bg-black/[0.06]" : "bg-white/10")}>
-                <Phone className="w-4 h-4" /> {T.call[lang]}
-              </a>
-            </div>
-          </div>
-        </>
-      )}
-      {done && j.paid && (
-        <p className="mt-3 text-sm">
-          {T.done[lang]} · {formatPKR(j.paid.amount)} {j.paid.method}
-          {j.paid.status === "matched" && " · ✓"}
-          {["mismatch", "unreadable", "pending"].includes(j.paid.status) && " · ops checking"}
-        </p>
-      )}
-    </motion.li>
-  )
-}
-
-const METHODS = [
-  { id: "cash", label: "Cash" },
-  { id: "jazzcash", label: "JazzCash" },
-  { id: "easypaisa", label: "Easypaisa" },
-  { id: "raast", label: "Raast / Bank" },
-] as const
-
-function PaySheet({ job, lang, onDone }: { job: ProJob; lang: Lang; onDone: (msg: string) => void }) {
-  const initial = METHODS.find((m) => m.id === job.payment)?.id ?? "cash"
-  const [method, setMethod] = useState<(typeof METHODS)[number]["id"]>(initial)
-  const [amount, setAmount] = useState(String(job.total))
-  const [shot, setShot] = useState<string>()
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
-  const file = useRef<HTMLInputElement>(null)
-  const ur = lang === "ur" ? "font-urdu leading-[2]" : ""
-  const save = async () => {
-    setBusy(true)
-    setError("")
-    try {
-      const where = await locate(4000)
-      const r = await api<{ message: string }>("/api/pro/job", { action: "complete", jobId: job.id, ...where, payment: { method, amount: Number(amount) || 0, screenshot: method === "cash" ? undefined : shot } })
-      onDone(r.message)
-    } catch (e) {
-      setError((e as Error).message)
-      setBusy(false)
-    }
-  }
-  return (
-    <div>
-      <p className={cn("text-2xl font-semibold", ur)}>{T.pay[lang]}</p>
-      <p className="text-white/55 mt-1">
-        {T.total[lang]}: <span className="text-white font-semibold">{formatPKR(job.total)}</span>
-      </p>
-      <div className="grid grid-cols-2 gap-2 mt-5">
-        {METHODS.map((m) => (
-          <button key={m.id} onClick={() => setMethod(m.id)} aria-pressed={method === m.id} className={cn("h-14 rounded-2xl border text-[15px] font-medium transition-colors", method === m.id ? "bg-[var(--brand)] text-black border-transparent" : "border-white/15 text-white/80")}>
-            {m.label}
-          </button>
-        ))}
-      </div>
-      <label className="block mt-5">
-        <span className={cn("text-sm text-white/60", ur)}>{T.amount[lang]}</span>
-        <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} inputMode="numeric" className="mt-2 w-full h-14 rounded-2xl bg-white/[0.07] border border-white/10 px-5 text-[20px] outline-none focus:border-[var(--brand)]" />
-      </label>
-      {method !== "cash" && (
-        <div className="mt-5">
-          <input ref={file} type="file" accept="image/*" className="hidden" onChange={async (e) => e.target.files?.[0] && setShot(await shrink(e.target.files[0], 1100, 0.8))} />
-          <button onClick={() => file.current?.click()} className="w-full rounded-2xl border border-dashed border-white/25 p-4 flex items-center gap-4 text-left">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {shot ? <img src={shot} alt="Payment screenshot" className="w-14 h-20 object-cover rounded-lg" /> : <span className="w-14 h-14 rounded-xl bg-white/10 flex items-center justify-center"><Camera className="w-6 h-6" /></span>}
-            <span>
-              <span className={cn("block font-medium", ur)}>{T.shot[lang]}</span>
-              <span className={cn("block text-sm text-white/50", ur)}>{T.shotHint[lang]}</span>
-            </span>
-          </button>
-        </div>
-      )}
-      {error && <p className="text-sm text-red-300 mt-3">{error}</p>}
-      <Btn variant="brand" size="lg" className="w-full mt-6" busy={busy} disabled={method !== "cash" && !shot} onClick={save}>
-        <Check className="w-5 h-5" />
-        <span className={ur}>{T.saveFinish[lang]}</span>
-      </Btn>
-    </div>
-  )
-}
-
-function Sheet({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div className="fixed inset-0 z-[65] flex items-end justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-lenis-prevent>
-          <button aria-label="Close" className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-          <motion.div initial={{ y: 60 }} animate={{ y: 0 }} exit={{ y: 60 }} transition={{ type: "spring", damping: 28, stiffness: 320 }} className="relative w-full max-w-md max-h-[92svh] overflow-y-auto rounded-t-[32px] bg-[#161616] text-white px-6 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]" role="dialog">
-            <div className="w-10 h-1 rounded-full bg-white/20 mx-auto -mt-2 mb-5" />
-            {children}
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  )
-}
-
-/** Ghar Scan diagnosis or Look Card sent by the customer, with their photos and the parts checklist. */
-function BriefCard({ brief, photos, focus }: { brief: JobBrief; photos: string[]; focus: boolean }) {
-  const [open, setOpen] = useState<number | null>(null)
-  const [have, setHave] = useState<string[]>([])
-  return (
-    <div className={cn("mt-4 rounded-2xl p-3.5 text-sm", focus ? "bg-black/[0.05]" : "bg-white/[0.05]")}>
-      <p className="text-[11px] uppercase tracking-wider opacity-60">{brief.kind === "scan" ? "Ghar Scan brief from the customer" : "Look Card from the customer"}</p>
-      <p className="font-semibold mt-1" dir="auto">
-        {brief.title}
-      </p>
-      <p className="opacity-80 mt-1 leading-relaxed" dir="auto">
-        {brief.text}
-      </p>
-      {photos.length > 0 && (
-        <div className="flex gap-2 mt-3">
-          {photos.map((p, i) => (
-            <button key={i} onClick={() => setOpen(open === i ? null : i)} className="relative w-20 h-20 rounded-xl overflow-hidden shrink-0" aria-label={`Photo ${i + 1}`}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p} alt="" className="w-full h-full object-cover" />
-              {(brief.pins ?? [])
-                .filter((x) => x.photo === i)
-                .map((x, k) => (
-                  <span key={k} className="absolute w-3 h-3 -ml-1.5 -mt-1.5 rounded-full bg-[var(--brand)] ring-2 ring-black/50" style={{ left: `${x.x * 100}%`, top: `${x.y * 100}%` }} />
-                ))}
-            </button>
-          ))}
-        </div>
-      )}
-      {open !== null && photos[open] && (
-        <div className="relative mt-3 rounded-xl overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={photos[open]} alt="Customer photo" className="w-full" />
-          {(brief.pins ?? [])
-            .filter((x) => x.photo === open)
-            .map((x, k) => (
-              <span key={k} className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${x.x * 100}%`, top: `${x.y * 100}%` }}>
-                <span className="w-6 h-6 rounded-full bg-[var(--brand)] text-black text-xs font-bold flex items-center justify-center ring-2 ring-black/50">{k + 1}</span>
-                <span className="mt-1 rounded-full bg-black/80 text-white text-[11px] px-2 py-0.5 whitespace-nowrap">{x.label}</span>
-              </span>
-            ))}
-        </div>
-      )}
-      {(brief.causes?.length ?? 0) > 0 && (
-        <div className="mt-3">
-          <p className="font-semibold text-xs opacity-70">Likely causes</p>
-          <ol className="list-decimal pl-5 mt-1 space-y-0.5" dir="auto">
-            {brief.causes!.map((c) => (
-              <li key={c}>{c}</li>
-            ))}
-          </ol>
-        </div>
-      )}
-      {(brief.parts?.length ?? 0) > 0 && (
-        <div className="mt-3">
-          <p className="font-semibold text-xs opacity-70">Parts to carry</p>
-          <ul className="mt-1.5 space-y-1.5">
-            {brief.parts!.map((p) => (
-              <li key={p}>
-                <label className="flex items-center gap-2.5">
-                  <input type="checkbox" checked={have.includes(p)} onChange={() => setHave((h) => (h.includes(p) ? h.filter((x) => x !== p) : [...h, p]))} className="w-5 h-5 accent-[var(--brand)]" />
-                  <span className={cn(have.includes(p) && "line-through opacity-60")}>{p}</span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </div>
       )}
     </div>
   )

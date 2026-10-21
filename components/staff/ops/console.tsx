@@ -25,12 +25,15 @@ import { AuditTab } from "./audit"
 
 export type OpsJob = Job & { safety: SafetyStatus }
 export type OpsPro = Omit<Pro, "pinHash"> & { hasPin: boolean }
+export type OpsOffer = { id: string; jobId: string; proId: string; expiresAt: string }
 export type OpsData = {
   today: string
   date: string
   jobs: OpsJob[]
   alerts: OpsJob[]
   sos: { id: string; proId: string; at: string; lat?: number; lng?: number }[]
+  /** Visits offered to a pro and waiting for her answer (the pro app). */
+  offers: OpsOffer[]
   pros: OpsPro[]
   stats: { jobs: number; unassigned: number; live: number; done: number; revenue: number; perProDay: number; unreconciled: number; openComplaints: number; weddingsPending: number }
   days: { date: string; count: number }[]

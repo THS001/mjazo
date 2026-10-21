@@ -23,7 +23,15 @@ const body = z.discriminatedUnion("action", [
     women: z.boolean(),
     pin,
   }),
-  z.object({ action: z.literal("update"), id: z.string(), status: z.enum(["active", "paused"]).optional(), skills: z.array(z.string()).optional(), area: z.string().optional(), women: z.boolean().optional() }),
+  z.object({
+    action: z.literal("update"),
+    id: z.string(),
+    status: z.enum(["active", "paused"]).optional(),
+    skills: z.array(z.string()).optional(),
+    area: z.string().optional(),
+    women: z.boolean().optional(),
+    email: z.union([z.string().trim().toLowerCase().email("Enter a valid email").max(200), z.literal("")]).optional(),
+  }),
   z.object({ action: z.literal("pin"), id: z.string(), pin }),
   z.object({
     action: z.literal("profile"),
@@ -91,9 +99,14 @@ export async function POST(req: Request) {
       if (b.skills) pro.skills = b.skills
       if (b.area) pro.area = b.area
       if (b.women !== undefined) pro.women = b.women
+      if (b.email !== undefined) {
+        if (b.email && (await getPros()).some((p) => p.id !== pro.id && p.email?.toLowerCase() === b.email)) throw new OpsError("Another pro already uses that email")
+        if (b.email) pro.email = b.email
+        else delete pro.email
+      }
     }
     await savePro(pro)
-    await audit(me.email, b.action === "pin" ? "reset pro PIN" : "updated pro", pro.id, b.action === "update" ? JSON.stringify({ status: b.status, area: b.area }) : "")
+    await audit(me.email, b.action === "pin" ? "reset pro PIN" : "updated pro", pro.id, b.action === "update" ? JSON.stringify({ status: b.status, area: b.area, email: b.email }) : "")
     return { pro: publicPro(pro) }
   })
 }

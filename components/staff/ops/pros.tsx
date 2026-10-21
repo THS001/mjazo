@@ -192,6 +192,7 @@ function ProProfile({ pro, reload }: { pro: OpsPro; reload: () => void }) {
   const [avail, setAvail] = useState<Record<string, string[]> | null>(pro.availability ?? null)
   const [off, setOff] = useState("")
   const [last4, setLast4] = useState("")
+  const [email, setEmail] = useState(pro.email ?? "")
   const [busy, setBusy] = useState("")
   const [msg, setMsg] = useState<{ tone: "ok" | "error"; text: string } | null>(null)
   const post = async (key: string, body: Record<string, unknown>, ok?: string) => {
@@ -251,6 +252,21 @@ function ProProfile({ pro, reload }: { pro: OpsPro; reload: () => void }) {
             )
           })}
         </ul>
+      </div>
+
+      <div>
+        <p className="font-medium">Pro app sign-in</p>
+        <p className="text-xs text-zinc-500">
+          Phone number and PIN{pro.hasPin ? "" : " (no PIN set yet)"}. With her email here she can also sign in with an emailed link.
+        </p>
+        {can("ops.pros") && (
+          <div className="flex gap-2 mt-2">
+            <input type="email" className={cn(inputCls, "h-9 max-w-xs")} placeholder="Her email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Pro's email" />
+            <Btn size="sm" variant="light" disabled={email.trim().toLowerCase() === (pro.email ?? "")} busy={busy === "email"} onClick={() => post("email", { action: "update", email: email.trim() }, email.trim() ? "Saved. She can sign in with an emailed link too." : "Email removed.")}>
+              Save
+            </Btn>
+          </div>
+        )}
       </div>
 
       <div className="space-y-3">

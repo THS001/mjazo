@@ -62,6 +62,20 @@ export async function setProProfile(db: Db, proId: string, p: ProProfilePatch, a
   })
 }
 
+/**
+ * The pro behind an email sign-in (a Supabase account): the one linked to that account, or else the
+ * one with that email, which is then linked to it. Null when no pro has that email.
+ */
+export async function proForSignIn(db: Db, a: { userId: string; email: string }): Promise<string | null> {
+  const linked = await db.one<{ id: string }>("select id from pros where auth_user_id = $1", [a.userId])
+  if (linked) return linked.id
+  const byEmail = await db.one<{ id: string; auth_user_id: string | null }>("select id, auth_user_id from pros where lower(email) = lower($1)", [a.email.trim()])
+  if (!byEmail) return null
+  // An email moved to another pro keeps pointing at the pro who now has it.
+  if (byEmail.auth_user_id !== a.userId) await db.query("update pros set auth_user_id = $2, updated_at = now() where id = $1", [byEmail.id, a.userId])
+  return byEmail.id
+}
+
 /** Digits that look like a CNIC (13 digits, with or without dashes) or any long number. */
 const LONG_NUMBER = /\d[\d\s-]{7,}\d/
 

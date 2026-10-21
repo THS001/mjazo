@@ -428,6 +428,7 @@ type ProRow = {
   id: string
   name: string
   phone: string
+  email: string | null
   home_zone: string
   zones: string[] | null
   skills: string[]
@@ -443,6 +444,7 @@ type ProRow = {
 
 const toPro = (r: ProRow): Pro => {
   const p: Pro = { id: r.id, name: r.name, phone: r.phone, area: r.home_zone, skills: r.skills ?? [], women: r.women, status: r.status === "active" ? "active" : "paused", createdAt: r.created_at }
+  if (r.email) p.email = r.email
   if (r.pin_hash) p.pinHash = r.pin_hash
   if (r.application_id) p.applicationId = r.application_id
   if (r.zones?.length) p.zones = r.zones
@@ -474,13 +476,14 @@ export async function getProRow(db: Db, id: string) {
   return r ? (await withSchedule(db, [toPro(r)]))[0] : null
 }
 
-/** Creates or updates a pro (the fields the Pro type carries). */
+/** Creates or updates a pro (the fields the Pro type carries). A changed email unlinks her email sign-in. */
 export async function savePro(db: Db, p: Pro) {
   await db.query(
-    `insert into pros (id, name, phone, home_zone, skills, women, status, pin_hash, application_id, created_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-     on conflict (id) do update set name = excluded.name, phone = excluded.phone, home_zone = excluded.home_zone, skills = excluded.skills,
+    `insert into pros (id, name, phone, email, home_zone, skills, women, status, pin_hash, application_id, created_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     on conflict (id) do update set name = excluded.name, phone = excluded.phone, email = excluded.email,
+       auth_user_id = case when pros.email is distinct from excluded.email then null else pros.auth_user_id end, home_zone = excluded.home_zone, skills = excluded.skills,
        women = excluded.women, status = excluded.status, pin_hash = excluded.pin_hash, application_id = excluded.application_id, updated_at = now()`,
-    [p.id, p.name, normalisePhone(p.phone), p.area, p.skills, p.women, p.status, p.pinHash ?? null, p.applicationId ?? null, p.createdAt],
+    [p.id, p.name, normalisePhone(p.phone), p.email?.trim().toLowerCase() || null, p.area, p.skills, p.women, p.status, p.pinHash ?? null, p.applicationId ?? null, p.createdAt],
   )
 }

@@ -56,7 +56,7 @@ export function ProCopilot({ open, onClose, lang }: { open: boolean; onClose: ()
     setBusy(true)
     setError("")
     try {
-      const { reply } = await api<{ reply: string }>("/api/pro/copilot", { messages: next })
+      const { reply } = await api<{ reply: string }>("/api/v1/pro/copilot", { messages: next })
       setMsgs((m) => [...m, { role: "assistant", text: reply }])
     } catch (e) {
       setError((e as Error).message)

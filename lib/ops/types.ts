@@ -58,6 +58,7 @@ export type Pro = {
   id: string
   name: string
   phone: string
+  email?: string // optional: lets her sign in to the pro app with an emailed link
   area: string
   skills: string[] // category slugs the pro can serve
   women: boolean

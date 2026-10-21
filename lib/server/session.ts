@@ -2,13 +2,18 @@ import "server-only"
 import crypto from "crypto"
 import { cookies } from "next/headers"
 
-// Pro app sessions: an HMAC-signed cookie (SESSION_SECRET). Pros log in with phone + PIN
-// (scrypt-hashed, set by ops). Without SESSION_SECRET in production the pro app stays switched
-// off; locally a fixed development secret is used. Staff (mission control and the CMS) sign in
-// with their own email instead: lib/server/staff.ts.
+// Pro app sessions: an HMAC-signed session (SESSION_SECRET), kept in a cookie by the web app and
+// sent as a bearer token by the phone app (lib/server/pro-auth.ts). Pros log in with phone + PIN
+// (scrypt-hashed, set by ops) or an emailed link. Without SESSION_SECRET in production the pro app
+// stays switched off; locally a fixed development secret is used. Staff (mission control and the
+// CMS) sign in with their own email instead: lib/server/staff.ts.
 
 const COOKIE = "mjz_staff"
-export type Session = { role: "pro"; proId: string; exp: number }
+/** `pv`: a fingerprint of her PIN when the session began, so resetting the PIN ends every session. */
+export type Session = { role: "pro"; proId: string; exp: number; pv: string }
+
+/** The phone app's tokens start with this, so they can't be mistaken for a Supabase access token. */
+export const TOKEN_PREFIX = "mjp."
 
 const DEV_SECRET = "local-dev-session-secret-not-for-production"
 const secret = () => process.env.SESSION_SECRET || (process.env.NODE_ENV !== "production" ? DEV_SECRET : "")
@@ -26,40 +31,45 @@ export function safeEqual(a: string, b: string) {
   return x.length === y.length && crypto.timingSafeEqual(x, y)
 }
 
-export async function setSession(s: { role: "pro"; proId: string }, maxAgeSec: number) {
-  const payload = Buffer.from(JSON.stringify({ ...s, exp: Date.now() + maxAgeSec * 1000 })).toString("base64url")
-  const jar = await cookies()
-  jar.set(COOKIE, `${payload}.${sig(payload)}`, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: maxAgeSec })
+export const pinVersion = (pinHash?: string | null) => crypto.createHash("sha256").update(pinHash ?? "").digest("base64url").slice(0, 12)
+
+/** A signed session: the cookie's value, and (with TOKEN_PREFIX) the phone app's bearer token. */
+export function signSession(s: Omit<Session, "exp">, maxAgeSec: number) {
+  const exp = Date.now() + maxAgeSec * 1000
+  const payload = Buffer.from(JSON.stringify({ ...s, exp })).toString("base64url")
+  return { value: `${payload}.${sig(payload)}`, exp }
+}
+
+/** The session in a signed value, or null when it's missing, forged, expired or from before `pv` existed. */
+export function readSession(raw: string | null | undefined): Session | null {
+  if (!raw || !proEnabled()) return null
+  const [payload, mac, extra] = raw.split(".")
+  if (!payload || !mac || extra !== undefined || !safeEqual(mac, sig(payload))) return null
+  try {
+    const s = JSON.parse(Buffer.from(payload, "base64url").toString()) as Session
+    return s.role === "pro" && typeof s.proId === "string" && typeof s.pv === "string" && s.exp > Date.now() ? s : null
+  } catch {
+    return null
+  }
+}
+
+export async function setSession(value: string, maxAgeSec: number) {
+  ;(await cookies()).set(COOKIE, value, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: maxAgeSec })
 }
 
 export async function clearSession() {
   ;(await cookies()).delete(COOKIE)
 }
 
+/** The web app's session (its cookie), checked only for its signature and expiry. */
 export async function getSession(): Promise<Session | null> {
-  if (!proEnabled()) return null
-  const raw = (await cookies()).get(COOKIE)?.value
-  if (!raw) return null
-  const [payload, mac] = raw.split(".")
-  if (!payload || !mac || !safeEqual(mac, sig(payload))) return null
-  try {
-    const s = JSON.parse(Buffer.from(payload, "base64url").toString()) as Session
-    return s.exp > Date.now() && s.role === "pro" ? s : null
-  } catch {
-    return null
-  }
+  return readSession((await cookies()).get(COOKIE)?.value)
 }
 
 /** Not signed in (the console or app shows its sign-in screen). */
 export class AuthError extends Error {}
 /** Signed in, but not allowed to do this. */
 export class ForbiddenError extends Error {}
-
-export async function requirePro() {
-  const s = await getSession()
-  if (!s) throw new AuthError("pro")
-  return s
-}
 
 export function hashPin(pin: string) {
   const salt = crypto.randomBytes(16).toString("hex")

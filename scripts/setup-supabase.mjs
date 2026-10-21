@@ -16,6 +16,9 @@
 // Step 3, core engine: runs any new migrations (bookings, the money ledger, …) and stores the
 // database address the site uses for them (DATABASE_URL, Supabase's transaction pooler) in Vercel.
 //
+// Step 4, the pro app (/pro): makes its sign-in secret (SESSION_SECRET) on this computer and
+// stores it in Vercel as a Secret, the first time only. --migrate offers it too.
+//
 // Afterwards: redeploy, so the site picks the settings up.
 
 import { readdirSync, readFileSync } from "node:fs"
@@ -273,6 +276,18 @@ async function setupCore(exists) {
 }
 
 // ---------------------------------------------------------------------------
+// Step 4: the pro app (SESSION_SECRET)
+// ---------------------------------------------------------------------------
+
+async function setupProApp(exists) {
+  if (exists) return false
+  if (!(await yes("\nSwitch on the pro app (/pro)? It makes the app's sign-in secret (SESSION_SECRET) and stores it in Vercel.", true))) return false
+  // Signs pros' sessions. Changing it later signs every pro out, so it's only made once.
+  addToVercel("SESSION_SECRET", randomBytes(32).toString("base64url"), true)
+  return true
+}
+
+// ---------------------------------------------------------------------------
 
 say("Mjazo setup")
 say(`Site: ${SITE} · Supabase: ${SUPABASE_URL}`)
@@ -288,6 +303,7 @@ const migrateOnly = process.argv.includes("--migrate")
 let changed = false
 if (migrateOnly) {
   changed = await setupCore(has("DATABASE_URL"))
+  changed = (await setupProApp(has("SESSION_SECRET"))) || changed
   say(changed ? "\nDone. Tell Claude it worked: it redeploys the site so the new settings take effect." : "\nNothing changed.")
   process.exit(0)
 }
@@ -299,5 +315,6 @@ if (!cronOnly) {
 }
 if (cronOnly || (await yes("\nSet up scheduled publishing and the other background jobs (CRON_SECRET)?", true))) changed = (await setupCron(has("CRON_SECRET"))) || changed
 if (!cronOnly && (await yes("\nConnect the core engine (bookings, pros, the money ledger)?", true))) changed = (await setupCore(has("DATABASE_URL"))) || changed
+if (!cronOnly) changed = (await setupProApp(has("SESSION_SECRET"))) || changed
 
 say(changed ? "\nDone. Tell Claude it worked: it redeploys the site so the new settings take effect." : "\nNothing changed.")

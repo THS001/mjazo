@@ -9,7 +9,8 @@ import type { Job, Pro } from "@/lib/ops/types"
 import { WINDOW_LABELS } from "@/lib/time"
 import { cn } from "@/lib/utils"
 import { api, Badge, Btn, clock, pkr, STATUS, waTo } from "../kit"
-import type { OpsPro } from "./console"
+import type { OpsOffer, OpsPro } from "./console"
+import { OfferLine, ProPicker } from "./live"
 import { inputCls, useOps } from "./context"
 
 // The booking page: everything about one booking (timeline, items, payments and the ledger,
@@ -24,6 +25,7 @@ type Detail = {
   ledger: Entry[]
   requests: MoneyRequest[]
   customer: { id: string; owes: number; credit: number; visits: number } | null
+  offer: OpsOffer | null
   pros?: OpsPro[]
 }
 
@@ -175,7 +177,14 @@ function Body({ d, pros, act, refresh }: { d: Detail; pros: OpsPro[]; act: Act; 
         )}
         {can("ops.dispatch") && (
           <div className="mt-4 flex flex-wrap gap-2">
-            {notStarted && <AssignSelect job={j} pros={pros} busy={busy === "assign"} onPick={(proId) => run("assign", () => api("/api/ops/jobs", { action: "assign", jobId: j.id, proId }).then(refresh))} />}
+            {notStarted && (
+              <AssignSelect
+                job={j}
+                pros={pros}
+                busy={busy === "assign" || busy === "offer"}
+                onPick={(action, proId) => run(action, () => api("/api/ops/jobs", { action, jobId: j.id, proId }).then(refresh), action === "offer" ? "Offered. She answers in the pro app." : undefined)}
+              />
+            )}
             {j.status === "checked_in" && (
               <Btn size="sm" variant="light" busy={busy === "checked_out"} onClick={() => event("checked_out", "Checked out by ops")}>
                 Check out
@@ -193,6 +202,7 @@ function Body({ d, pros, act, refresh }: { d: Detail; pros: OpsPro[]; act: Act; 
             )}
           </div>
         )}
+        {d.offer && <OfferLine offer={d.offer} pros={pros} busy={busy === "withdraw"} canWithdraw={can("ops.dispatch")} onWithdraw={() => run("withdraw", () => api("/api/ops/jobs", { action: "withdraw_offer", jobId: j.id }).then(refresh), "Offer withdrawn")} />}
       </Card>
 
       <Card title="Services">
@@ -289,23 +299,13 @@ function Body({ d, pros, act, refresh }: { d: Detail; pros: OpsPro[]; act: Act; 
   )
 }
 
-function AssignSelect({ job, pros, busy, onPick }: { job: Job; pros: OpsPro[]; busy: boolean; onPick: (proId: string | null) => void }) {
+function AssignSelect({ job, pros, busy, onPick }: { job: Job; pros: OpsPro[]; busy: boolean; onPick: (action: "assign" | "offer", proId: string | null) => void }) {
   const cat = useCatalog()
-  const options = pros
+  const fits = pros
     .filter((p) => p.status === "active")
-    .map((p) => ({ p, why: !eligible(p as Pro, job, cat) ? "skills don't match" : unavailableReason(p as Pro, job) }))
+    .map((p) => ({ p, why: (!eligible(p as Pro, job, cat) ? "skills don't match" : unavailableReason(p as Pro, job)) ?? "" }))
     .sort((a, b) => Number(Boolean(a.why)) - Number(Boolean(b.why)))
-  return (
-    <select value={job.proId ?? ""} disabled={busy} onChange={(e) => onPick(e.target.value || null)} aria-label="Assign pro" className="h-9 rounded-full border border-black/15 bg-white px-3 text-sm max-w-[16rem]">
-      <option value="">{job.proId ? "Unassign" : "Assign a pro…"}</option>
-      {options.map(({ p, why }) => (
-        <option key={p.id} value={p.id}>
-          {p.name}
-          {why ? ` (${why})` : ""}
-        </option>
-      ))}
-    </select>
-  )
+  return <ProPicker job={job} pro={pros.find((p) => p.id === job.proId)} fits={fits} disabled={busy} onPick={onPick} className="h-9 flex-none rounded-full border-black/15 bg-white max-w-[18rem]" />
 }
 
 function MoneyRequests({ d, act }: { d: Detail; act: Act }) {

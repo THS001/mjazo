@@ -9,6 +9,7 @@ import { core, type Db } from "@/lib/core/db"
 import * as cj from "@/lib/core/jobs"
 import { allProBalances, bookingEntries, bookingPaid, customerBalances, earnedSince, trialBalance } from "@/lib/core/ledger"
 import * as money from "@/lib/core/money"
+import * as offers from "@/lib/core/offers"
 import * as promos from "@/lib/core/promos"
 import * as cpros from "@/lib/core/pros"
 import * as creq from "@/lib/core/requests"
@@ -219,6 +220,7 @@ export async function addJobEvent(jobId: string, type: JobEventType, by: JobEven
   // Brief photos are for the visit only: delete them once it is over.
   const next = STATUS_FOR[type]
   if (next && FINAL.includes(next)) await remove("attachments", job.id).catch((e) => console.error("[ops] attachment cleanup failed", e))
+  if (type === "cancelled") await withdrawOffers(job.id, extra.actor ?? by, "The visit was cancelled")
   if (type === "sos") await notifyOps(`[Mjazo SAFETY] SOS on ${job.id}`, `SOS raised by the pro on booking ${job.id} at ${job.address}, ${job.subArea ?? ""} ${job.area}.\nLocation: ${extra.lat ?? "?"}, ${extra.lng ?? "?"}\nCall the pro now.`)
   return job
 }
@@ -284,7 +286,7 @@ export const publicPro = ({ pinHash, ...p }: Pro) => ({ ...p, hasPin: Boolean(pi
 /** `actor`: the staff email recorded on the assignment (Route Brain passes the person who applied its plan). */
 export async function assignJob(jobId: string, proId: string | null, plan: { eta?: string; routeOrder?: number } = {}, actor?: string) {
   if (proId && !(await getPro(proId))) throw new OpsError("Pro not found")
-  return updateJob(jobId, (job) => {
+  const job = await updateJob(jobId, (job) => {
     if (!["new", "assigned", "en_route", "cancelled", "no_show"].includes(job.status)) throw new OpsError("This job is already under way")
     if (proId === null) {
       delete job.proId
@@ -298,6 +300,8 @@ export async function assignJob(jobId: string, proId: string | null, plan: { eta
       if (changed) job.events.push({ type: "assigned", at: nowIso(), by: "ops", actor, note: proId })
     }
   })
+  if (proId) await withdrawOffers(jobId, actor ?? "ops", "Assigned directly by ops")
+  return job
 }
 
 /** Create the pipeline entry (with its interview link token) as soon as someone applies. */
@@ -357,7 +361,7 @@ export async function bookingDetail(id: string) {
   const job = await getJob(id)
   if (!job) throw new OpsError("Booking not found")
   const db = await opsDb()
-  if (!db) return { job, money: null, ledger: [], requests: [], customer: null }
+  if (!db) return { job, money: null, ledger: [], requests: [], customer: null, offer: null }
   const row = await db.one<{ customer_id: string | null; subtotal: number; discount: number; promo_code: string | null; client_total: number | null }>("select customer_id, subtotal, discount, promo_code, client_total from bookings where id = $1", [id])
   const ledger = await bookingEntries(db, id)
   const requests = await money.listMoneyRequests(db, { bookingId: id })
@@ -368,7 +372,9 @@ export async function bookingDetail(id: string) {
     const visits = (await db.one<{ n: number }>("select count(*)::int as n from bookings where customer_id = $1 and status = 'completed'", [row.customer_id]))!.n
     customer = { id: row.customer_id, ...bal, visits }
   }
-  return { job, money: { subtotal: row?.subtotal ?? job.total, discount: row?.discount ?? 0, promo: row?.promo_code ?? null, ...paid }, ledger, requests, customer }
+  const open = (await offers.listOffers(db, { bookingIds: [id], status: "pending" }))[0]
+  const offer = open ? { id: open.id, jobId: id, proId: open.proId, expiresAt: open.expiresAt } : null
+  return { job, money: { subtotal: row?.subtotal ?? job.total, discount: row?.discount ?? 0, promo: row?.promo_code ?? null, ...paid }, ledger, requests, customer, offer }
 }
 
 export const addBookingNote = (id: string, note: string, actor: string) => addJobEvent(id, "note", "ops", { note, actor })
@@ -405,7 +411,26 @@ export async function rescheduleJob(id: string, to: { date: string; window: stri
     const why = opts.reason?.trim() ? `: ${opts.reason.trim().slice(0, 200)}` : ""
     j.events.push({ type: "rescheduled", at: nowIso(), by: "ops", actor, note: `From ${from} to ${to.date}, ${to.window}${why}${hadPro ? ` (${hadPro} taken off it)` : ""}${opts.force ? " (booked over capacity)" : ""}` })
   })
+  await withdrawOffers(id, actor, "The visit was moved")
   return { job, full: false }
+}
+
+// Job offers (the pro app) -------------------------------------------------------
+
+export const offerJob = async (o: { bookingId: string; proId: string; by: string }) => offers.offerJob(await needCore(), o)
+export const answerOffer = async (a: Parameters<typeof offers.answerOffer>[1]) => offers.answerOffer(await needCore(), a)
+export const listOffers = async (f: Parameters<typeof offers.listOffers>[1]) => offers.listOffers(await needCore(), f)
+
+/** Withdraws a visit's open offer, if there is one (nothing to do without the core). */
+export async function withdrawOffers(bookingId: string, by: string, reason?: string) {
+  const db = await opsDb()
+  return db ? offers.withdrawOffers(db, bookingId, by, reason) : 0
+}
+
+/** Open offers by booking, for the board and the booking page (none without the core). */
+export async function openOffers(bookingIds?: string[]) {
+  const db = await opsDb()
+  return db ? offers.listOffers(db, { status: "pending", bookingIds }) : []
 }
 
 // Money ----------------------------------------------------------------------

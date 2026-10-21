@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 21 October 2026 (platform stage 2: mission control, live)._
+_Last updated 21 October 2026 (platform stage 3: the pro app, built and checked locally, not yet deployed)._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -33,7 +33,8 @@ accounts, and what's left.
 | Supabase (database and file storage) | **Connected (5 Oct 2026).** CMS content, media, bookings and staff data are now stored durably |
 | **Platform stage 1: core engine** (bookings, pros, money ledger, slot capacity) | **Live 21 Oct 2026**: migration 0005 run on Supabase, `DATABASE_URL` set, deployed and checked |
 | **Platform stage 2: mission control** (staff accounts and roles, booking page, money approvals, payout runs, promo codes, KPIs, audit log) | **Live 21 Oct 2026** (section 3c): migration 0006 run on Supabase, deployed and checked. Next: give the team their roles in `/admin/people` |
-| Platform stages 3–6 (pro app, client account, automation, mobile apps) | Planned, in order (section 9) |
+| **Platform stage 3: the pro app** (versioned `/api/v1/pro` API, job offers, schedule, earnings from the ledger, payouts, ratings, availability, email sign-in) | **Built and checked locally 21 Oct 2026** (section 3d). Not deployed: needs migration 0007 and `SESSION_SECRET` (`--migrate` does both) and the owner's OK |
+| Platform stages 4–6 (client account, automation, mobile apps) | Planned, in order (section 9) |
 
 ---
 
@@ -54,6 +55,7 @@ accounts, and what's left.
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 | 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
+| 21 Oct 2026 | **Stage 3, the pro app, built:** the `/api/v1/pro` API the phone app will use, job offers pros accept or decline, a week's schedule, earnings and payouts from the ledger, ratings, pros setting their own availability, and email sign-in next to phone + PIN. `/pro` rebuilt on it. Not deployed yet |
 | 21 Oct 2026 | **Stage 1 live** (migration 0005 run, `DATABASE_URL` set, deployed). **Stage 2, mission control, built:** per-person staff sign-in with Dispatcher, Support, Finance and Recruiter roles, every action in an audit log, money moves approved by a second person, payout runs, promo codes and KPIs. Migration 0006 run and **deployed the same day** |
 | 19 Oct 2026 | **Interface text phase 2:** the text inside Ghar Scan, Home Pulse, Glam Mirror, the Shaadi Orchestrator, the Concierge, account screens, offers, ratings, the hero phone and the pro pages is editable in `/admin`, with hand-written Urdu. The AI tools answer in Urdu on `/ur` |
 
@@ -191,6 +193,47 @@ changes are in `supabase/migrations/0006_mission_control.sql` (safe to run again
   - Support asks for a PKR 500 credit (the server refuses Support's own approval); Finance approves it; the ledger posts goodwill against the customer's credit and still balances.
   - The audit log shows each step with the person's email; the KPIs read the live data.
 - **Checked live after the deploy:** `/ops` asks for a Mjazo email; the local test sign-in is refused (404); every `/api/ops` screen answers 401 when signed out; slot capacity reads the core database through the new `DATABASE_URL`.
+
+## 3d. The pro app (platform stage 3)
+
+Built on 21 October 2026; **checked locally, not deployed yet.** Schema change:
+`supabase/migrations/0007_pro_app.sql` (job offers).
+
+- **One API for the web and the phone app:** `/api/v1/pro/*`. The Expo app (stage 6) uses it unchanged. Every route is in `app/api/v1/pro/`; the logic is in `lib/server/pro-api.ts`.
+
+  | Route | What it does |
+  |---|---|
+  | `POST/DELETE session` | Sign in with phone + PIN: a token for the phone app, and the same session as a cookie for the web. `DELETE` signs the web app out |
+  | `POST session/email` | Email sign-in, step 1 (then Supabase emails the link) |
+  | `GET me` | Her profile: areas, skills, verification, rating |
+  | `GET jobs?days=7` | Her visits from today, by day, with today's safety prompts, her week's earnings and how many offers are waiting |
+  | `POST jobs/{id}` | On my way, check in, I'm safe, check out, a note for next time, or finish with the payment (cash, or a screenshot that AI reads) |
+  | `GET offers`, `POST offers/{id}` | Offers waiting for her, and accept or decline (with a reason) |
+  | `GET earnings` | What Mjazo owes her, the cash she holds, the next payout, this week and the last 30 days, her ledger statement and her payouts |
+  | `GET ratings` | Average, the spread of stars, and recent ratings (no customer names) |
+  | `GET/PUT availability` | Her weekly windows and days off |
+  | `POST sos`, `POST copilot` | SOS (on a visit or between visits) and the AI Copilot |
+
+- **Sign-in** (`lib/server/pro-auth.ts`): phone + PIN, kept as planned, plus an optional emailed link for pros whose email ops have saved in mission control.
+  - The phone app sends `Authorization: Bearer mjp.…` (the PIN token) or its Supabase access token. The web app keeps the same signed session in a cookie.
+  - Every request reads the pro again: **resetting her PIN ends every PIN session**, and a paused pro is refused.
+  - A pro's Supabase account gives no access to `/admin` or `/ops` (that needs a `cms_users` role).
+- **Job offers** (`lib/core/offers.ts`). On the board or the booking page, the "Assign or offer…" menu can offer an unassigned visit to one pro.
+  - She sees the area, services, time and what she'd earn, **but not the customer's name, phone or address until she accepts**.
+  - Accepting assigns the visit to her. Declining leaves it unassigned with her reason on the timeline.
+  - An offer closes after 2 hours, or 1 hour before the arrival window. Ops can withdraw it, and assigning directly, rescheduling or cancelling withdraws it too.
+  - She can't take a visit on her day off, in a window where she already has a visit, or beyond her daily cap.
+- **Availability:** she sets her own weekly windows and days off. A day off on a day she already has visits is refused ("ask ops"). Changes go to the audit log and the outbox.
+- **`/pro` rebuilt on the API**, in English, Urdu and Roman Urdu, with five tabs: Today, Schedule (7 days), Offers (with a badge), Earnings and Profile (rating, availability, language). The old `/api/pro/*` routes are gone.
+- **Copilot** can now only save notes on her own visits.
+- **Tests:** 353 in total (up from 326). New: job offers on the database (13), and the API through its real routes (11: sign-in by PIN and Supabase token, PIN reset and pause, one pro never reaching another's visits or offers, an offer hiding who the customer is, a whole visit from offer to the ledger, availability, SOS).
+- **Checked in the browser** (dev server, phone size):
+  - A Dispatcher offered a visit to Sana from the board, which showed "Offered to Test Pro Sana · waiting until 9:39 am".
+  - In `/pro` she saw the offer badge and the offer: PKR 3,375 to earn, no customer details. She accepted.
+  - The visit appeared on Today with the customer's name and address. She ran it through: on the way, check in, finish with PKR 4,500 cash.
+  - Earnings then showed Mjazo owes PKR 3,375 and she holds PKR 4,500, so she hands in PKR 1,125.
+  - She edited her weekly windows. Urdu checked.
+  - The booking's timeline, audit log and ledger in mission control recorded each step.
 
 ## 4. Brand kit
 
@@ -340,6 +383,7 @@ Project `xjyafabyscamelebzrsb` (https://xjyafabyscamelebzrsb.supabase.co), set u
 | `0004_cms.sql` | `cms_entries`, `cms_versions`, `cms_users`, `cms_media`, `cms_redirects`, `cms_seo_reports`, `cms_audit`, plus the `media` storage bucket |
 | `0005_core.sql` | The core engine: customers, addresses, zones, pros (+ availability, time off), bookings (+ lines, events, payments, ratings), the ledger (accounts, entries, postings), payouts, promo codes, events, notifications, audit log, core_meta. Run on the live database on 21 Oct 2026 |
 | `0006_mission_control.sql` | Mission control: the operations roles on `cms_users`, `money_requests` (refunds and credits waiting for approval), `payout_runs` (+ new payout columns), `ops_requests` (the requests inbox's status), who changed each promo code. Run on the live database on 21 Oct 2026 |
+| `0007_pro_app.sql` | The pro app: `job_offers` (one open offer per visit), and pros found by email without regard to case. **Not run on the live database yet** |
 
 With Supabase connected, the cross-page flows (apply → interview link, booking → ops console,
 complaint → Trust Desk) can now work end to end on the live site. They haven't been re-tested live yet.
@@ -356,7 +400,7 @@ All are listed with explanations in [.env.example](.env.example).
 | `CMS_OWNER_EMAIL` | The CMS Owners | Set: mjazosupport@gmail.com, thehashirsukhera@gmail.com |
 | `CMS_MFA_REQUIRED` | Two-step sign-in for Owners, Admins and Finance (on unless `false`) | Not set (on) |
 | `DATABASE_URL` (+ optional `DATABASE_CA_CERT`) | The core engine (bookings, pros, ledger, slot capacity) | Set (production, secret): Supabase transaction pooler `aws-0-ap-northeast-1`, 21 Oct 2026. `DATABASE_CA_CERT` not set (optional) |
-| `SESSION_SECRET` | Turning on the `/pro` app (pros' phone + PIN sessions). `/ops` no longer needs a passcode: staff sign in with their email (`OPS_PASSCODE` is no longer used) | Not set |
+| `SESSION_SECRET` | Turning on the `/pro` app (signs pros' sessions; changing it signs every pro out). `/ops` no longer needs a passcode: staff sign in with their email (`OPS_PASSCODE` is no longer used) | Not set: `node scripts/setup-supabase.mjs --migrate` offers to make it |
 | `CRON_SECRET` (plus a 5-minute pinger) | Safety Guardian, scheduled publishing and the weekly SEO check | Not set |
 | `RESEND_API_KEY`, `OPS_EMAIL`, `OPS_FROM` | Emailing every submission to the team | Not set |
 | `WHATSAPP_*` | Concierge on WhatsApp | Not set |
@@ -370,7 +414,7 @@ All are listed with explanations in [.env.example](.env.example).
 1. ~~Supabase project, migrations, settings in Vercel, Owners, sign-in URLs, deploy~~ Done on 5 October 2026.
 2. **Rotate the pasted secrets:** create a new Supabase secret key, put it in Vercel as `SUPABASE_SERVICE_ROLE_KEY` and delete the old one. Also reset the database password; the site doesn't use it.
 3. Add an SMTP sender in Supabase (Authentication → Emails) before inviting the team: the built-in email only sends a few an hour. Then invite the team from People & roles and share the handbook PDF.
-4. Set `SESSION_SECRET` to turn on the `/pro` app. For mission control (`/ops`), give each team member an operations role (Dispatcher, Support, Finance or Recruiter) in `/admin/people`; Finance must set up two-step sign-in on first use.
+4. Run `node F:\mjazo\website\scripts\setup-supabase.mjs --migrate` for the pro app: it adds migration 0007 and offers to make `SESSION_SECRET` (answer **y**). Pros sign in with the phone + PIN ops set for them. For email sign-in, save a pro's email on her profile in mission control; if Supabase's Redirect URLs list only specific pages, add `https://mjazo.vercel.app/pro/auth/callback` there (Authentication → URL Configuration). For mission control (`/ops`), give each team member an operations role (Dispatcher, Support, Finance or Recruiter) in `/admin/people`; Finance must set up two-step sign-in on first use.
 5. Run `node scripts/setup-supabase.mjs --cron`: it makes `CRON_SECRET`, stores it in Vercel and shows the pinger steps. Point an external 5-minute pinger (cron-job.org) at `/api/cron/safety` and `/api/cron/cms-publish` with that secret, then redeploy. The weekly SEO check then runs by itself (a Vercel cron in `vercel.json`).
 6. Optionally set `RESEND_API_KEY` and the `OPS_*` emails, the WhatsApp Cloud API settings, `STT_API_KEY` and `PAGESPEED_API_KEY`.
 7. Deploy (`npx vercel deploy --prod` from `website/`) after checking that `npx vercel teams ls` shows **thehashirsukhera-8511's projects**. `vercel login` signs in whichever Vercel account your browser is using, and that has picked another client's account before; approve the login in a window signed in as thehashirsukhera-8511. Run it in a normal (not administrator) PowerShell: the administrator window on this computer is another Windows user and keeps its own login.
@@ -409,10 +453,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
 2. **The platform build** (plan approved 21 October 2026; one or more sessions per stage):
    1. ~~Core engine~~: built and live 21 October (section 3b). Until pros are added in the core, checkout runs in "open" mode (every window open, the team confirms).
    2. ~~Mission control~~: live 21 October (section 3c). Still to do: give the team their operations roles in `/admin/people` (needs SMTP in Supabase for invites, section 7).
-   3. **Pro app:** a versioned `/api/v1/pro` API with:
-      - job offers with accept/decline, multi-day schedule, availability
-      - earnings statement from the ledger, payouts, ratings
-      - phone + PIN kept, email link added
+   3. ~~Pro app~~: built and checked locally 21 October (section 3d). **To go live:** the owner runs `--migrate` (0007 + `SESSION_SECRET`), then deploy with the owner's OK.
    4. **Client account:** email-link sign-in, live booking status, reschedule/cancel, saved addresses with a map pin, promo codes, credits, rebook your pro. Needs SMTP in Supabase.
    5. **Automation:** the outbox worker and these automations:
       - WhatsApp/email/push messages, logged until providers are set
@@ -466,5 +507,10 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - Every `/api/ops` handler starts with `requireStaff(<permission>)` (`lib/server/staff.ts`), per action where actions differ. Permissions by role are in `lib/ops/access.ts`; `lib/server/ops-permissions.test.ts` calls every action as every role, so a new action needs a row there.
   - Record staff actions with `audit(email, …)` (`lib/server/audit.ts`). Money actions write their audit entry inside their own transaction (`lib/core/money.ts`).
   - Money moves from mission control go through `lib/core/money.ts` (approval records) and then `lib/core/ledger.ts` (postings). Never post from a route.
+- **The pro app (`/api/v1/pro`):**
+  - Every handler is `asPro(async (pro, req, ctx) => …)` (`lib/server/pro-auth.ts`): it signs her in from the bearer token or the cookie and answers errors like the other APIs. Only ever read or change her own visits, offers and money; `lib/server/pro-api.test.ts` checks that one pro can't reach another's.
+  - Offers change visits only through `lib/core/offers.ts` (it uses `mutateJob()`); the board's direct assign, reschedule and cancel withdraw an open offer (`lib/server/ops.ts`).
+  - Before a pro accepts, an offer must not carry the customer's name, phone or address (`proOffers`).
+  - The app's text is in `components/staff/pro/strings.ts` (English, Urdu, Roman Urdu).
 - **Staff tools locally:** start the `mjazo-web-staff` preview configuration (`.claude/launch.json`). Without Supabase, `/ops` offers "Continue as local …" for any role (`/api/ops/dev-login`, refused in production); pros get PINs from ops.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (326 tests), then `npx next build` (828 pages, plus two per published block page).
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (353 tests), then `npx next build` (828 pages, plus two per published block page).

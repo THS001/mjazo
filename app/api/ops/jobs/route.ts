@@ -2,13 +2,16 @@ import { audit } from "@/lib/server/audit"
 import { z } from "zod"
 import { handle, readJson } from "@/lib/server/api"
 import { requireStaff } from "@/lib/server/staff"
-import { addJobEvent, assignJob, nowIso, type SosDoc } from "@/lib/server/ops"
+import { addJobEvent, assignJob, nowIso, offerJob, withdrawOffers, type SosDoc } from "@/lib/server/ops"
 import { get, put } from "@/lib/server/docs"
 
-// The board's actions: assign, status changes and SOS. Each is recorded with the person's email.
+// The board's actions: assign, offer to a pro (she accepts or declines in the pro app), status
+// changes and SOS. Each is recorded with the person's email.
 
 const body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("assign"), jobId: z.string(), proId: z.string().nullable() }),
+  z.object({ action: z.literal("offer"), jobId: z.string(), proId: z.string() }),
+  z.object({ action: z.literal("withdraw_offer"), jobId: z.string() }),
   z.object({ action: z.literal("event"), jobId: z.string(), type: z.enum(["en_route", "checked_in", "checked_out", "completed", "cancelled", "no_show", "safe", "note"]), note: z.string().max(500).optional() }),
   z.object({ action: z.literal("resolve_sos"), id: z.string() }),
 ])
@@ -22,6 +25,14 @@ export async function POST(req: Request) {
       const job = await assignJob(b.jobId, b.proId, {}, me.email)
       await audit(me.email, b.proId ? "assigned job" : "unassigned job", b.jobId, b.proId ?? "")
       return { job }
+    }
+    if (b.action === "offer") {
+      const me = await requireStaff("ops.dispatch")
+      return { offer: await offerJob({ bookingId: b.jobId, proId: b.proId, by: me.email }) }
+    }
+    if (b.action === "withdraw_offer") {
+      const me = await requireStaff("ops.dispatch")
+      return { withdrawn: await withdrawOffers(b.jobId, me.email) }
     }
     if (b.action === "event") {
       // Notes and cancelling are booking work (Support too); moving a visit along is dispatching.

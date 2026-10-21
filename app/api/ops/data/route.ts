@@ -3,7 +3,7 @@ import { aiEnabled } from "@/lib/ai/anthropic"
 import { karachiNow, nextDays } from "@/lib/time"
 import { handle } from "@/lib/server/api"
 import { requireStaff } from "@/lib/server/staff"
-import { getComplaints, getOpenSos, getPros, publicPro, safetySweep, syncJobs } from "@/lib/server/ops"
+import { getComplaints, getOpenSos, getPros, openOffers, publicPro, safetySweep, syncJobs } from "@/lib/server/ops"
 import type { Job } from "@/lib/ops/types"
 import { paymentNeedsCheck, windowIndex } from "@/lib/ops/logic"
 import { ROLE_INFO } from "@/lib/cms/roles"
@@ -39,6 +39,7 @@ export async function GET(req: Request) {
       openComplaints: complaints.filter((c) => c.status !== "resolved").length,
       weddingsPending: weddings.filter((w) => w.status === "submitted").length,
     }
+    const offers = await openOffers(dayJobs.map((j) => j.id))
     const days = nextDays(8).map((d) => d.iso)
     const counts = days.map((d) => ({ date: d, count: jobs.filter((j) => j.date === d && j.status !== "cancelled").length }))
     return {
@@ -48,6 +49,7 @@ export async function GET(req: Request) {
       jobs: dayJobs.sort((a, b) => windowIndex(a.window) - windowIndex(b.window) || (a.routeOrder ?? 9) - (b.routeOrder ?? 9)).map(lite),
       alerts: alerts.map(lite),
       sos,
+      offers: offers.map((o) => ({ id: o.id, jobId: o.bookingId, proId: o.proId, expiresAt: o.expiresAt })),
       pros: pros.map(publicPro),
       stats,
       days: counts,
