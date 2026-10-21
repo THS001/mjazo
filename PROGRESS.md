@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 21 October 2026 (platform stage 2: mission control, built and checked locally, not yet deployed)._
+_Last updated 21 October 2026 (platform stage 2: mission control, live)._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -32,7 +32,7 @@ accounts, and what's left.
 | Interface text phase 2 (tools, chat, account, offers, ratings, hero phone, pro pages) | **Done and live 19 Oct 2026**, with Urdu |
 | Supabase (database and file storage) | **Connected (5 Oct 2026).** CMS content, media, bookings and staff data are now stored durably |
 | **Platform stage 1: core engine** (bookings, pros, money ledger, slot capacity) | **Live 21 Oct 2026**: migration 0005 run on Supabase, `DATABASE_URL` set, deployed and checked |
-| **Platform stage 2: mission control** (staff accounts and roles, booking page, money approvals, payout runs, promo codes, KPIs, audit log) | **Built and checked locally 21 Oct 2026** (section 3c). Not deployed: needs migration 0006 (`--migrate`) and the owner's OK |
+| **Platform stage 2: mission control** (staff accounts and roles, booking page, money approvals, payout runs, promo codes, KPIs, audit log) | **Live 21 Oct 2026** (section 3c): migration 0006 run on Supabase, deployed and checked. Next: give the team their roles in `/admin/people` |
 | Platform stages 3–6 (pro app, client account, automation, mobile apps) | Planned, in order (section 9) |
 
 ---
@@ -54,7 +54,7 @@ accounts, and what's left.
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 | 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
-| 21 Oct 2026 | **Stage 1 live** (migration 0005 run, `DATABASE_URL` set, deployed). **Stage 2, mission control, built:** per-person staff sign-in with Dispatcher, Support, Finance and Recruiter roles, every action in an audit log, money moves approved by a second person, payout runs, promo codes and KPIs. Not deployed yet |
+| 21 Oct 2026 | **Stage 1 live** (migration 0005 run, `DATABASE_URL` set, deployed). **Stage 2, mission control, built:** per-person staff sign-in with Dispatcher, Support, Finance and Recruiter roles, every action in an audit log, money moves approved by a second person, payout runs, promo codes and KPIs. Migration 0006 run and **deployed the same day** |
 | 19 Oct 2026 | **Interface text phase 2:** the text inside Ghar Scan, Home Pulse, Glam Mirror, the Shaadi Orchestrator, the Concierge, account screens, offers, ratings, the hero phone and the pro pages is editable in `/admin`, with hand-written Urdu. The AI tools answer in Urdu on `/ur` |
 
 ---
@@ -167,7 +167,7 @@ The blueprint's "one backend, one database" (`MjazoVentureBlueprint.pdf` §11). 
 
 ## 3c. Mission control (platform stage 2)
 
-Built on 21 October 2026 on top of the core engine; **checked locally, not deployed yet.** Schema
+Built on 21 October 2026 on top of the core engine, checked locally, and **live the same day** (migration 0006 run, deployed). Schema
 changes are in `supabase/migrations/0006_mission_control.sql` (safe to run again).
 
 - **Staff accounts.** The shared `OPS_PASSCODE` is gone. Everyone signs in to `/ops` with their own email on the CMS sign-in (Supabase + `cms_users`), so every action carries a name.
@@ -190,6 +190,7 @@ changes are in `supabase/migrations/0006_mission_control.sql` (safe to run again
   - Finance drafts a payout run, the Owner approves it, Finance marks both payouts collected with receipt numbers: cash held and owed both PKR 0, and the books balance.
   - Support asks for a PKR 500 credit (the server refuses Support's own approval); Finance approves it; the ledger posts goodwill against the customer's credit and still balances.
   - The audit log shows each step with the person's email; the KPIs read the live data.
+- **Checked live after the deploy:** `/ops` asks for a Mjazo email; the local test sign-in is refused (404); every `/api/ops` screen answers 401 when signed out; slot capacity reads the core database through the new `DATABASE_URL`.
 
 ## 4. Brand kit
 
@@ -322,7 +323,7 @@ The team and the client can edit everything on the site without code changes. Fu
 ### Hosting and code
 
 - **Vercel:** account `thehashirsukhera-8511`, project `mjazo`, production address https://mjazo.vercel.app.
-  - Redeploy with `npx vercel deploy --prod --yes` from `website/`.
+  - Redeploy with `cd F:\mjazo\website; npx vercel deploy --prod --yes` (one line). Check the output says `Directory F:\mjazo\website`: on 21 Oct 2026 a deploy run from `F:\mjazo` put that whole folder live as plain files until it was redeployed.
   - Always check the account first with `npx vercel whoami`. An earlier deploy once went to an unrelated client's team by mistake.
 - **GitHub:** https://github.com/THS001/mjazo, branch `main`. Commits are authored as THS001 <thehashirsukhera@gmail.com>.
 - **Local development:** run `npm run dev` in `website/`. Without Supabase, CMS edits and form submissions are saved in `.data/` on that computer.
@@ -338,7 +339,7 @@ Project `xjyafabyscamelebzrsb` (https://xjyafabyscamelebzrsb.supabase.co), set u
 | `0003_ops.sql` | `ops_docs` (jobs, pros, applicants, complaints, wedding plans, ratings, audit) |
 | `0004_cms.sql` | `cms_entries`, `cms_versions`, `cms_users`, `cms_media`, `cms_redirects`, `cms_seo_reports`, `cms_audit`, plus the `media` storage bucket |
 | `0005_core.sql` | The core engine: customers, addresses, zones, pros (+ availability, time off), bookings (+ lines, events, payments, ratings), the ledger (accounts, entries, postings), payouts, promo codes, events, notifications, audit log, core_meta. Run on the live database on 21 Oct 2026 |
-| `0006_mission_control.sql` | Mission control: the operations roles on `cms_users`, `money_requests` (refunds and credits waiting for approval), `payout_runs` (+ new payout columns), `ops_requests` (the requests inbox's status), who changed each promo code. **Not run on the live database yet** |
+| `0006_mission_control.sql` | Mission control: the operations roles on `cms_users`, `money_requests` (refunds and credits waiting for approval), `payout_runs` (+ new payout columns), `ops_requests` (the requests inbox's status), who changed each promo code. Run on the live database on 21 Oct 2026 |
 
 With Supabase connected, the cross-page flows (apply → interview link, booking → ops console,
 complaint → Trust Desk) can now work end to end on the live site. They haven't been re-tested live yet.
@@ -376,7 +377,7 @@ All are listed with explanations in [.env.example](.env.example).
 8. ~~**Connect the core engine:**~~ Done 21 Oct 2026. run `node scripts/setup-supabase.mjs --migrate` in a normal PowerShell in `website/`.
    - It asks for the database password, creates the new tables, then asks for Supabase's "Transaction pooler" connection string (Connect → Transaction pooler), checks it and saves it to Vercel as `DATABASE_URL`.
    - Then Claude redeploys.
-   - **Mission control (stage 2) needs it run once more** before its deploy, to add migration 0006 (the script runs every migration; each is safe to run again).
+   - Run again on 21 Oct 2026 for mission control (migration 0006). The script runs every migration; each is safe to run again. If `DATABASE_URL` is already set it first asks "Replace it? (y/N)": answer that, then type the password.
 9. In `/admin/translate`, run "Translate everything missing". Have someone review the Urdu, then switch on the Urdu site under Settings → Feature switches.
 
 ---
@@ -407,7 +408,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
 1. ~~Deploy the work since 5 October~~: deployed on 19 October 2026 (the phase 7 media fix and interface text phase 2).
 2. **The platform build** (plan approved 21 October 2026; one or more sessions per stage):
    1. ~~Core engine~~: built and live 21 October (section 3b). Until pros are added in the core, checkout runs in "open" mode (every window open, the team confirms).
-   2. ~~Mission control~~: built and checked locally 21 October (section 3c). **To go live:** the owner runs `node scripts/setup-supabase.mjs --migrate` (adds 0006), gives the team their roles in `/admin/people`, then deploy with the owner's OK.
+   2. ~~Mission control~~: live 21 October (section 3c). Still to do: give the team their operations roles in `/admin/people` (needs SMTP in Supabase for invites, section 7).
    3. **Pro app:** a versioned `/api/v1/pro` API with:
       - job offers with accept/decline, multi-day schedule, availability
       - earnings statement from the ledger, payouts, ratings
