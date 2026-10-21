@@ -35,7 +35,7 @@ accounts, and what's left.
 | **Platform stage 2: mission control** (staff accounts and roles, booking page, money approvals, payout runs, promo codes, KPIs, audit log) | **Live 21 Oct 2026** (section 3c): migration 0006 run on Supabase, deployed and checked. Next: give the team their roles in `/admin/people` |
 | **Platform stage 3: the pro app** (versioned `/api/v1/pro` API, job offers, schedule, earnings from the ledger, payouts, ratings, availability, email sign-in) | **Live 21 Oct 2026** (section 3d): migration 0007 run, `SESSION_SECRET` set, deployed and checked. Next: PINs (and emails) for the real pros in mission control |
 | **Platform stage 4: the client account** (email sign-in, live bookings, change and cancel, saved addresses with a map pin, promo codes, wallet credit, book a pro again, `/api/v1/customer`) | **Live 21 Oct 2026** (section 3e): migration 0008 run, deployed and checked. Still to do: Supabase sign-in settings and SMTP (section 7, item 9), then a real email sign-in |
-| **Platform stage 5: automation** (customer messages, auto-assign, weekly payout drafts, opt-in Home Pulse and win-back messages, mission control → Automations) | **Built 21 Oct 2026** (section 3f), checked locally. To go live: migration 0009, then deploy; messages stay in test mode (logged only) until WhatsApp templates or Resend are set |
+| **Platform stage 5: automation** (customer messages, auto-assign, weekly payout drafts, opt-in Home Pulse and win-back messages, mission control → Automations) | **Live 21 Oct 2026** (section 3f): migration 0009 run, deployed and checked. Messages stay in test mode (logged only) until WhatsApp templates or Resend are set; the automation pinger needs `CRON_SECRET` (section 7, item 10) |
 | Platform stage 6 (mobile apps) | Planned (section 9) |
 
 ---
@@ -57,7 +57,7 @@ accounts, and what's left.
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 | 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
-| 21 Oct 2026 | **Stage 5, automation, built:** booking confirmed, the day-before reminder, "on the way" and "rate your visit" messages (WhatsApp templates, email or a push, and only logged until a provider is set); auto-assign that suggests or offers each visit to the best verified pro; Monday's payout run drafted for Finance; opt-in Home Pulse and win-back messages with quiet hours, a monthly limit and STOP; mission control → Automations |
+| 21 Oct 2026 | **Stage 5, automation, built and live** (migration 0009 run, deployed): booking confirmed, the day-before reminder, "on the way" and "rate your visit" messages (WhatsApp templates, email or a push, and only logged until a provider is set); auto-assign that suggests or offers each visit to the best verified pro; Monday's payout run drafted for Finance; opt-in Home Pulse and win-back messages with quiet hours, a monthly limit and STOP; mission control → Automations |
 | 21 Oct 2026 | **Stage 4, the client account, built:** customers sign in with an emailed link and see their bookings live (steps, their pro's first name), move or cancel them within the free-change hours, save addresses with a map pin, use promo codes and their Mjazo credit at checkout, and book a pro they liked again. `/api/v1/customer` for the coming app. Deployed and migration 0008 run the same day |
 | 21 Oct 2026 | **Stage 3, the pro app, built:** the `/api/v1/pro` API the phone app will use, job offers pros accept or decline, a week's schedule, earnings and payouts from the ledger, ratings, pros setting their own availability, and email sign-in next to phone + PIN. `/pro` rebuilt on it. Migration 0007 run, `SESSION_SECRET` set and **deployed the same day** |
 | 21 Oct 2026 | **Stage 1 live** (migration 0005 run, `DATABASE_URL` set, deployed). **Stage 2, mission control, built:** per-person staff sign-in with Dispatcher, Support, Finance and Recruiter roles, every action in an audit log, money moves approved by a second person, payout runs, promo codes and KPIs. Migration 0006 run and **deployed the same day** |
@@ -275,7 +275,7 @@ Built on 21 October 2026, checked locally, and **live the same day** (deployed; 
 
 ## 3f. Automation (platform stage 5)
 
-Built on 21 October 2026 and checked locally. Schema change: `supabase/migrations/0009_automation.sql` (the rules, the message log with one message per reason, STOP opt-outs, phone push tokens). **Run `--migrate` before deploying.**
+Built on 21 October 2026, checked locally, and **live the same day** (migration 0009 run, then deployed; signed-out calls to the new APIs and the cron route answer 401). Schema change: `supabase/migrations/0009_automation.sql` (the rules, the message log with one message per reason, STOP opt-outs, phone push tokens).
 
 - **How it runs** (`lib/server/automation.ts`): every change in the core goes into the outbox (`events`). The automation works through it, then the timed rules, then sends what's queued.
   - It runs right after each booking or change, every 5 minutes from the pinger (`/api/cron/automation` with `CRON_SECRET`), once a day from Vercel's cron, while someone has the live board open, and from **Run now**.
@@ -498,7 +498,7 @@ All are listed with explanations in [.env.example](.env.example).
    - if the Redirect URLs aren't a wildcard, add `https://mjazo.vercel.app/account` and `https://mjazo.vercel.app/ur/account`;
    - add an SMTP sender (e.g. Resend) before telling customers about it: Supabase's own email sends only a few an hour.
 10. **For automation (stage 5):**
-   - run `node scripts/setup-supabase.mjs --migrate` for migration 0009 **before** deploying;
+   - ~~run `--migrate` for migration 0009 before deploying~~: done 21 Oct 2026, then deployed;
    - add a third 5-minute pinger for `/api/cron/automation` (item 5; the reminders and review requests rely on it, the rest also runs after each change);
    - for WhatsApp messages: make the templates in Meta (WhatsApp Manager → Message templates), with the parameters in the order mission control → Automations shows, then type each template's name there. Meta must approve each template;
    - for emails: `RESEND_API_KEY` and `MESSAGES_FROM` (a verified sender domain in Resend);
@@ -536,7 +536,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
    2. ~~Mission control~~: live 21 October (section 3c). Still to do: give the team their operations roles in `/admin/people` (needs SMTP in Supabase for invites, section 7).
    3. ~~Pro app~~: live 21 October (section 3d). Still to do: give the real pros a PIN (and an email, for email sign-in) in mission control → Pros.
    4. ~~Client account~~: live 21 October (section 3e). Still to do: section 7, item 9 (Supabase sign-ups and redirect URLs, SMTP), then try a real email sign-in.
-   5. ~~Automation~~: built 21 October (section 3f). To go live: migration 0009, deploy, the automation pinger, then WhatsApp templates or Resend (section 7, item 10).
+   5. ~~Automation~~: live 21 October (section 3f). Still to do: `CRON_SECRET` and the automation pinger, then WhatsApp templates or Resend (section 7, item 10). Keep auto-assign on "suggest" until the real pros are verified.
    6. **Mobile apps:** Expo (React Native) Mjazo and Mjazo Pro in `mobile/`, tested with Expo Go. Store builds need the owner's Expo and Google Play accounts.
 3. **Owner setup:** section 7 (rotate secrets, SMTP, `CRON_SECRET` and pingers, `SESSION_SECRET` for the pro app, staff roles).
 4. **Re-test the live flows** that need Supabase: booking → ops console, apply → interview, complaint → Trust Desk.
