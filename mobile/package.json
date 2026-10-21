@@ -1,0 +1,11 @@
+{
+  "name": "mjazo-mobile",
+  "private": true,
+  "description": "The Mjazo phone apps (Expo): Mjazo for customers and Mjazo Pro for pros, on one shared package.",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "customer": "npm run start -w mjazo-customer",
+    "pro": "npm run start -w mjazo-pro",
+    "typecheck": "tsc -p packages/shared --noEmit && tsc -p apps/customer --noEmit && tsc -p apps/pro --noEmit"
+  }
+}

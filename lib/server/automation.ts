@@ -194,16 +194,18 @@ function bookingVars(j: Job, ctx: Ctx, lang: string) {
 }
 
 /**
- * Queues one message (once per `dedupeKey`). It goes by WhatsApp when that's set up and the rule
- * has a template; else by email when there's an address; else, a pro's message, as a push to her
- * app; else it's only logged.
+ * Queues one message (once per `dedupeKey`). A pro's offer or a customer's booking message goes as
+ * a push when they have the phone app; else by WhatsApp when that's set up and the rule has a
+ * template; else by email when there's an address; else it's only logged.
  */
 async function queue(ctx: Ctx, m: { rule: RuleKey; key: MessageKey; lang: string; vars: Record<string, string>; dedupeKey: string; phone?: string; email?: string | null; bookingId?: string; customerId?: string | null; proId?: string; eventId?: number; push?: boolean }) {
   const rule = ctx.rules[m.rule]
   const t = (m.lang === "ur" ? ctx.texts.ur : ctx.texts.en)[m.key]
   const template = rule.config.waTemplates?.[m.key]?.trim() || ""
   const ch = channels()
-  const pushTo = m.push && m.proId ? (await store.pushTokens(ctx.db, "pro", m.proId)).length > 0 : false
+  // A pro's offer, or a customer's booking message, goes to their phone app when they have it.
+  const owner = !m.push ? null : m.proId ? (["pro", m.proId] as const) : m.customerId ? (["customer", m.customerId] as const) : null
+  const pushTo = owner ? (await store.pushTokens(ctx.db, owner[0], owner[1])).length > 0 : false
   const channel: store.Channel = pushTo ? "push" : ch.whatsapp && template && m.phone ? "whatsapp" : ch.email && m.email ? "email" : "log"
   return store.queueMessage(ctx.db, {
     rule: m.rule,
@@ -230,7 +232,7 @@ async function messageForBooking(ctx: Ctx, rule: RuleKey, key: MessageKey, j: Jo
   if (!ctx.rules[rule].enabled) return null
   const c = await customerOf(ctx.db, await bookingCustomer(ctx.db, j.id))
   const lang = c?.lang === "ur" ? "ur" : "en"
-  return queue(ctx, { rule, key, lang, vars: { ...bookingVars(j, ctx, lang), ...extra }, dedupeKey, phone: j.customer.phone, email: c?.email, bookingId: j.id, customerId: c?.id, eventId })
+  return queue(ctx, { rule, key, lang, vars: { ...bookingVars(j, ctx, lang), ...extra }, dedupeKey, phone: j.customer.phone, email: c?.email, bookingId: j.id, customerId: c?.id, eventId, push: true })
 }
 
 // ---------------------------------------------------------------------------

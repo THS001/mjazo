@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Mjazo",
+    "slug": "mjazo",
+    "scheme": "mjazo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F6F4F1",
+    "ios": {
+      "bundleIdentifier": "pk.mjazo.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Mjazo uses your location only when you tap “Use my location”, so your pro finds your door."
+      }
+    },
+    "android": {
+      "package": "pk.mjazo.app",
+      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#F4A437" },
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+    },
+    "web": { "favicon": "./assets/favicon.png", "output": "single" },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-localization",
+      ["expo-splash-screen", { "image": "./assets/splash-icon.png", "imageWidth": 140, "backgroundColor": "#F4A437" }],
+      ["expo-location", { "locationWhenInUsePermission": "Mjazo uses your location only when you tap “Use my location”, so your pro finds your door." }],
+      ["expo-notifications", { "icon": "./assets/notification-icon.png", "color": "#F4A437" }]
+    ],
+    "extra": { "eas": {} }
+  }
+}

@@ -158,6 +158,23 @@ describe("booking messages", () => {
     expect(m.body).toContain("3:40 pm")
   })
 
+  it("sends a customer's booking messages to the Mjazo app when they have it", async () => {
+    const pushes: { to: string; title: string; data: { bookingId: string } }[] = []
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      if (!String(url).includes("exp.host")) throw new Error(`unexpected ${url}`)
+      pushes.push(...(JSON.parse(String(init.body)) as typeof pushes))
+      return new Response(JSON.stringify({ data: [{ status: "ok", id: "push-c" }] }), { status: 200 })
+    })
+    const first = await book({ phone: "03018887766" })
+    await A.runAutomation()
+    await S.savePushToken(db, { token: "ExponentPushToken[ayesha]", ownerType: "customer", ownerId: await customerOf(first.id) })
+    const b = await book({ phone: "03018887766" })
+    await A.runAutomation()
+    const [m] = await forBooking(b.id, "confirm")
+    expect(m).toMatchObject({ channel: "push", status: "sent" })
+    expect(pushes.map((p) => [p.to, p.data.bookingId])).toEqual([["ExponentPushToken[ayesha]", b.id]])
+  })
+
   it("is quiet when a rule is switched off", async () => {
     await rule("confirm", false)
     const b = await book()

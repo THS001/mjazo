@@ -36,7 +36,7 @@ accounts, and what's left.
 | **Platform stage 3: the pro app** (versioned `/api/v1/pro` API, job offers, schedule, earnings from the ledger, payouts, ratings, availability, email sign-in) | **Live 21 Oct 2026** (section 3d): migration 0007 run, `SESSION_SECRET` set, deployed and checked. Next: PINs (and emails) for the real pros in mission control |
 | **Platform stage 4: the client account** (email sign-in, live bookings, change and cancel, saved addresses with a map pin, promo codes, wallet credit, book a pro again, `/api/v1/customer`) | **Live 21 Oct 2026** (section 3e): migration 0008 run, deployed and checked. Still to do: Supabase sign-in settings and SMTP (section 7, item 9), then a real email sign-in |
 | **Platform stage 5: automation** (customer messages, auto-assign, weekly payout drafts, opt-in Home Pulse and win-back messages, mission control → Automations) | **Live 21 Oct 2026** (section 3f): migration 0009 run, deployed and checked. Messages stay in test mode (logged only) until WhatsApp templates or Resend are set; the automation pinger needs `CRON_SECRET` (section 7, item 10) |
-| Platform stage 6 (mobile apps) | Planned (section 9) |
+| **Platform stage 6: the phone apps** (Mjazo and Mjazo Pro, Expo, in `mobile/`) | **Built 21 Oct 2026** (section 3g), checked in the browser against the local server and bundled for Android. Next: deploy the three new API routes, try both apps on a phone with Expo Go, then store builds with your Expo account |
 
 ---
 
@@ -57,6 +57,7 @@ accounts, and what's left.
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 | 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
+| 21 Oct 2026 | **Stage 6, the phone apps, built:** Mjazo (browse, book with real free windows, promo codes and credit, follow bookings live, move or cancel, rate, book a pro again, addresses, English and Urdu) and Mjazo Pro (phone + PIN, today and coming days, offers, On my way → check in → finish with the payment, SOS, earnings, ratings, availability, English, Urdu and Roman Urdu), on one shared package. New API: `/api/v1/catalog`, `/api/v1/config`, `/api/v1/bookings` |
 | 21 Oct 2026 | **Stage 5, automation, built and live** (migration 0009 run, deployed): booking confirmed, the day-before reminder, "on the way" and "rate your visit" messages (WhatsApp templates, email or a push, and only logged until a provider is set); auto-assign that suggests or offers each visit to the best verified pro; Monday's payout run drafted for Finance; opt-in Home Pulse and win-back messages with quiet hours, a monthly limit and STOP; mission control → Automations |
 | 21 Oct 2026 | **Stage 4, the client account, built:** customers sign in with an emailed link and see their bookings live (steps, their pro's first name), move or cancel them within the free-change hours, save addresses with a map pin, use promo codes and their Mjazo credit at checkout, and book a pro they liked again. `/api/v1/customer` for the coming app. Deployed and migration 0008 run the same day |
 | 21 Oct 2026 | **Stage 3, the pro app, built:** the `/api/v1/pro` API the phone app will use, job offers pros accept or decline, a week's schedule, earnings and payouts from the ledger, ratings, pros setting their own availability, and email sign-in next to phone + PIN. `/pro` rebuilt on it. Migration 0007 run, `SESSION_SECRET` set and **deployed the same day** |
@@ -301,6 +302,25 @@ Built on 21 October 2026, checked locally, and **live the same day** (migration 
   - A checkout booking for that evening: its confirmation was in the send log within seconds. The live board showed "Suggested: Test Pro Hina · 15 min from her visit before · 1 other visit that day · not verified"; Offer sent it to her, and her offer message (with her PKR 3,375) was logged.
   - The account page's "Reminders and offers on WhatsApp" switch saved, in English and Urdu (right to left).
 
+## 3g. The phone apps (platform stage 6)
+
+Built on 21 October 2026. Everything is in `mobile/` (its own npm workspace, kept out of the website's build, tests and Vercel upload); how to run it is in [mobile/README.md](mobile/README.md).
+
+- **Two Expo apps (SDK 58, React Native 0.88, Expo Router) on one shared package** (`mobile/packages/shared`: the API client, sign-in, storage, design, languages, formatting, location and push):
+  - **Mjazo** (`pk.mjazo.app`): the catalogue with search and popular services; each service's options and add-ons with the price the server will charge; the cart and the minimum order; checkout with a saved address or area, sub-area, street and "Use my location" (the area is worked out from it), the real free windows for that cart and area (and the pro they asked for), name and number, payment, notes, a promo code (in Urdu too) and their credit; the booking confirmation; bookings live (steps, the pro's first name, ETA, refreshed every 30 seconds during a visit), moving or cancelling within the free-change time, rating, booking a pro again; the account (adding the phone number with proof, credit, saved addresses, the WhatsApp messages switch, language, sign out). Guests can book; their bookings are kept on the phone and count as proof of the number later.
+  - **Mjazo Pro** (`pk.mjazo.pro`): phone + PIN (or an emailed link); Today (visits in route order, safety prompts, the week's earnings, offers waiting, the coming days); offers to accept or decline with a reason; a visit's screen (customer, map, call, WhatsApp, services, notes, brief and photos, notes from earlier visits, On my way → check in → I'm safe → check out → finish with the payment, a screenshot for digital payments, which AI checks; a note for next time); SOS with her location; earnings and payouts from the ledger; ratings; weekly windows and days off. English, Urdu and Roman Urdu (the web pro app's texts).
+  - Urdu screens read right to left. The apps' icons and splash screens come from the brand kit's house mark (Mjazo saffron, Mjazo Pro ink).
+- **Location** is asked for only when it's used (Use my location, On my way, check in or out, finish, SOS) and never in the background. If the phone doesn't answer within 15 seconds, the action goes ahead without it.
+- **Push notifications:** the installed apps register with `/api/v1/pro/push-token` and `/api/v1/customer/push-token`; the automation sends pros' offers, and now customers' booking messages too, as pushes when they have the app (else WhatsApp, email or the log as before). Pushes need the installed app and an Expo project (`eas init`); Expo Go can't receive them.
+- **New API for the apps:** `GET /api/v1/catalog?lang=en|ur` (live categories, services with prices, options with a language-neutral key, add-ons, areas with their centres, windows, minimum order, policy, contact), `GET /api/v1/config` (Supabase's public address and key, whether email sign-in is on, contact) and `POST /api/v1/bookings` (the same checks and prices as the checkout, marked as an app booking; mission control shows an "App" badge).
+- **Store builds:** `eas.json` in each app (preview APK, production AAB). They need the owner's Expo account, and a Google Play developer account to publish. `.easignore` keeps the website out of the upload.
+- **Tests:** 403 in total (up from 400): the catalogue and app bookings through their real routes, and a customer's booking messages going to the app as a push. Both apps and the shared package type-check, and the customer app bundles for Android.
+- **Checked in the browser** (both apps in web mode, against the local server, at phone size):
+  - Mjazo: home (popular services, all eight sections), Women's Salon, Full body waxing with Rica and Face wax (PKR 6,100), the cart, local test sign-in, checkout (name and number filled in from the account, DHA Phase 6, Thursday 3–5 pm from the real windows, WELCOME10 for PKR 610 off) and booked: MJ-MVI2I3JBST7, PKR 5,490. Moved it to Friday 11 am–1 pm from the booking screen. Urdu, right to left.
+  - Mjazo Pro (Test Pro Hina, PIN set in mission control): sign-in, Today, accepted an offer, On my way → check in → finished with PKR 4,500 cash; earnings showed she hands in PKR 1,125; changed and reset her weekly windows and a day off (the day she has a visit was blocked).
+  - Mission control's send log had the app booking's confirmation, the offer to her and "on the way" to the customer.
+- **Found and fixed on the way:** a development-only CORS setting in `next.config.mjs` made every `/api/v1` route with an id in its address answer 404 on the dev server; it was removed (the apps don't need CORS; `mobile/scripts/web-dev.mjs` serves an app and the API from one address for browser checks).
+
 ## 4. Brand kit
 
 Saved in `F:\mjazo\brand\`, outside this repo. A copy of the PDF is in the user's Downloads folder.
@@ -504,6 +524,10 @@ All are listed with explanations in [.env.example](.env.example).
    - for emails: `RESEND_API_KEY` and `MESSAGES_FROM` (a verified sender domain in Resend);
    - choose auto-assign's mode, and switch on the Home Pulse and win-back messages when wanted.
 11. In `/admin/translate`, run "Translate everything missing". Have someone review the Urdu, then switch on the Urdu site under Settings → Feature switches.
+12. **For the phone apps (stage 6):** deploy (the apps need `/api/v1/catalog`, `/config` and `/bookings`), then follow [mobile/README.md](mobile/README.md):
+   - try both apps with Expo Go on your phone (`npm run customer` / `npm run pro` in `mobile/`);
+   - for email sign-in in the apps, add `mjazo://**`, `mjazopro://**` and `exp://**` to Supabase's Redirect URLs (and the SMTP sender from item 3);
+   - for the stores: an Expo account (`eas login`, `eas init` in each app, then `eas build`), and a Google Play developer account to publish. Push notifications start working in the installed apps after `eas init`.
 
 ---
 
@@ -537,7 +561,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
    3. ~~Pro app~~: live 21 October (section 3d). Still to do: give the real pros a PIN (and an email, for email sign-in) in mission control → Pros.
    4. ~~Client account~~: live 21 October (section 3e). Still to do: section 7, item 9 (Supabase sign-ups and redirect URLs, SMTP), then try a real email sign-in.
    5. ~~Automation~~: live 21 October (section 3f). Still to do: `CRON_SECRET` and the automation pinger, then WhatsApp templates or Resend (section 7, item 10). Keep auto-assign on "suggest" until the real pros are verified.
-   6. **Mobile apps:** Expo (React Native) Mjazo and Mjazo Pro in `mobile/`, tested with Expo Go. Store builds need the owner's Expo and Google Play accounts.
+   6. ~~Mobile apps~~: built 21 October (section 3g). To do: deploy (for the new API routes), try both apps with Expo Go (mobile/README.md), add the apps' redirect URLs in Supabase for email sign-in, then `eas init` and store builds with your Expo account (and Google Play to publish).
 3. **Owner setup:** section 7 (rotate secrets, SMTP, `CRON_SECRET` and pingers, `SESSION_SECRET` for the pro app, staff roles).
 4. **Re-test the live flows** that need Supabase: booking → ops console, apply → interview, complaint → Trust Desk.
 5. **Urdu content:** the AI translation pass, a human review (including the new interface Urdu), then switching on the Urdu site.

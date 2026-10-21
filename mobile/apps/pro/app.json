@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Mjazo Pro",
+    "slug": "mjazo-pro",
+    "scheme": "mjazopro",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F6F4F1",
+    "ios": {
+      "bundleIdentifier": "pk.mjazo.pro",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Mjazo Pro sends your location only when you tap On my way, check in or out, finish a visit or press SOS.",
+        "NSCameraUsageDescription": "Take a photo of a payment receipt.",
+        "NSPhotoLibraryUsageDescription": "Attach a screenshot of a payment."
+      }
+    },
+    "android": {
+      "package": "pk.mjazo.pro",
+      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#111111" },
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+    },
+    "web": { "favicon": "./assets/favicon.png", "output": "single" },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-localization",
+      ["expo-splash-screen", { "image": "./assets/splash-icon.png", "imageWidth": 140, "backgroundColor": "#111111" }],
+      ["expo-location", { "locationWhenInUsePermission": "Mjazo Pro sends your location only when you tap On my way, check in or out, finish a visit or press SOS." }],
+      ["expo-image-picker", { "photosPermission": "Attach a screenshot of a payment.", "cameraPermission": "Take a photo of a payment receipt." }],
+      ["expo-notifications", { "icon": "./assets/notification-icon.png", "color": "#F4A437" }]
+    ],
+    "extra": { "eas": {} }
+  }
+}

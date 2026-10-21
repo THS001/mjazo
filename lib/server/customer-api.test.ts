@@ -36,7 +36,7 @@ vi.mock("@/lib/server/store", async (orig) => ({
 vi.mock("@/lib/cms/read", async () => {
   const { buildCatalog, DEFAULT_CATALOG } = await import("@/lib/catalog")
   const cat = buildCatalog(DEFAULT_CATALOG)
-  return { getCatalog: async () => cat, getSettings: async () => ({ referral: { friendOff: 500 }, policy: { leadHours: 2, freeChangeHours: 3 } }) }
+  return { getCatalog: async () => cat, getSettings: async () => ({ referral: { friendOff: 500 }, policy: { leadHours: 2, freeChangeHours: 3, redoHours: 24 }, site: { phone: "+92 300 0000000", whatsapp: "923000000000", email: "hello@mjazo.pk", hours: "9 am to 9 pm" } }) }
 })
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -68,6 +68,8 @@ beforeAll(async () => {
     promo: await import("../../app/api/v1/customer/promo/route"),
     submit: await import("../../app/api/submit/route"),
     slots: await import("../../app/api/v1/slots/route"),
+    catalog: await import("../../app/api/v1/catalog/route"),
+    appBooking: await import("../../app/api/v1/bookings/route"),
   } as typeof R
   const cj = await import("@/lib/core/jobs")
   await cj.savePro(db, { id: "P-SANA", name: "Sana Bibi", phone: "03111111111", area: "dha", skills: ["womens-salon"], women: true, status: "active", createdAt: new Date().toISOString() })
@@ -196,6 +198,33 @@ describe("saved addresses", () => {
     expect((await call(R.address.DELETE!, { token: other, method: "DELETE", id: a.address.id })).status).toBe(400)
     expect((await call(R.address.DELETE!, { token: t, method: "DELETE", id: a.address.id })).status).toBe(200)
     expect((await json(await call(R.addresses.GET!, { token: t }))).addresses.map((x: { label: string }) => x.label)).toEqual(["Office"])
+  })
+})
+
+describe("the phone app", () => {
+  it("reads the catalogue: live categories with prices, areas with their centres, windows and the policy", async () => {
+    const c = await json(await (R.catalog.GET as unknown as (req: Request) => Promise<Response>)(new Request("http://localhost/api/v1/catalog?lang=en")))
+    expect(c.status).toBe(200)
+    const salon = c.categories.find((x: { slug: string }) => x.slug === "womens-salon")
+    expect(salon.services.find((s: { slug: string }) => s.slug === "full-body-wax")).toMatchObject({ name: expect.any(String), price: expect.any(Number), duration: expect.any(Number) })
+    expect(c.areas.find((a: { slug: string }) => a.slug === "dha")).toMatchObject({ name: "DHA", center: { lat: expect.any(Number), lng: expect.any(Number) } })
+    expect(c.windows).toContain("3–5 pm")
+    expect(c.policy).toMatchObject({ freeChangeHours: 3, leadHours: 2 })
+    expect(c.worlds.length).toBeGreaterThan(0)
+  })
+
+  it("books as a guest or signed in, marked as an app booking", async () => {
+    const guest = await json(await call(R.appBooking.POST!, { body: booking("03009998877", { date: day(4), window: "9–11 am" }) }))
+    expect(guest).toMatchObject({ status: 200, id: expect.stringMatching(/^MJ-/), total: 4500 })
+    const { getJob } = await import("@/lib/server/ops")
+    expect((await getJob(guest.id))?.channel).toBe("app")
+    const t = await devToken("appuser@example.com")
+    await call(R.link.POST!, { token: t, body: { name: "App User", phone: "03009998866" } })
+    const signed = await json(await call(R.appBooking.POST!, { token: t, body: booking("03009998866", { date: day(4), window: "11 am–1 pm" }) }))
+    expect(signed.status).toBe(200)
+    expect((await json(await call(R.bookings.GET!, { token: t }))).upcoming.map((b: { id: string }) => b.id)).toEqual([signed.id])
+    // The same checks as the website: a bad phone number is refused with its reason.
+    expect(await json(await call(R.appBooking.POST!, { body: booking("12345") }))).toMatchObject({ status: 422, error: expect.any(String) })
   })
 })
 

@@ -1,0 +1,20 @@
+# Expo's build service (EAS) uploads this repository to build the phone apps in mobile/. The website
+# isn't needed there. (With this file, EAS ignores .gitignore: anything secret is listed here too.)
+node_modules/
+.next/
+.data/
+.vercel/
+.env*
+!.env.example
+*.tsbuildinfo
+/app/
+/components/
+/hooks/
+/lib/
+/public/
+/docs/
+/scripts/
+/supabase/
+/test/
+mobile/**/.expo/
+mobile/**/dist/
