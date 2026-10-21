@@ -36,7 +36,7 @@ accounts, and what's left.
 | **Platform stage 3: the pro app** (versioned `/api/v1/pro` API, job offers, schedule, earnings from the ledger, payouts, ratings, availability, email sign-in) | **Live 21 Oct 2026** (section 3d): migration 0007 run, `SESSION_SECRET` set, deployed and checked. Next: PINs (and emails) for the real pros in mission control |
 | **Platform stage 4: the client account** (email sign-in, live bookings, change and cancel, saved addresses with a map pin, promo codes, wallet credit, book a pro again, `/api/v1/customer`) | **Live 21 Oct 2026** (section 3e): migration 0008 run, deployed and checked. Still to do: Supabase sign-in settings and SMTP (section 7, item 9), then a real email sign-in |
 | **Platform stage 5: automation** (customer messages, auto-assign, weekly payout drafts, opt-in Home Pulse and win-back messages, mission control → Automations) | **Live 21 Oct 2026** (section 3f): migration 0009 run, deployed and checked. Messages stay in test mode (logged only) until WhatsApp templates or Resend are set; the automation pinger needs `CRON_SECRET` (section 7, item 10) |
-| **Platform stage 6: the phone apps** (Mjazo and Mjazo Pro, Expo, in `mobile/`) | **Built 21 Oct 2026** (section 3g), checked in the browser against the local server and bundled for Android. Next: deploy the three new API routes, try both apps on a phone with Expo Go, then store builds with your Expo account |
+| **Platform stage 6: the phone apps** (Mjazo and Mjazo Pro, Expo, in `mobile/`) | **Built 21 Oct 2026** (section 3g); its API is **live** (deployed the same day and checked). Next: try both apps on a phone with Expo Go, then store builds with your Expo account |
 
 ---
 
@@ -304,7 +304,7 @@ Built on 21 October 2026, checked locally, and **live the same day** (migration 
 
 ## 3g. The phone apps (platform stage 6)
 
-Built on 21 October 2026. Everything is in `mobile/` (its own npm workspace, kept out of the website's build, tests and Vercel upload); how to run it is in [mobile/README.md](mobile/README.md).
+Built on 21 October 2026; the API the apps use went **live** the same day (deployed; `/api/v1/catalog` and `/config` answer, an empty booking is refused, signed-out calls answer 401). Everything is in `mobile/` (its own npm workspace, kept out of the website's build, tests and Vercel upload); how to run it is in [mobile/README.md](mobile/README.md).
 
 - **Two Expo apps (SDK 58, React Native 0.88, Expo Router) on one shared package** (`mobile/packages/shared`: the API client, sign-in, storage, design, languages, formatting, location and push):
   - **Mjazo** (`pk.mjazo.app`): the catalogue with search and popular services; each service's options and add-ons with the price the server will charge; the cart and the minimum order; checkout with a saved address or area, sub-area, street and "Use my location" (the area is worked out from it), the real free windows for that cart and area (and the pro they asked for), name and number, payment, notes, a promo code (in Urdu too) and their credit; the booking confirmation; bookings live (steps, the pro's first name, ETA, refreshed every 30 seconds during a visit), moving or cancelling within the free-change time, rating, booking a pro again; the account (adding the phone number with proof, credit, saved addresses, the WhatsApp messages switch, language, sign out). Guests can book; their bookings are kept on the phone and count as proof of the number later.
@@ -524,7 +524,7 @@ All are listed with explanations in [.env.example](.env.example).
    - for emails: `RESEND_API_KEY` and `MESSAGES_FROM` (a verified sender domain in Resend);
    - choose auto-assign's mode, and switch on the Home Pulse and win-back messages when wanted.
 11. In `/admin/translate`, run "Translate everything missing". Have someone review the Urdu, then switch on the Urdu site under Settings → Feature switches.
-12. **For the phone apps (stage 6):** deploy (the apps need `/api/v1/catalog`, `/config` and `/bookings`), then follow [mobile/README.md](mobile/README.md):
+12. **For the phone apps (stage 6):** ~~deploy~~ (done 21 Oct 2026), then follow [mobile/README.md](mobile/README.md):
    - try both apps with Expo Go on your phone (`npm run customer` / `npm run pro` in `mobile/`);
    - for email sign-in in the apps, add `mjazo://**`, `mjazopro://**` and `exp://**` to Supabase's Redirect URLs (and the SMTP sender from item 3);
    - for the stores: an Expo account (`eas login`, `eas init` in each app, then `eas build`), and a Google Play developer account to publish. Push notifications start working in the installed apps after `eas init`.
@@ -561,7 +561,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
    3. ~~Pro app~~: live 21 October (section 3d). Still to do: give the real pros a PIN (and an email, for email sign-in) in mission control → Pros.
    4. ~~Client account~~: live 21 October (section 3e). Still to do: section 7, item 9 (Supabase sign-ups and redirect URLs, SMTP), then try a real email sign-in.
    5. ~~Automation~~: live 21 October (section 3f). Still to do: `CRON_SECRET` and the automation pinger, then WhatsApp templates or Resend (section 7, item 10). Keep auto-assign on "suggest" until the real pros are verified.
-   6. ~~Mobile apps~~: built 21 October (section 3g). To do: deploy (for the new API routes), try both apps with Expo Go (mobile/README.md), add the apps' redirect URLs in Supabase for email sign-in, then `eas init` and store builds with your Expo account (and Google Play to publish).
+   6. ~~Mobile apps~~: built 21 October, API live (section 3g). To do: try both apps with Expo Go (mobile/README.md), add the apps' redirect URLs in Supabase for email sign-in, then `eas init` and store builds with your Expo account (and Google Play to publish).
 3. **Owner setup:** section 7 (rotate secrets, SMTP, `CRON_SECRET` and pingers, `SESSION_SECRET` for the pro app, staff roles).
 4. **Re-test the live flows** that need Supabase: booking → ops console, apply → interview, complaint → Trust Desk.
 5. **Urdu content:** the AI translation pass, a human review (including the new interface Urdu), then switching on the Urdu site.
