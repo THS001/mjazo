@@ -467,4 +467,4 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - Record staff actions with `audit(email, …)` (`lib/server/audit.ts`). Money actions write their audit entry inside their own transaction (`lib/core/money.ts`).
   - Money moves from mission control go through `lib/core/money.ts` (approval records) and then `lib/core/ledger.ts` (postings). Never post from a route.
 - **Staff tools locally:** start the `mjazo-web-staff` preview configuration (`.claude/launch.json`). Without Supabase, `/ops` offers "Continue as local …" for any role (`/api/ops/dev-login`, refused in production); pros get PINs from ops.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (322 tests), then `npx next build` (828 pages, plus two per published block page).
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (326 tests), then `npx next build` (828 pages, plus two per published block page).
