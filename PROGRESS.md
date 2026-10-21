@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 21 October 2026 (platform stage 4: the client account, built and checked locally, not yet deployed)._
+_Last updated 21 October 2026 (platform stage 4: the client account, live)._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -34,7 +34,7 @@ accounts, and what's left.
 | **Platform stage 1: core engine** (bookings, pros, money ledger, slot capacity) | **Live 21 Oct 2026**: migration 0005 run on Supabase, `DATABASE_URL` set, deployed and checked |
 | **Platform stage 2: mission control** (staff accounts and roles, booking page, money approvals, payout runs, promo codes, KPIs, audit log) | **Live 21 Oct 2026** (section 3c): migration 0006 run on Supabase, deployed and checked. Next: give the team their roles in `/admin/people` |
 | **Platform stage 3: the pro app** (versioned `/api/v1/pro` API, job offers, schedule, earnings from the ledger, payouts, ratings, availability, email sign-in) | **Live 21 Oct 2026** (section 3d): migration 0007 run, `SESSION_SECRET` set, deployed and checked. Next: PINs (and emails) for the real pros in mission control |
-| **Platform stage 4: the client account** (email sign-in, live bookings, change and cancel, saved addresses with a map pin, promo codes, wallet credit, book a pro again, `/api/v1/customer`) | **Built and checked locally 21 Oct 2026** (section 3e). Not deployed: needs migration 0008 (`--migrate`), Supabase sign-in settings and the owner's OK |
+| **Platform stage 4: the client account** (email sign-in, live bookings, change and cancel, saved addresses with a map pin, promo codes, wallet credit, book a pro again, `/api/v1/customer`) | **Live 21 Oct 2026** (section 3e): migration 0008 run, deployed and checked. Still to do: Supabase sign-in settings and SMTP (section 7, item 9), then a real email sign-in |
 | Platform stages 5–6 (automation, mobile apps) | Planned, in order (section 9) |
 
 ---
@@ -56,7 +56,7 @@ accounts, and what's left.
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 | 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
-| 21 Oct 2026 | **Stage 4, the client account, built:** customers sign in with an emailed link and see their bookings live (steps, their pro's first name), move or cancel them within the free-change hours, save addresses with a map pin, use promo codes and their Mjazo credit at checkout, and book a pro they liked again. `/api/v1/customer` for the coming app. Not deployed yet |
+| 21 Oct 2026 | **Stage 4, the client account, built:** customers sign in with an emailed link and see their bookings live (steps, their pro's first name), move or cancel them within the free-change hours, save addresses with a map pin, use promo codes and their Mjazo credit at checkout, and book a pro they liked again. `/api/v1/customer` for the coming app. Deployed and migration 0008 run the same day |
 | 21 Oct 2026 | **Stage 3, the pro app, built:** the `/api/v1/pro` API the phone app will use, job offers pros accept or decline, a week's schedule, earnings and payouts from the ledger, ratings, pros setting their own availability, and email sign-in next to phone + PIN. `/pro` rebuilt on it. Migration 0007 run, `SESSION_SECRET` set and **deployed the same day** |
 | 21 Oct 2026 | **Stage 1 live** (migration 0005 run, `DATABASE_URL` set, deployed). **Stage 2, mission control, built:** per-person staff sign-in with Dispatcher, Support, Finance and Recruiter roles, every action in an audit log, money moves approved by a second person, payout runs, promo codes and KPIs. Migration 0006 run and **deployed the same day** |
 | 19 Oct 2026 | **Interface text phase 2:** the text inside Ghar Scan, Home Pulse, Glam Mirror, the Shaadi Orchestrator, the Concierge, account screens, offers, ratings, the hero phone and the pro pages is editable in `/admin`, with hand-written Urdu. The AI tools answer in Urdu on `/ur` |
@@ -240,7 +240,7 @@ Built on 21 October 2026, checked locally, and **live the same day** (migration 
 
 ## 3e. The client account (platform stage 4)
 
-Built on 21 October 2026; **checked locally, not deployed yet.** Schema change:
+Built on 21 October 2026, checked locally, and **live the same day** (deployed; migration 0008 run). Schema change:
 `supabase/migrations/0008_client_account.sql` (a booking's requested pro, credit used and saved address).
 
 - **Sign-in** (`/login`): an emailed link (Supabase). Anyone can make an account.
@@ -402,6 +402,7 @@ The team and the client can edit everything on the site without code changes. Fu
 ### Hosting and code
 
 - **Vercel:** account `thehashirsukhera-8511`, project `mjazo`, production address https://mjazo.vercel.app.
+  - When a stage adds a migration, run `--migrate` **before** deploying: new code that writes new columns fails until they exist (on 21 Oct 2026 stage 4 was briefly live before 0008 ran).
   - Redeploy with `cd F:\mjazo\website; npx vercel deploy --prod --yes` (one line). Check the output says `Directory F:\mjazo\website`: on 21 Oct 2026 a deploy run from `F:\mjazo` put that whole folder live as plain files until it was redeployed.
   - Always check the account first with `npx vercel whoami`. An earlier deploy once went to an unrelated client's team by mistake.
 - **GitHub:** https://github.com/THS001/mjazo, branch `main`. Commits are authored as THS001 <thehashirsukhera@gmail.com>.
@@ -420,7 +421,7 @@ Project `xjyafabyscamelebzrsb` (https://xjyafabyscamelebzrsb.supabase.co), set u
 | `0005_core.sql` | The core engine: customers, addresses, zones, pros (+ availability, time off), bookings (+ lines, events, payments, ratings), the ledger (accounts, entries, postings), payouts, promo codes, events, notifications, audit log, core_meta. Run on the live database on 21 Oct 2026 |
 | `0006_mission_control.sql` | Mission control: the operations roles on `cms_users`, `money_requests` (refunds and credits waiting for approval), `payout_runs` (+ new payout columns), `ops_requests` (the requests inbox's status), who changed each promo code. Run on the live database on 21 Oct 2026 |
 | `0007_pro_app.sql` | The pro app: `job_offers` (one open offer per visit), and pros found by email without regard to case. Run on the live database on 21 Oct 2026 |
-| `0008_client_account.sql` | The client account: a booking's `preferred_pro_id`, `credit_used` and `address_id`, and indexes for customers' emails, addresses and promo uses. **Not run on the live database yet** |
+| `0008_client_account.sql` | The client account: a booking's `preferred_pro_id`, `credit_used` and `address_id`, and indexes for customers' emails, addresses and promo uses. Run on the live database on 21 Oct 2026 |
 
 With Supabase connected, the cross-page flows (apply → interview link, booking → ops console,
 complaint → Trust Desk) can now work end to end on the live site. They haven't been re-tested live yet.
@@ -460,7 +461,7 @@ All are listed with explanations in [.env.example](.env.example).
    - Then Claude redeploys.
    - Run again on 21 Oct 2026 for mission control (migration 0006). The script runs every migration; each is safe to run again. If `DATABASE_URL` is already set it first asks "Replace it? (y/N)": answer that, then type the password.
 9. **For the client account (stage 4):**
-   - run `node F:\mjazo\website\scripts\setup-supabase.mjs --migrate` once more (it adds migration 0008; press Enter at "Replace it?");
+   - ~~run `--migrate` for migration 0008~~: done 21 Oct 2026;
    - in Supabase → Authentication, make sure new sign-ups are allowed (customers make their account with the emailed link);
    - if the Redirect URLs aren't a wildcard, add `https://mjazo.vercel.app/account` and `https://mjazo.vercel.app/ur/account`;
    - add an SMTP sender (e.g. Resend) before telling customers about it: Supabase's own email sends only a few an hour.
@@ -496,7 +497,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
    1. ~~Core engine~~: built and live 21 October (section 3b). Until pros are added in the core, checkout runs in "open" mode (every window open, the team confirms).
    2. ~~Mission control~~: live 21 October (section 3c). Still to do: give the team their operations roles in `/admin/people` (needs SMTP in Supabase for invites, section 7).
    3. ~~Pro app~~: live 21 October (section 3d). Still to do: give the real pros a PIN (and an email, for email sign-in) in mission control → Pros.
-   4. ~~Client account~~: built and checked locally 21 October (section 3e). **To go live:** section 7, item 9 (`--migrate` for 0008, Supabase sign-in settings, SMTP), then deploy with the owner's OK.
+   4. ~~Client account~~: live 21 October (section 3e). Still to do: section 7, item 9 (Supabase sign-ups and redirect URLs, SMTP), then try a real email sign-in.
    5. **Automation:** the outbox worker and these automations:
       - WhatsApp/email/push messages, logged until providers are set
       - auto-assign (off / suggest / auto)
