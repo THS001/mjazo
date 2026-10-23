@@ -4,9 +4,10 @@ import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { api, pkr } from "../kit"
 import { Section, Stat } from "./money"
+import { PilotGates } from "./pilot"
 
 // The KPI dashboard: bookings, completion rate, GMV, repeat rate, visits per pro-day and
-// unreconciled cash, for the last 7, 30 or 90 days.
+// unreconciled cash, for the last 7, 30 or 90 days; and the pilot gates (./pilot.tsx).
 
 type Report = {
   from: string
@@ -32,6 +33,27 @@ type Report = {
 const pct = (n: number | null) => (n === null ? "–" : `${Math.round(n * 100)}%`)
 
 export function KpiTab() {
+  const [view, setView] = useState<"kpi" | "pilot">("kpi")
+  return (
+    <div className="space-y-6">
+      <div role="tablist" className="inline-flex rounded-full bg-black/[0.05] p-1">
+        {(
+          [
+            ["kpi", "KPIs"],
+            ["pilot", "Pilot gates"],
+          ] as const
+        ).map(([v, label]) => (
+          <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className={cn("h-9 px-4 rounded-full text-sm", view === v ? "bg-white shadow-sm" : "text-zinc-600")}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {view === "kpi" ? <Kpis /> : <PilotGates />}
+    </div>
+  )
+}
+
+function Kpis() {
   const [days, setDays] = useState(30)
   const [r, setR] = useState<Report | null>(null)
   const [error, setError] = useState("")

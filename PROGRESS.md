@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 23 October 2026 (after the platform, part 4: the AI tools in the apps)._
+_Last updated 23 October 2026 (the pilot gates in mission control)._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -40,6 +40,7 @@ accounts, and what's left.
 | **After the platform, part 2: live tracking of the pro** (the customer sees how far away she is, ops see it on the board) | **Live 23 Oct 2026** (section 3h): migration 0011 run, deployed and checked |
 | **After the platform, part 3: phone-number sign-in** (a 6-digit code on WhatsApp or by SMS, website and app) | **Deployed 23 Oct 2026** (migration 0012 run). Switched off until a WhatsApp authentication template or Twilio Verify is set (section 7, item 13); the live site offers email sign-in until then |
 | **After the platform, part 4: the AI tools in the apps** (Ask Mjazo, Ghar Scan, Home Pulse, Glam Mirror and Shaadi in Mjazo; the Copilot in Mjazo Pro) | **Deployed 23 Oct 2026**. **The AI answers on the whole live site fail until the Anthropic key is replaced** (section 7, item 14) |
+| **Pilot gates** (mission control → KPIs: the validation sprint's numbers, measured from real visits) | **Built 23 Oct 2026** (section 3i). To go live: deploy (no migration); then Finance enters each month's ad and transport spend |
 | **Platform stage 6: the phone apps** (Mjazo and Mjazo Pro, Expo, in `mobile/`) | **Built 21 Oct 2026** (section 3g); its API is **live** (deployed the same day and checked). Next: try both apps on a phone with Expo Go, then store builds with your Expo account |
 
 ---
@@ -61,6 +62,7 @@ accounts, and what's left.
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 | 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
+| 23 Oct 2026 | **Pilot gates built:** mission control → KPIs measures the validation sprint's gates from the blueprint analysis (cost per paying customer, second booking within 90 days, visits per pro-day, pros active at day 90, basket, leakage, contribution after transport and sales tax) |
 | 23 Oct 2026 | **The AI tools in the apps built** (after the platform, part 4): Mjazo has Ask Mjazo (the Concierge, booking by chat), Ghar Scan (with the brief sent to the pro), Home Pulse, and Glam Mirror and the Shaadi Orchestrator on the website; Mjazo Pro has the Copilot with today's brief read aloud |
 | 23 Oct 2026 | **Phone-number sign-in built** (after the platform, part 3): customers sign in on the website or in the app with their number and a code on WhatsApp or by SMS, and see every booking made with that number; "Sign out everywhere"; a code also proves a number when an emailed sign-in adds it |
 | 23 Oct 2026 | **Live tracking of the pro built** (after the platform, part 2): while she's on her way with Mjazo Pro or `/pro` open, the customer sees how far away she is and about how long, and ops see it on the board. Only her latest point is kept, and it's deleted at check-in |
@@ -393,6 +395,26 @@ No schema change. New API: `GET /api/v1/tools?lang=` (the Concierge's and Ghar S
 - **Checked locally (23 Oct 2026), in both apps in web mode at phone size:** the Smart tools row on Mjazo's home; Ask Mjazo with the CMS welcome and chips, and (no AI key on this laptop) its "taking a break" answer with the WhatsApp button; Ghar Scan's screen with the CMS wording; Home Pulse's plan (the signed-in test customer's wax from two days ago moved her next wax out, the week's 36°C forecast, switching Pets on added a pet-grooming item); Mjazo Pro's Copilot card and screen, which said Copilot isn't switched on (no key). **Not checked yet:** the AI's real answers in the apps (a chat booking, a scan, the spoken brief). They need the live site, after the deploy.
 - **Checked live after the deploy (23 Oct 2026):** `/api/v1/tools` answers in Urdu with the AI marked on; `/api/v1/pulse` plans 10 items with today's 36°C forecast; the Plus, tracking and sign-out-everywhere routes refuse signed-out calls (401); phone sign-in answers "not available yet" (no provider set, as expected); `/login` and `/ur/login` load. **The AI itself failed:** the Concierge (app channel) and Home Pulse's wording both got "invalid x-api-key" from Anthropic (Vercel's error log). The key in Vercel is 21 days old and unchanged, so it was switched off on Anthropic's side; the deploy didn't cause it. Re-test the AI once the key is replaced (section 7, item 14).
 
+## 3i. The pilot gates (23 Oct 2026)
+
+The blueprint analysis recommends a validation sprint through the Nov 2026–Feb 2027 wedding season, and lists the numbers the pilot has to show before money goes into the full launch. Mission control now measures them from the real visits: **KPIs → Pilot gates** (anyone with KPIs: Owners, Admins, Dispatchers, Finance). Code: `lib/ops/pilot.ts` (the gates, pure), `lib/core/pilot.ts` (the inputs and the ledger's margins), `lib/server/pilot.ts`, `/api/ops/pilot`. No migration (the inputs are one row in `core_meta`).
+
+| Gate | Pass | Measured as |
+|---|---|---|
+| Cost per paying customer | ≤ PKR 1,500 | the month's ad spend (entered), shared out over the days in view, ÷ customers whose first completed visit fell in them |
+| Second booking within 90 days | ≥ 40% (stretch 50%) | of customers whose first visit is 60+ days old (since the pilot start), those with another visit within 90 days |
+| Visits per pro per working day | ≥ 2.0 | completed visits ÷ pro-days with a visit |
+| Pros still active at day 90 | ≥ 80% | of pros whose first visit is 90+ days old, those active with a visit in the last 30 days |
+| Average basket | ≥ PKR 3,000 | completed visits' average total |
+| Regular pairs going quiet | ≤ 10%, or explained | the Trust Desk's leakage flags not dismissed with a reason ÷ customer–pro pairs with 3+ visits in 180 days |
+| Contribution per visit | > PKR 0 | Mjazo's share from the ledger (commission less the discount it funded) − sales tax − the month's transport spend per visit |
+
+- Each gate shows its value, the target, a plain explanation and **Pass / Stretch goal met / Not yet / Too early to tell / Needs an input**. "Too early" until there's enough to judge (10 customers 60+ days past their first visit, 3 pros 90+ days in, 10 visits, 5 pro-days, 3 regular pairs), so a handful of visits never reads as a pass or a fail.
+- Views: since the pilot start, 30 or 90 days.
+- **Finance or an Owner enters what the visits can't know:** each month's ad spend and transport spend (with a note), the pilot's start date, and the sales tax assumptions until the written tax opinion is in: the rate, inside the price or added on top, and on the whole booking (Mjazo as principal) or only Mjazo's share (as agent). Every change is in the audit log. Others see a read-only summary.
+- **Tests:** 446 in total. New: the gates (7: spend shared over a range, too early and missing inputs, cost per customer, the 90-day second booking, pro-days, basket and day-90 retention, leakage, contribution with tax inside or on top and on either base), the inputs and the ledger margin on a real database (3), and the permission matrix (3 actions).
+- **Checked locally:** Finance entered October's spend (PKR 6,000 ads, PKR 1,500 transport): cost per customer PKR 194 (581 of ads over 3 new customers), contribution PKR 1,289 (1,325 − 0 − 36); 8% tax inside the price made it PKR 896 (393 tax). A Dispatcher saw the gates with the inputs read-only, and the server refused their save (403).
+
 ## 4. Brand kit
 
 Saved in `F:\mjazo\brand\`, outside this repo. A copy of the PDF is in the user's Downloads folder.
@@ -704,5 +726,5 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - Wallet credit is set aside on the booking (`credit_used`) and posted with `applyCredit` when the visit completes (`postLedger` in `lib/core/jobs.ts`). What the pro collects is total − credit.
   - Locally, `/login` offers the test sign-in (`/api/v1/customer/dev-login`); the browser keeps its token in localStorage.
 - **Staff tools locally:** start the `mjazo-web-staff` preview configuration (`.claude/launch.json`). Without Supabase, `/ops` offers "Continue as local …" for any role (`/api/ops/dev-login`, refused in production); pros get PINs from ops.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (433 tests), then `npx next build` (865 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (446 tests), then `npx next build` (865 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
 - **New API routes on the dev server:** a route added while an older `.next/dev` cache exists can answer 404 (the request falls through to the page catch-all). Touch the new `route.ts` and it's picked up.
