@@ -4,8 +4,8 @@ import Link from "@/components/site/locale-link"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "@/components/site/locale-link"
 import { motion } from "framer-motion"
-import { Banknote, Check, ClipboardCheck, Crown, Gift, Loader2, Lock, MapPinned, MessageCircle, ShieldCheck, ShoppingBag, Smartphone, Tag, UserRound, Wallet, X, Zap } from "lucide-react"
-import { formatPKR } from "@/lib/catalog"
+import { Banknote, Check, ClipboardCheck, Crown, Gift, Loader2, Lock, MapPinned, MessageCircle, Repeat, ShieldCheck, ShoppingBag, Smartphone, Tag, UserRound, Wallet, X, Zap } from "lucide-react"
+import { formatAmount, formatPKR } from "@/lib/catalog"
 import { getRef, submit, track } from "@/lib/site"
 import { cartTotal, useCart, useLocation } from "@/lib/store"
 import { getBookings, nextDays, saveBooking, windowAvailable, windowLabel, WINDOW_LABELS } from "@/lib/bookings"
@@ -19,6 +19,8 @@ import { fill, fillNodes, useCatalog, useLocale, useSite, useT } from "@/compone
 import type { UiStrings } from "@/lib/cms/types/ui"
 import { customerApi, customerToken, useAccount } from "@/lib/client/customer"
 import type { Address } from "@/lib/core/customers"
+import type { CustomerPackView } from "@/lib/server/customer-api"
+import { isPackLine } from "@/lib/packs"
 import { MapPin, type Pin } from "@/components/account/map-pin"
 
 const payments = (t: UiStrings["checkout"]) =>
@@ -85,6 +87,9 @@ export function CheckoutFlow() {
   const [promoBusy, setPromoBusy] = useState(false)
   const [useCredit, setUseCredit] = useState(true)
   const [withPro, setWithPro] = useState<{ id: string; name: string } | null>(null)
+  // A visit of their prepaid pack (?pack= from the account's "Book your next visit").
+  const [packId, setPackId] = useState<string | null>(null)
+  const [pack, setPack] = useState<CustomerPackView | null>(null)
   const [proNote, setProNote] = useState("")
   const started = useRef(false)
   const days = useMemo(() => nextDays(7, { locale, today: t.duration.today, tomorrow: t.duration.tomorrow }), [locale, t])
@@ -96,6 +101,7 @@ export function CheckoutFlow() {
     setMounted(true)
     const q = new URLSearchParams(window.location.search)
     if (q.get("with")) setWithPro({ id: q.get("with")!, name: q.get("name") ?? "" })
+    if (q.get("pack")) setPackId(q.get("pack"))
     let mine: string | null = null
     try {
       mine = localStorage.getItem("mjazo-my-ref")
@@ -122,19 +128,28 @@ export function CheckoutFlow() {
   }, [])
 
   const list = mounted ? items : []
-  const subtotal = cartTotal(list)
-  // One discount per booking: the largest of Mjazo Plus, the promo code and a friend's referral (the server decides the same way).
-  const referralOff = ref && subtotal > 0 ? Math.min(referral.friendOff, subtotal) : 0
-  const promoOff = promo ? Math.min(promo.discount, subtotal) : 0
+  // Their pack pays one visit of its line: the pack's price a visit, with the rest of that line's own
+  // price (without add-ons) as the pack's saving. Should the line cost less, it's raised to the
+  // pack's price (as the server does).
+  const packLine = pack?.line ? list.find((i) => isPackLine(i, pack.line!)) : undefined
+  const packUnit = packLine ? packLine.unitPrice - packLine.addOns.reduce((s, a) => s + a.price, 0) : 0
+  const packUse = pack && packLine ? { paid: pack.visitPrice, saving: Math.max(0, packUnit - pack.visitPrice), raise: Math.max(0, pack.visitPrice - packUnit) } : null
+  const subtotal = cartTotal(list) + (packUse?.raise ?? 0)
+  const rest = subtotal - (packUse ? packUse.paid + packUse.saving : 0)
+  // One discount per booking: the largest of Mjazo Plus, the promo code and a friend's referral, on
+  // what the pack doesn't pay for (the server decides the same way).
+  const referralOff = ref && rest > 0 ? Math.min(referral.friendOff, rest) : 0
+  const promoOff = promo ? Math.min(promo.discount, rest) : 0
   const plus = signedIn?.plus?.status === "active" ? signedIn.plus : null
-  const plusOff = plus ? Math.round((subtotal * plus.discountPct) / 100) : 0
+  const plusOff = plus ? Math.round((rest * plus.discountPct) / 100) : 0
   const usingPromo = promoOff > 0 && promoOff >= referralOff && promoOff >= plusOff
   const usingPlus = !usingPromo && plusOff > 0 && plusOff >= referralOff
   const discount = Math.max(referralOff, promoOff, plusOff)
-  const total = subtotal - discount
+  const total = subtotal - discount - (packUse?.saving ?? 0)
+  const packPaid = packUse?.paid ?? 0
   const creditAvailable = signedIn?.credit.available ?? 0
-  const credit = signedIn && useCredit ? Math.min(creditAvailable, total) : 0
-  const due = total - credit
+  const credit = signedIn && useCredit ? Math.min(creditAvailable, total - packPaid) : 0
+  const due = total - packPaid - credit
 
   // Signed in: their name and number, and their saved addresses (the default one to start with).
   const applyAddress = (a: Address | null) => {
@@ -164,6 +179,13 @@ export function CheckoutFlow() {
     }, () => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signedIn?.customer.id])
+  useEffect(() => {
+    if (!signedIn || !packId) return
+    customerApi<{ mine: CustomerPackView[] }>(`/api/v1/customer/packs?lang=${locale}`).then((r) => {
+      const k = r.mine.find((x) => x.id === packId && x.status === "active" && !x.expired && x.left > 0)
+      setPack(k ?? null)
+    }, () => setPack(null))
+  }, [signedIn?.customer.id, packId, locale])
 
   const promoProblem = (p?: string, min?: number) =>
     p === "notYet" ? m.promoNotYet : p === "expired" ? m.promoExpired : p === "minOrder" ? fill(m.promoMinOrder, { min: formatPKR(min ?? 0) }) : p === "usedUp" ? m.promoUsedUp : p === "used" ? m.promoUsed : m.promoInvalid
@@ -283,6 +305,7 @@ export function CheckoutFlow() {
         lat: pin?.area ? pin.lat : undefined,
         lng: pin?.area ? pin.lng : undefined,
         addressId: addressId ?? undefined,
+        packId: packUse ? pack!.id : undefined,
       }
       const placed = await submit("booking", data, signedIn ? await customerToken() : null)
       // A new address, saved to their account if they asked (best effort: the booking is placed).
@@ -295,7 +318,7 @@ export function CheckoutFlow() {
         if (brief.photos.length) await fetch("/api/booking/attach", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ bookingId: id, phone: data.phone, photos: brief.photos.slice(0, 3) }) }).catch(() => {})
         clearBrief()
       }
-      saveBooking({ id, createdAt: new Date().toISOString(), ...data, areaName: areaObj?.name ?? area, items: list, credit: placed.credit ?? 0 })
+      saveBooking({ id, createdAt: new Date().toISOString(), ...data, areaName: areaObj?.name ?? area, items: list, credit: placed.credit ?? 0, packPaid: placed.packPaid ?? 0 })
       try {
         localStorage.setItem("mjazo-contact", JSON.stringify({ name: data.name, phone: data.phone, area, address: data.address, landmark: data.landmark }))
       } catch {}
@@ -311,7 +334,8 @@ export function CheckoutFlow() {
         setBusy(false)
         return
       }
-      setServerError(code === "slotFull" ? t.checkout.slotFull : code === "unavailable" ? t.checkout.unavailable : (err as Error).message)
+      if (code?.startsWith("pack-")) setPack(null)
+      setServerError(code === "slotFull" ? t.checkout.slotFull : code === "unavailable" ? t.checkout.unavailable : code?.startsWith("pack-") ? t.packs.problem : (err as Error).message)
       if (code === "slotFull") {
         setWin("")
         setSlotTick((n) => n + 1)
@@ -526,9 +550,16 @@ export function CheckoutFlow() {
       <aside id="summary" className="lg:sticky lg:top-28 space-y-4 scroll-mt-28 min-w-0">
         <div className="rounded-3xl bg-white border border-zinc-200 p-6">
           <p className="font-serif text-2xl">{t.checkout.summary}</p>
+          {pack && (
+            <p className="mt-3 rounded-2xl bg-brand-soft text-brand-ink px-4 py-3 text-sm flex gap-2">
+              <Repeat className="w-4 h-4 shrink-0 mt-0.5" />
+              {packUse ? fill(t.packs.using, { name: pack.name }) : fill(t.packs.addLine, { item: pack.itemName, name: pack.name })}
+            </p>
+          )}
           <CartLines items={list} />
           <div className="pt-4 border-t border-zinc-100 space-y-2 text-sm">
             <div className="flex justify-between text-zinc-500"><span>{t.common.visitFee}</span><span>{t.common.free}</span></div>
+            {packUse && packUse.saving > 0 && <div className="flex justify-between text-brand-ink"><span className="flex items-center gap-1.5"><Repeat className="w-4 h-4" />{fill(t.packs.saving, { name: pack!.name })}</span><span>− {formatPKR(packUse.saving)}</span></div>}
             {usingPlus && <div className="flex justify-between text-brand-ink"><span className="flex items-center gap-1.5"><Crown className="w-4 h-4" />{fill(m.plusLine, { pct: plus!.discountPct })}</span><span>− {formatPKR(discount)}</span></div>}
             {discount > 0 && !usingPromo && !usingPlus && <div className="flex justify-between text-brand-ink"><span className="flex items-center gap-1.5"><Gift className="w-4 h-4" />{fill(t.checkout.friendWelcome, { code: ref ?? "" })}</span><span>− {formatPKR(discount)}</span></div>}
             {usingPromo && (
@@ -544,12 +575,9 @@ export function CheckoutFlow() {
               </div>
             )}
             <div className="flex justify-between text-base"><span>{t.common.total}</span><span className="font-medium">{formatPKR(total)}</span></div>
-            {credit > 0 && (
-              <>
-                <div className="flex justify-between text-brand-ink"><span className="flex items-center gap-1.5"><Wallet className="w-4 h-4" />{m.credit}</span><span>− {formatPKR(credit)}</span></div>
-                <div className="flex justify-between font-medium"><span>{m.payAfter}</span><span>{formatPKR(due)}</span></div>
-              </>
-            )}
+            {packPaid > 0 && <div className="flex justify-between text-brand-ink"><span className="flex items-center gap-1.5"><Repeat className="w-4 h-4" />{t.packs.paidFromPack}</span><span>− {formatPKR(packPaid)}</span></div>}
+            {credit > 0 && <div className="flex justify-between text-brand-ink"><span className="flex items-center gap-1.5"><Wallet className="w-4 h-4" />{m.credit}</span><span>− {formatPKR(credit)}</span></div>}
+            {(credit > 0 || packPaid > 0) && <div className="flex justify-between font-medium"><span>{m.payAfter}</span><span>{formatAmount(due)}</span></div>}
           </div>
           {!usingPromo && (
             <div className="mt-4">
@@ -588,7 +616,7 @@ export function CheckoutFlow() {
         <div className="flex items-center gap-3 rounded-full bg-white/95 backdrop-blur border border-zinc-200 shadow-lg ps-5 pe-1.5 py-1.5">
           <div className="flex-1 min-w-0">
             <p className="text-[11px] text-zinc-500">{t.checkout.totalPayAfter}</p>
-            <p className="text-sm font-medium">{formatPKR(due)}</p>
+            <p className="text-sm font-medium">{credit > 0 || packPaid > 0 ? formatAmount(due) : formatPKR(due)}</p>
           </div>
           <button onClick={place} disabled={busy} className="h-11 px-5 rounded-full bg-foreground text-background text-sm font-medium disabled:opacity-60 flex items-center gap-2">
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}{t.checkout.confirm}

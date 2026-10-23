@@ -33,6 +33,7 @@ export type Job = {
   items: JobItem[]
   total: number
   credit?: number // the customer's wallet credit used on this visit: the pro collects total − credit
+  pack?: { id: string; name: string; paid: number } // a visit of their prepaid pack: it pays `paid` of the total too
   preferredProId?: string // the customer asked for this pro ("book her again")
   payment: string
   notes?: string

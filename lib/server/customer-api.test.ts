@@ -71,6 +71,7 @@ beforeAll(async () => {
     catalog: await import("../../app/api/v1/catalog/route"),
     appBooking: await import("../../app/api/v1/bookings/route"),
     plus: await import("../../app/api/v1/customer/plus/route"),
+    packs: await import("../../app/api/v1/customer/packs/route"),
     gift: await import("../../app/api/v1/customer/gift-card/route"),
     referral: await import("../../app/api/v1/referral/route"),
   } as typeof R
@@ -257,6 +258,36 @@ describe("Plus, gift cards and referrals", () => {
     await call(R.appBooking.POST!, { token: t, body: booking("03007770001", { date: day(5), window: "5–7 pm" }) })
     expect(await json(await call(R.promo.POST!, { token: t, body: { code: "NADIA-0002", items: [item] } }))).toMatchObject({ ok: false, problem: "used" })
     expect(await json(await call(R.promo.POST!, { body: { code: "NOBODY-9999", items: [item] } }))).toMatchObject({ ok: false, problem: "invalid" })
+  })
+})
+
+describe("packs", () => {
+  it("lists the packs, asks for one, and books a visit with it once it's paid", async () => {
+    const t = await devToken("packs@example.com")
+    await call(R.link.POST!, { token: t, body: { name: "Zara Malik", phone: "03007770011" } })
+    const list = await json(await call(R.packs.GET!, { token: t }))
+    expect(list.offers.map((o: { slug: string }) => o.slug)).toEqual(["monthly-refresh", "wax-monthly", "ac-year"])
+    expect(list.offers[1]).toMatchObject({ visitPrice: 2150, listPrice: 2500, total: 6450, saving: 1050, itemName: "Full arms + full legs wax", line: { service: "arms-legs-wax", options: ["Regular"], unitPrice: 2500, duration: 60 } })
+    expect(list.mine).toEqual([])
+    const asked = await json(await call(R.packs.POST!, { token: t, body: { slug: "wax-monthly" } }))
+    expect(asked.mine[0]).toMatchObject({ id: asked.id, status: "requested", total: 6450, left: 3 })
+    // Not paid yet: the booking is turned down before anything is saved.
+    const wax = { name: "Full arms + full legs wax", category: "womens-salon", service: "arms-legs-wax", options: ["Regular"], addOns: [], qty: 1, unitPrice: 0 }
+    const visit = (phone: string) => booking(phone, { items: [wax], packId: asked.id, date: day(4), window: "1–3 pm" })
+    expect(await json(await call(R.bookings.POST!, { token: t, body: visit("03007770011") }))).toMatchObject({ status: 422, code: "pack-notActive" })
+    const { activatePack } = await import("@/lib/core/packs")
+    await activatePack(db, { packId: asked.id, paidVia: "easypaisa", by: "fin@mjazo.test" })
+    const placed = await json(await call(R.bookings.POST!, { token: t, body: visit("03007770011") }))
+    expect(placed).toMatchObject({ status: 200, total: 2150, packPaid: 2150 })
+    const mine = await json(await call(R.bookings.GET!, { token: t }))
+    expect(mine.upcoming.find((b: { id: string }) => b.id === placed.id)).toMatchObject({ pack: { name: "Wax Every Month", paid: 2150 }, discount: 350, due: 0 })
+    expect((await json(await call(R.packs.GET!, { token: t }))).mine[0]).toMatchObject({ status: "active", left: 2, booked: 1, line: { service: "arms-legs-wax" } })
+    // Nobody else can use it, signed in or not.
+    const other = await devToken("other-packs@example.com")
+    await call(R.link.POST!, { token: other, body: { name: "Hira Shah", phone: "03007770012" } })
+    expect(await json(await call(R.bookings.POST!, { token: other, body: visit("03007770012") }))).toMatchObject({ status: 422, code: "pack-missing" })
+    expect(await json(await call(R.submit.POST!, { body: { type: "booking", data: visit("03007770013") } }))).toMatchObject({ status: 422, code: "pack-missing" })
+    expect((await call(R.packs.GET!)).status).toBe(401)
   })
 })
 

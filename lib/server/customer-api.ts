@@ -4,6 +4,8 @@ import { getCatalog, getSettings } from "@/lib/cms/read"
 import { requireCore } from "@/lib/core/db"
 import { optIn } from "@/lib/core/automation"
 import { plusFor, redeemGiftCard, referralCode, referralSummary, referrerOf, requestPlus } from "@/lib/core/growth"
+import { packsFor, requestPack } from "@/lib/core/packs"
+import { packOffers } from "@/lib/packs"
 import { creditFor, deleteAddress, endPhoneSessions, linkAccount, LinkError, listAddresses, saveAddress, updateCustomer, type AddressInput, type Customer } from "@/lib/core/customers"
 import { listCustomerJobs } from "@/lib/core/jobs"
 import { livePoints, withEta, type LivePoint } from "@/lib/core/tracking"
@@ -15,6 +17,7 @@ import type { Job, Pro } from "@/lib/ops/types"
 import type { Account } from "./customer-auth"
 import { audit } from "./audit"
 import { OpsError, addJobEvent, getJob, getPros, rescheduleJob } from "./ops"
+import { packOffersIn } from "./pack-offers"
 import { proveNumber } from "./phone-sign-in"
 import { notifyOps } from "./store"
 
@@ -56,7 +59,9 @@ function bookingView(j: Job, cat: Cat, pros: Pro[], freeChangeHours: number, liv
     discount: Math.max(0, subtotal - j.total),
     total: j.total,
     credit: j.credit ?? 0,
-    due: j.total - (j.credit ?? 0),
+    // A visit of their prepaid pack: the pack pays this much of the total.
+    pack: j.pack ? { name: j.pack.name, paid: j.pack.paid } : null,
+    due: j.total - (j.credit ?? 0) - (j.pack?.paid ?? 0),
     payment: j.payment,
     pro: pro ? { firstName: firstName(pro.name) } : null,
     askedFor: asked ? { id: asked.id, firstName: firstName(asked.name) } : null,
@@ -165,6 +170,67 @@ export async function addGiftCard(c: Customer, code: string) {
   const db = await requireCore()
   const g = await redeemGiftCard(db, c.id, code)
   return { added: g.amount, credit: await creditFor(db, c.id) }
+}
+
+// ---------------------------------------------------------------------------
+// Packs
+// ---------------------------------------------------------------------------
+
+type Lang = "en" | "ur"
+
+/** The packs on offer, and theirs: asked for (waiting for payment), in use, used up or ended. */
+export async function customerPacks(c: Customer, lang: Lang = "en") {
+  const db = await requireCore()
+  const [offers, mine, en] = await Promise.all([packOffersIn(lang), packsFor(db, c.id), getCatalog("en")])
+  // One visit as a cart line, at today's price (the pack pays its price a visit of it); null when
+  // its service can't be booked any more.
+  const lineOf = (k: (typeof mine)[number]) => {
+    try {
+      const l = priceItems([{ ...k.item, addOns: [], qty: 1 }], en).items[0]
+      return { name: k.item.name, category: k.item.category, service: k.item.service, options: k.item.options, unitPrice: l.unitPrice, duration: l.duration }
+    } catch {
+      return null
+    }
+  }
+  return {
+    offers,
+    mine: mine.map((k) => {
+      const o = offers.find((x) => x.slug === k.slug)
+      return {
+        id: k.id,
+        slug: k.slug,
+        name: o?.name ?? k.name,
+        itemName: o?.itemName ?? k.item.name,
+        line: lineOf(k),
+        status: k.status,
+        visits: k.visits,
+        visitPrice: k.visitPrice,
+        total: k.visits * k.visitPrice,
+        everyDays: k.everyDays,
+        endsAt: k.endsAt,
+        used: k.used,
+        booked: k.booked,
+        left: k.left,
+        nextDue: k.nextDue,
+        expired: k.expired,
+      }
+    }),
+  }
+}
+export type CustomerPackView = Awaited<ReturnType<typeof customerPacks>>["mine"][number]
+
+/** They ask for a pack; ops are told, take the money and activate it. */
+export async function askForPack(c: Customer, slug: string, lang: Lang = "en") {
+  const db = await requireCore()
+  const offer = packOffers(await getCatalog("en")).find((o) => o.slug === slug)
+  if (!offer) throw new OpsError("That pack isn't available any more")
+  const { pack, isNew } = await requestPack(db, c.id, offer, `customer:${c.id}`)
+  if (isNew)
+    void notifyOps(
+      `[Mjazo] Pack request from ${c.name || c.phone}`,
+      `${c.name} (${c.phone ?? "no number"}) asked for the ${offer.name} pack: ${offer.visits} visits at PKR ${offer.visitPrice} (PKR ${offer.total} upfront).\nTake the money, then activate it in mission control → Plus & gifts.`,
+    ).catch(() => {})
+  return { id: pack.id, ...(await customerPacks(c, lang)) }
 }
 
 /**

@@ -1,4 +1,4 @@
-import { ApiError, Button, Card, Chip, color, errorText, Field, fill, formatDay, formatPKR, formatTime, formatWhen, Line, Loading, Notice, request, Row, Screen, Sheet, space, Txt, useLang, whatsappLink, windowLabel, type CustomerBooking, type Slots } from "@mjazo/shared"
+import { ApiError, Button, Card, Chip, color, errorText, Field, fill, formatAmount, formatDay, formatPKR, formatTime, formatWhen, Line, Loading, Notice, request, Row, Screen, Sheet, space, Txt, useLang, whatsappLink, windowLabel, type CustomerBooking, type Slots } from "@mjazo/shared"
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router"
 import { Star } from "lucide-react-native"
 import { useCallback, useEffect, useState } from "react"
@@ -80,8 +80,9 @@ export default function BookingScreen() {
           <Line key={n} label={`${i.name}${i.qty > 1 ? ` ×${i.qty}` : ""}${[...i.options, ...i.addOns].length ? ` (${[...i.options, ...i.addOns].join(", ")})` : ""}`} value={i.unitPrice > 0 ? formatPKR(i.unitPrice * i.qty) : t.onRequest} />
         ))}
         {b.discount > 0 && <Line label={t.discount} value={`− ${formatPKR(b.discount)}`} />}
+        {b.pack && <Line label={`${t.packPaid} (${b.pack.name})`} value={`− ${formatPKR(b.pack.paid)}`} />}
         {b.credit > 0 && <Line label={t.creditUsed} value={`− ${formatPKR(b.credit)}`} />}
-        <Line label={t.payAfter} value={formatPKR(b.due)} strong />
+        <Line label={t.payAfter} value={b.credit > 0 || b.pack ? formatAmount(b.due) : formatPKR(b.due)} strong />
       </Card>
       <Card>
         <Txt v="tiny">{t.where2}</Txt>

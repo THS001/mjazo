@@ -4,10 +4,11 @@ import type { Catalog } from "@/lib/catalog"
 import type { Job, JobEvent, JobItem, PaymentRecord, Pro, Rating } from "@/lib/ops/types"
 import { karachiNow } from "@/lib/time"
 import { emit } from "./events"
-import { applyCredit, customerBalances, settlePayment, visitCompleted, type PayMethod } from "./ledger"
+import { applyCredit, customerBalances, packVisitUsed, settlePayment, visitCompleted, type PayMethod } from "./ledger"
 import { creditFor } from "./customers"
 import { plusDiscount, referrerOf } from "./growth"
 import { clearLocation } from "./tracking"
+import { packForBooking } from "./packs"
 import { coreId, normalisePhone } from "./phone"
 import { priceItems, type ClientItem } from "./pricing"
 import { checkPromo, PromoError } from "./promos"
@@ -45,6 +46,8 @@ type BookingRow = {
   visit_notes: string[] | null
   preferred_pro_id: string | null
   credit_used: number | null
+  pack_id?: string | null // migration 0013
+  pack_paid?: number | null
   created_at: string
 }
 type ItemRow = { booking_id: string; position: number; name: string; category: string; service: string; options: string[]; add_ons: string[]; qty: number; unit_price: number }
@@ -62,6 +65,8 @@ async function hydrate(db: Db, rows: BookingRow[]): Promise<Job[]> {
   const events = await db.query<EventRow>("select * from booking_events where booking_id = any($1::text[]) order by booking_id, id", [ids])
   const pays = await db.query<PaymentRow>("select * from booking_payments where booking_id = any($1::text[])", [ids])
   const ratings = await db.query<RatingRow>("select * from booking_ratings where booking_id = any($1::text[])", [ids])
+  const packIds = [...new Set(rows.map((r) => r.pack_id).filter((x): x is string => Boolean(x)))]
+  const packNames = new Map(packIds.length ? (await db.query<{ id: string; name: string }>("select id, name from customer_packs where id = any($1::text[])", [packIds])).map((p) => [p.id, p.name]) : [])
   const group = <T extends { booking_id: string }>(list: T[]) => {
     const m = new Map<string, T[]>()
     for (const x of list) m.set(x.booking_id, [...(m.get(x.booking_id) ?? []), x])
@@ -105,6 +110,7 @@ async function hydrate(db: Db, rows: BookingRow[]): Promise<Job[]> {
     if (b.visit_notes?.length) job.visitNotes = b.visit_notes
     if (b.lat != null && b.lng != null) Object.assign(job, { lat: b.lat, lng: b.lng })
     if (b.credit_used) job.credit = b.credit_used
+    if (b.pack_id) job.pack = { id: b.pack_id, name: packNames.get(b.pack_id) ?? "", paid: b.pack_paid ?? 0 }
     if (b.preferred_pro_id) job.preferredProId = b.preferred_pro_id
     const p = payBy.get(b.id)
     if (p) {
@@ -195,6 +201,8 @@ export type NewBooking = {
   lng?: number
   /** The saved address it was booked to. */
   addressId?: string
+  /** A visit of the signed-in customer's prepaid pack (PackError when it can't be used). */
+  packId?: string
 }
 
 export type BookingRules = {
@@ -212,6 +220,14 @@ export async function createBooking(db: Db, b: NewBooking, cat: Catalog, rules: 
   return db.tx(async (t) => {
     if (await t.one("select 1 from bookings where id = $1", [b.id])) return (await getJob(t, b.id))!
     const customerId = b.customerId ?? (await ensureCustomer(t, b.name, b.phone))
+    // A pack visit: the pack pays one unit of its line; its saving is part of the discount, and the
+    // other discounts below count only on the rest of the booking.
+    const pack = b.packId && b.customerId ? await packForBooking(t, { packId: b.packId, customerId, items: priced.items, cat, now: rules.now }) : null
+    if (pack?.raise) {
+      priced.items[pack.index].unitPrice += pack.raise
+      priced.subtotal += pack.raise
+    }
+    const rest = priced.subtotal - (pack ? pack.paid + pack.saving : 0)
     // A friend's referral code typed in the promo box counts as the referral.
     let referral = b.referral?.trim() || undefined
     let promoCode = b.promo?.trim() || undefined
@@ -222,21 +238,22 @@ export async function createBooking(db: Db, b: NewBooking, cat: Catalog, rules: 
     // Referral discount: a real code that isn't their own, on their first booking only.
     const firstBooking = !(await t.one("select 1 from bookings where customer_id = $1 and status not in ('cancelled')", [customerId]))
     const referrer = referral && firstBooking ? await referrerOf(t, referral) : null
-    const referralOff = referrer && referrer !== customerId ? Math.min(rules.referralOff, priced.subtotal) : 0
+    const referralOff = referrer && referrer !== customerId ? Math.min(rules.referralOff, rest) : 0
     let promo: { code: string; discount: number } | null = null
     if (promoCode) {
-      const c = await checkPromo(t, promoCode, { subtotal: priced.subtotal, customerId, now: rules.now })
+      const c = await checkPromo(t, promoCode, { subtotal: rest, customerId, now: rules.now })
       if (!c.ok) throw new PromoError(c.problem, c.minOrder)
       promo = c
     }
     // Mjazo Plus members get their discount on every booking.
-    const plusOff = await plusDiscount(t, customerId, priced.subtotal, rules.now)
+    const plusOff = await plusDiscount(t, customerId, rest, rules.now)
     // One discount per booking: the largest of Plus, the promo code and a friend's referral.
     const usePromo = Boolean(promo && promo.discount >= referralOff && promo.discount >= plusOff)
     const usePlus = !usePromo && plusOff > 0 && plusOff >= referralOff
-    const discount = usePromo ? promo!.discount : usePlus ? plusOff : referralOff
+    const offer = usePromo ? promo!.discount : usePlus ? plusOff : referralOff
+    const discount = offer + (pack?.saving ?? 0)
     const total = priced.subtotal - discount
-    const credit = b.useCredit && b.customerId ? Math.min((await creditFor(t, customerId)).available, total) : 0
+    const credit = b.useCredit && b.customerId ? Math.min((await creditFor(t, customerId)).available, total - (pack?.paid ?? 0)) : 0
     const preferred = b.preferredProId && (await t.one("select 1 from pros where id = $1 and status = 'active'", [b.preferredProId])) ? b.preferredProId : null
     const pin = b.lat !== undefined && b.lng !== undefined ? [b.lat, b.lng] : [null, null]
     const addressId = b.addressId && (await t.one("select 1 from addresses where id = $1 and customer_id = $2", [b.addressId, customerId])) ? b.addressId : null
@@ -249,14 +266,15 @@ export async function createBooking(db: Db, b: NewBooking, cat: Catalog, rules: 
       await t.query("update bookings set promo_code = $2 where id = $1", [b.id, promo!.code])
       await t.query("insert into promo_redemptions (code, booking_id, customer_id, amount) values ($1, $2, $3, $4)", [promo!.code, b.id, customerId, discount])
     } else if (usePlus) await t.query("update bookings set promo_code = 'PLUS' where id = $1", [b.id])
-    else if (discount) {
+    else if (offer) {
       await t.query("update bookings set promo_code = $2 where id = $1", [b.id, `REF:${referral!.toUpperCase().slice(0, 40)}`])
       // Who referred them: their referrer gets credit when this first visit is done.
       await t.query("update customers set referred_by = $2 where id = $1 and referred_by is null", [customerId, referrer])
     }
+    if (pack) await t.query("update bookings set pack_id = $2, pack_paid = $3 where id = $1", [b.id, pack.packId, pack.paid])
     await insertItems(t, b.id, priced.items)
     if (priced.changed || (b.total !== undefined && b.total !== total - credit && b.total !== total)) console.warn(`[core] ${b.id}: browser total ${b.total} replaced by ${total}`)
-    await emit(t, "booking.created", { bookingId: b.id, customerId, proId: preferred ?? undefined }, { total, discount, credit, promo: usePromo ? promo!.code : null, preferredProId: preferred, channel: b.channel ?? "web" })
+    await emit(t, "booking.created", { bookingId: b.id, customerId, proId: preferred ?? undefined }, { total, discount, credit, promo: usePromo ? promo!.code : null, packId: pack?.packId ?? null, preferredProId: preferred, channel: b.channel ?? "web" })
     return (await getJob(t, b.id))!
   })
 }
@@ -452,7 +470,9 @@ async function postLedger(db: Db, id: string, before: Job | null, after: Job) {
   if (completedNow) {
     const pro = await db.one<{ commission_rate: number }>("select commission_rate from pros where id = $1", [after.proId])
     await visitCompleted(db, { bookingId: id, customerId, proId: after.proId, subtotal: b!.subtotal, discount: b!.discount, total: b!.total, commissionRate: pro?.commission_rate ?? 0.25 })
-    // The wallet credit set aside at booking pays part of it (as much as is still there).
+    // Their pack pays its price a visit; the wallet credit set aside at booking pays part of the
+    // rest (as much as is still there).
+    if (after.pack?.paid) await packVisitUsed(db, { packId: after.pack.id, bookingId: id, customerId, amount: after.pack.paid })
     const use = Math.min(after.credit ?? 0, (await customerBalances(db, customerId)).credit)
     if (use > 0) await applyCredit(db, { customerId, bookingId: id, amount: use })
   }

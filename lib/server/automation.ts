@@ -10,6 +10,7 @@ import { InputError } from "@/lib/core/errors"
 import { rewardReferral } from "@/lib/core/growth"
 import { draftPayoutRun } from "@/lib/core/money"
 import { listOffers, offerJob } from "@/lib/core/offers"
+import { packsDue } from "@/lib/core/packs"
 import { normalisePhone } from "@/lib/core/phone"
 import { rankPros } from "@/lib/ops/match"
 import type { Job, Pro } from "@/lib/ops/types"
@@ -33,7 +34,7 @@ import { listSubmissions, notifyOps } from "./store"
 // The rules
 // ---------------------------------------------------------------------------
 
-export type RuleKey = "confirm" | "reminder" | "onTheWay" | "rateVisit" | "autoAssign" | "proOffer" | "weeklyPayout" | "pulseNudges" | "winBack" | "referralReward" | "plusWelcome"
+export type RuleKey = "confirm" | "reminder" | "onTheWay" | "rateVisit" | "autoAssign" | "proOffer" | "weeklyPayout" | "pulseNudges" | "winBack" | "referralReward" | "plusWelcome" | "packWelcome" | "packDue"
 export type AssignMode = "off" | "suggest" | "auto"
 
 type RuleDef = {
@@ -57,6 +58,8 @@ export const RULES: RuleDef[] = [
   { key: "weeklyPayout", label: "Weekly payout run", description: "Every Monday from 9 am: a draft payout run for last week (Monday to Sunday). Finance approves it and marks each payout paid.", on: true },
   { key: "referralReward", label: "Referral credit message", description: "When a friend's first visit with someone's code is done, that customer gets their credit (always) and this message (when on).", on: true, messages: ["referralReward"], params: { referralReward: ["name", "friend", "amount", "link"] } },
   { key: "plusWelcome", label: "Welcome to Mjazo Plus", description: "When ops activate a Plus membership.", on: true, messages: ["plusWelcome"], params: { plusWelcome: ["name", "until", "pct", "link"] } },
+  { key: "packWelcome", label: "Your pack is ready", description: "When ops activate a pack (prepaid visits).", on: true, messages: ["packWelcome"], params: { packWelcome: ["name", "pack", "visits", "until", "link"] } },
+  { key: "packDue", label: "Time for your next pack visit", description: "To customers with a pack, when its next visit falls due (two days ahead) and none is booked: once per visit, 10 am to 8 pm, never after STOP.", on: true, messages: ["packDue"], params: { packDue: ["name", "pack", "left", "link"] } },
   { key: "pulseNudges", label: "Home Pulse reminders (opt-in)", description: "To customers who asked for Home Pulse reminders: what's due in the next 2 days. At most 2 a month, 10 am to 8 pm, never after STOP.", on: false, marketing: true, messages: ["pulseNudge"], params: { pulseNudge: ["name", "title", "date", "link"] } },
   { key: "winBack", label: "Win-back after 60 and 90 days (opt-in)", description: "To signed-in customers who said yes to messages, 60 and 90 days after their last visit if they haven't booked since. 10 am to 8 pm, never after STOP.", on: false, marketing: true, messages: ["winBack60", "winBack90"], params: { winBack60: ["name", "link"], winBack90: ["name", "link"] } },
 ]
@@ -183,6 +186,7 @@ const clock = (hhmm: string) => {
 /** "21 October 2027" (a Plus membership runs for a year, so the year matters). */
 const longDate = (iso: string, lang: string) => new Date(iso).toLocaleDateString(lang === "ur" ? "ur-PK" : "en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Karachi" })
 const accountLink = (lang: string) => `${SITE_URL}${lang === "ur" ? "/ur" : ""}/account/bookings`
+const packsLink = (lang: string) => `${SITE_URL}${lang === "ur" ? "/ur" : ""}/account/packs`
 
 /** What a booking's messages say ({{tokens}}), in the customer's language. */
 function bookingVars(j: Job, ctx: Ctx, lang: string) {
@@ -313,6 +317,14 @@ async function handleEvents(ctx: Ctx) {
             const lang = c.lang === "ur" ? "ur" : "en"
             await queue(ctx, { rule: "plusWelcome", key: "plusWelcome", lang, vars: { name: firstName(who.name), until: longDate(m.ends_at, lang), pct: String(m.discount_pct), link: `${SITE_URL}${lang === "ur" ? "/ur" : ""}/services` }, dedupeKey: `plus:${String(e.data.membershipId)}`, phone: who.phone ?? undefined, email: c.email, customerId: c.id, eventId: e.id, push: true })
           }
+        } else if (e.type === "pack.activated" && e.customerId && ctx.rules.packWelcome.enabled && age < FRESH.confirm) {
+          const c = await customerOf(ctx.db, e.customerId)
+          const who = await ctx.db.one<{ name: string; phone: string | null }>("select name, phone from customers where id = $1", [e.customerId])
+          const k = await ctx.db.one<{ name: string; visits: number; ends_at: string }>("select name, visits, ends_at from customer_packs where id = $1", [String(e.data.packId ?? "")])
+          if (c && who && k) {
+            const lang = c.lang === "ur" ? "ur" : "en"
+            await queue(ctx, { rule: "packWelcome", key: "packWelcome", lang, vars: { name: firstName(who.name), pack: k.name, visits: String(k.visits), until: longDate(k.ends_at, lang), link: packsLink(lang) }, dedupeKey: `pack:${String(e.data.packId)}`, phone: who.phone ?? undefined, email: c.email, customerId: c.id, eventId: e.id, push: true })
+          }
         } else if (e.type === "offer.made" && j && e.proId && ctx.rules.proOffer.enabled && age < FRESH.proOffer) {
           const pro = ctx.pros.find((p) => p.id === e.proId)
           const until = typeof e.data.expiresAt === "string" ? new Date(e.data.expiresAt).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Karachi" }) : ""
@@ -423,6 +435,18 @@ async function runSchedules(ctx: Ctx) {
       if (id) n++
     }
     out.pulse = n
+  }
+
+  // Packs: their next visit is due (two days ahead) and none is booked. Once per visit.
+  if (ctx.rules.packDue.enabled && daytime) {
+    let n = 0
+    for (const k of await packsDue(ctx.db, addDays(today, 2), ctx.now)) {
+      if (!k.phone || (await store.optedOut(ctx.db, k.phone))) continue
+      const lang = k.lang === "ur" ? "ur" : "en"
+      const id = await queue(ctx, { rule: "packDue", key: "packDue", lang, vars: { name: firstName(k.customerName), pack: k.name, left: String(k.left), link: packsLink(lang) }, dedupeKey: `packDue:${k.id}:${k.used}`, phone: k.phone, email: k.email, customerId: k.customerId, push: true })
+      if (id) n++
+    }
+    out.packDue = n
   }
 
   // Win-back: signed-in customers who said yes to messages, 60 and 90 days after their last visit.

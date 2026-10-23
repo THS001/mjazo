@@ -5,6 +5,8 @@ import { formatDuration, formatPKR } from "@/lib/catalog"
 import { PageHero } from "@/components/site/page-hero"
 import { Container, Reveal } from "@/components/site/primitives"
 import { AddBundleButton } from "@/components/site/offer-buttons"
+import { PackCard } from "@/components/account/pack-views"
+import { packOffersIn } from "@/lib/server/pack-offers"
 import { getCatalog, getPage, getSettings, getUi } from "@/lib/cms/read"
 import { renderTokens } from "@/lib/cms/fields"
 import type { OffersContent } from "@/lib/cms/types/pages/commerce"
@@ -18,8 +20,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 }
 
 export default async function OffersPage({ params }: { params: Promise<{ locale: string }> }) {
-  await pageLocale(params)
-  const [{ bundles, getService }, { site }, c, ui] = await Promise.all([getCatalog(), getSettings(), getPage<OffersContent>("offers"), getUi()])
+  const locale = await pageLocale(params)
+  const [{ bundles, getService }, { site }, c, ui, packs] = await Promise.all([getCatalog(), getSettings(), getPage<OffersContent>("offers"), getUi(), packOffersIn(locale)])
   const whatsappLink = (message: string) => waLink(site.whatsapp, message)
   const SEASONAL = c.seasonal
   const live = bundles.filter((b) => !SEASONAL.includes(b.slug))
@@ -101,6 +103,29 @@ export default async function OffersPage({ params }: { params: Promise<{ locale:
             ))}
           </div>
         </div>
+
+        {packs.length > 0 && (
+          <div id="packs" className="pt-16 scroll-mt-28">
+            <p className="text-white/40 text-sm uppercase tracking-[0.2em] mb-3">{ui.packs.eyebrow}</p>
+            <h2 className="font-serif text-4xl sm:text-5xl max-w-2xl">{ui.packs.heading}</h2>
+            <p className="text-white/60 mt-3 max-w-2xl">{ui.packs.intro}</p>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+              {packs.map((o) => (
+                <Reveal key={o.slug}>
+                  <PackCard
+                    o={o}
+                    dark
+                    action={
+                      <Link href={`/account/packs#${o.slug}`} className="h-12 rounded-full px-6 text-sm font-medium inline-flex items-center bg-brand text-black hover:bg-white transition-colors">
+                        {ui.packs.get}
+                      </Link>
+                    }
+                  />
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        )}
 
         <Reveal>
           <Link href={c.shaadi.href} className="group mt-16 block rounded-[2.5rem] p-10 sm:p-14 overflow-hidden relative" style={{ background: "linear-gradient(120deg, #f3c7c7, #f4a437)" }}>

@@ -1,4 +1,4 @@
-import { Button, Card, color, fill, formatDay, formatPKR, Line, Row, Screen, space, Txt, useLang, whatsappLink, windowLabel } from "@mjazo/shared"
+import { Button, Card, color, fill, formatAmount, formatDay, formatPKR, Line, Row, Screen, space, Txt, useLang, whatsappLink, windowLabel } from "@mjazo/shared"
 import { router, useLocalSearchParams } from "expo-router"
 import { CircleCheck } from "lucide-react-native"
 import { Linking, View } from "react-native"
@@ -11,7 +11,8 @@ export default function Booked() {
   const { lang } = useLang()
   const { catalog } = useCatalog()
   const { account } = useAccount()
-  const p = useLocalSearchParams<{ id: string; name?: string; date?: string; window?: string; total?: string }>()
+  // paid: their credit or pack paid some of it, so PKR 0 means nothing's left to pay (not "on request").
+  const p = useLocalSearchParams<{ id: string; name?: string; date?: string; window?: string; total?: string; paid?: string }>()
   const total = Number(p.total ?? 0)
   return (
     <Screen top>
@@ -26,7 +27,7 @@ export default function Booked() {
       </View>
       <Card>
         {p.date && p.window && <Line label={t.when2} value={`${formatDay(p.date, lang)}, ${windowLabel(p.window, lang)}`} />}
-        <Line label={t.payAfter} value={total > 0 ? formatPKR(total) : t.onRequest} strong />
+        <Line label={t.payAfter} value={total > 0 ? formatPKR(total) : p.paid ? formatAmount(0) : t.onRequest} strong />
       </Card>
       <Card>
         <Txt v="h3">{t.nextTitle}</Txt>

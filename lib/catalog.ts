@@ -491,6 +491,37 @@ const bundles: Bundle[] = [
 ]
 
 // ---------------------------------------------------------------------------
+// Packs (prepaid visits; shown on /offers and the account)
+// ---------------------------------------------------------------------------
+
+/**
+ * A few visits of one service, or one bundle, paid upfront for less per visit: the maintenance
+ * plan. `options` are the service's variant labels in variant order (none for a bundle).
+ */
+export interface Pack {
+  slug: string
+  name: string
+  status: Status
+  /** A bundle's slug; when set, each visit is that bundle and the service fields are ignored. */
+  bundle?: string
+  category?: string
+  service?: string
+  options: string[]
+  visits: number
+  visitPrice: number // PKR a visit
+  everyDays: number // how often to book the next visit
+  validDays: number // all visits used within this many days of starting
+  note: string
+}
+
+// The prices are placeholders for the founder to confirm (PROGRESS.md §8).
+const packs: Pack[] = [
+  { slug: "monthly-refresh", name: "Monthly Quick Refresh", status: "live", bundle: "quick-refresh", options: [], visits: 3, visitPrice: 2250, everyDays: 28, validDays: 120, note: "Threading, underarms and a clean-up every four weeks, with the same pro when she's free." },
+  { slug: "wax-monthly", name: "Wax Every Month", status: "live", category: "womens-salon", service: "arms-legs-wax", options: ["Regular"], visits: 3, visitPrice: 2150, everyDays: 28, validDays: 120, note: "Full arms and legs wax every four weeks." },
+  { slug: "ac-year", name: "AC Care for the Year", status: "live", category: "ac-services", service: "ac-service", options: ["Split", "1 unit"], visits: 3, visitPrice: 2150, everyDays: 120, validDays: 400, note: "Three services of one split AC: before summer, mid-summer and after the monsoon." },
+]
+
+// ---------------------------------------------------------------------------
 // Search vocabulary (editable in the CMS: Settings → Search)
 // ---------------------------------------------------------------------------
 
@@ -516,6 +547,7 @@ export type CatalogData = {
   categories: Category[]
   areas: Area[]
   bundles: Bundle[]
+  packs: Pack[]
   minOrder: number // PKR
   coverage: string
   synonyms: Record<string, string>
@@ -523,9 +555,11 @@ export type CatalogData = {
 }
 
 /** The built-in catalogue: the CMS defaults, and the fallback whenever the CMS is unreachable. */
-export const DEFAULT_CATALOG: CatalogData = { worlds, categories, areas, bundles, minOrder: 2500, coverage: "across Karachi", synonyms: SYNONYMS, stopWords: STOP_WORDS }
+export const DEFAULT_CATALOG: CatalogData = { worlds, categories, areas, bundles, packs, minOrder: 2500, coverage: "across Karachi", synonyms: SYNONYMS, stopWords: STOP_WORDS }
 
 export const formatPKR = (n: number) => (n <= 0 ? "On request" : `PKR ${n.toLocaleString("en-PK")}`)
+/** An amount of money (what's left to pay can be PKR 0, unlike a price). */
+export const formatAmount = (n: number) => `PKR ${Math.max(0, Math.round(n)).toLocaleString("en-PK")}`
 type DurationWords = { flexible: string; min: string; hr: string; hrs: string; hrMin: string }
 const EN_DURATION: DurationWords = { flexible: "Flexible", min: "{{m}} min", hr: "{{h}} hr", hrs: "{{h}} hrs", hrMin: "{{h}} hr {{m}} min" }
 /** "1 hr 30 min"; pass the UI strings' duration words for other languages. */
@@ -550,6 +584,7 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 /** Every lookup the site needs, over one catalogue (the CMS's published data or the defaults). */
 export function buildCatalog(data: CatalogData) {
   const { worlds, categories, areas, bundles } = data
+  const packs = data.packs ?? []
   const visibleCategories = categories.filter((c) => c.status !== "hidden")
   const getWorld = (slug: string) => worlds.find((w) => w.slug === slug)
   const getCategory = (slug: string) => visibleCategories.find((c) => c.slug === slug)
@@ -603,6 +638,7 @@ export function buildCatalog(data: CatalogData) {
     categories,
     areas,
     bundles,
+    packs,
     MIN_ORDER: data.minOrder,
     COVERAGE: data.coverage,
     visibleCategories,

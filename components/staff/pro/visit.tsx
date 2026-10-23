@@ -3,7 +3,7 @@
 import { useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { Camera, Check, ChevronRight, Clock, MapPin, Navigation, Phone, Wallet } from "lucide-react"
-import { formatPKR } from "@/lib/catalog"
+import { formatAmount, formatPKR } from "@/lib/catalog"
 import type { Lang } from "@/lib/content"
 import type { JobBrief } from "@/lib/ops/types"
 import type { proAvailability, proEarnings, proOffers, proProfile, proRatingSummary, proSchedule } from "@/lib/server/pro-api"
@@ -111,12 +111,17 @@ export function VisitCard({ visit: j, n, lang, focus, busy, onAct, onPay }: { vi
           )}
           <p className="mt-4 flex items-center gap-2 text-sm">
             <Wallet className="w-4 h-4 opacity-60" />
-            <span className="font-semibold">{formatPKR(j.due)}</span>
+            <span className="font-semibold">{j.credit > 0 || j.pack ? formatAmount(j.due) : formatPKR(j.due)}</span>
             <span className="opacity-60">· {j.payment} after service</span>
           </p>
           {j.credit > 0 && (
             <p className={cn("mt-1 pl-6 text-sm opacity-60", ur)}>
               {formatPKR(j.total)} − {formatPKR(j.credit)} {T.creditUsed[lang]}
+            </p>
+          )}
+          {j.pack && (
+            <p className={cn("mt-1 pl-6 text-sm opacity-60", ur)}>
+              {formatPKR(j.pack.paid)} {T.packUsed[lang]} ({j.pack.name})
             </p>
           )}
           <p className={cn("mt-1 pl-6 text-sm opacity-60", ur)}>
@@ -206,11 +211,16 @@ export function PaySheet({ visit, lang, onDone }: { visit: Visit; lang: Lang; on
     <div>
       <p className={cn("text-2xl font-semibold", ur)}>{T.pay[lang]}</p>
       <p className="text-white/55 mt-1">
-        {T.collect[lang]}: <span className="text-white font-semibold">{formatPKR(visit.due)}</span>
+        {T.collect[lang]}: <span className="text-white font-semibold">{visit.credit > 0 || visit.pack ? formatAmount(visit.due) : formatPKR(visit.due)}</span>
       </p>
       {visit.credit > 0 && (
         <p className={cn("text-white/45 text-sm mt-0.5", ur)}>
           {T.total[lang]} {formatPKR(visit.total)} − {formatPKR(visit.credit)} {T.creditUsed[lang]}
+        </p>
+      )}
+      {visit.pack && (
+        <p className={cn("text-white/45 text-sm mt-0.5", ur)}>
+          {formatPKR(visit.pack.paid)} {T.packUsed[lang]} ({visit.pack.name})
         </p>
       )}
       <div className="grid grid-cols-2 gap-2 mt-5">

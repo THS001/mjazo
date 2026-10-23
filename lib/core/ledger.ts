@@ -34,6 +34,7 @@ export const ACC = {
   plus: "mjazo:plus",
   giftCards: "mjazo:giftcards",
   referrals: "mjazo:referrals",
+  packs: "mjazo:packs",
 } as const
 
 type Kind = "asset" | "liability" | "revenue" | "expense"
@@ -54,6 +55,7 @@ export function accountInfo(id: string): { kind: Kind; ownerType: "pro" | "custo
     plus: ["revenue", "Mjazo Plus fees"],
     giftcards: ["liability", "Gift cards not yet used"],
     referrals: ["expense", "Referral rewards"],
+    packs: ["liability", "Packs not yet used"],
   }
   if (scope === "mjazo" && mjazo[owner]) return { kind: mjazo[owner][0], ownerType: "mjazo", ownerId: null, name: mjazo[owner][1] }
   throw new LedgerError(`Unknown ledger account ${id}`)
@@ -259,6 +261,51 @@ export function giftCardRefunded(db: Db, g: { code: string; amount: number; acto
     postings: [
       { account: ACC.giftCards, amount: g.amount },
       { account: ACC.bank, amount: -g.amount },
+    ],
+  })
+}
+
+/** A pack paid for: the money is held until each visit is done. */
+export function packSold(db: Db, p: { packId: string; customerId: string; amount: number; method: string; reference?: string; actor?: string }) {
+  return post(db, {
+    kind: "pack_sold",
+    key: `pack:${p.packId}:sold`,
+    customerId: p.customerId,
+    actor: p.actor,
+    memo: [`Pack ${p.packId} (${p.method})`, p.reference].filter(Boolean).join(" · "),
+    postings: [
+      { account: ACC.bank, amount: p.amount },
+      { account: ACC.packs, amount: -p.amount },
+    ],
+  })
+}
+
+/** A visit made with a pack is done: the pack pays its price a visit towards what the customer owes. */
+export function packVisitUsed(db: Db, p: { packId: string; bookingId: string; customerId: string; amount: number }) {
+  return post(db, {
+    kind: "pack_used",
+    key: `pack-used:${p.bookingId}`,
+    customerId: p.customerId,
+    bookingId: p.bookingId,
+    memo: `Pack ${p.packId}`,
+    postings: [
+      { account: ACC.packs, amount: p.amount },
+      { account: ACC.custAr(p.customerId), amount: -p.amount },
+    ],
+  })
+}
+
+/** A pack cancelled: its unused visits' money given back to the customer (outside the app). */
+export function packRefunded(db: Db, p: { packId: string; customerId: string; amount: number; reason?: string; actor?: string }) {
+  return post(db, {
+    kind: "pack_refunded",
+    key: `pack:${p.packId}:refunded`,
+    customerId: p.customerId,
+    actor: p.actor,
+    memo: [`Pack ${p.packId} cancelled`, p.reason].filter(Boolean).join(" · "),
+    postings: [
+      { account: ACC.packs, amount: p.amount },
+      { account: ACC.bank, amount: -p.amount },
     ],
   })
 }

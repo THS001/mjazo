@@ -101,6 +101,6 @@ export async function submit(type: "booking" | "request" | "waitlist" | "apply" 
     const body = await res.json().catch(() => ({}))
     throw Object.assign(new Error(body?.error ?? "Something went wrong"), { code: body?.code as string | undefined })
   }
-  // total: what the booking actually costs, priced on the server (bookings only).
-  return (await res.json()) as { id: string; total?: number; credit?: number }
+  // total: what the booking actually costs, priced on the server (bookings only); credit and packPaid: what their credit and pack pay of it.
+  return (await res.json()) as { id: string; total?: number; credit?: number; packPaid?: number }
 }

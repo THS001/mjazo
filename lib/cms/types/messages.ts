@@ -48,6 +48,14 @@ export const MESSAGES = {
     subject: "Welcome to Mjazo Plus",
     text: "Welcome to Mjazo Plus, {{name}}! Until {{until}} you get {{pct}}% off every booking, taken off by itself. Book: {{link}}",
   },
+  packWelcome: {
+    subject: "Your Mjazo pack is ready",
+    text: "Your {{pack}} pack is ready, {{name}}: {{visits}} visits to use by {{until}}. Book the first one in two taps: {{link}}",
+  },
+  packDue: {
+    subject: "Time for your next {{pack}} visit",
+    text: "Hi {{name}}, your next {{pack}} visit is due. You have {{left}} left; book it in two taps: {{link}} Reply STOP to stop these reminders.",
+  },
 }
 
 export type MessageTexts = typeof MESSAGES
@@ -94,6 +102,14 @@ export const MESSAGES_UR: MessageTexts = {
     subject: "مجازو پلس میں خوش آمدید",
     text: "مجازو پلس میں خوش آمدید، {{name}}! {{until}} تک ہر بکنگ پر {{pct}}% رعایت خود بخود لگے گی۔ بکنگ: {{link}}",
   },
+  packWelcome: {
+    subject: "آپ کا مجازو پیک تیار ہے",
+    text: "{{name}}، آپ کا {{pack}} پیک تیار ہے: {{until}} تک {{visits}} وزٹس۔ پہلا وزٹ دو ٹیپ میں بک کریں: {{link}}",
+  },
+  packDue: {
+    subject: "{{pack}} کے اگلے وزٹ کا وقت",
+    text: "{{name}}، آپ کے {{pack}} پیک کا اگلا وزٹ آ گیا ہے۔ ابھی {{left}} وزٹس باقی ہیں؛ دو ٹیپ میں بک کریں: {{link}} یہ یاد دہانیاں بند کرنے کے لیے STOP لکھ کر بھیجیں۔",
+  },
 }
 
 const GROUPS: Record<MessageKey, string> = {
@@ -107,6 +123,8 @@ const GROUPS: Record<MessageKey, string> = {
   proOffer: "A visit offered to a pro",
   referralReward: "Referral credit (to the customer who referred a friend)",
   plusWelcome: "Welcome to Mjazo Plus",
+  packWelcome: "Your pack is ready",
+  packDue: "Time for your next pack visit",
 }
 
 register<MessageTexts, MessageTexts>({
@@ -115,7 +133,7 @@ register<MessageTexts, MessageTexts>({
   group: "Settings",
   kind: "singleton",
   icon: "MessageCircle",
-  description: "The messages Mjazo sends by itself: booking confirmed, the day-before reminder, \"your pro is on the way\", \"rate your visit\", the opt-in reminders and win-backs, visit offers to pros, referral credit and the Plus welcome. Each one can be switched on or off in mission control → Automations. Keep the {{tokens}}.",
+  description: "The messages Mjazo sends by itself: booking confirmed, the day-before reminder, \"your pro is on the way\", \"rate your visit\", the opt-in reminders and win-backs, visit offers to pros, referral credit, the Plus welcome and the pack messages. Each one can be switched on or off in mission control → Automations. Keep the {{tokens}}.",
   fields: stringFields(MESSAGES, GROUPS),
   defaults: () => MESSAGES,
   translations: { ur: () => MESSAGES_UR },

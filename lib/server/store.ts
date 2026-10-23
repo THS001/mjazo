@@ -57,6 +57,8 @@ export const schemas = {
     lat: z.number().min(-90).max(90).optional(),
     lng: z.number().min(-180).max(180).optional(),
     addressId: z.string().max(40).optional(),
+    // A visit of their prepaid pack (signed-in customers only).
+    packId: z.string().max(40).optional(),
   }),
   request: z.object({ name: z.string().min(2), phone, area: z.string(), services: z.string(), when: z.string().optional() }),
   waitlist: z.object({ phone, name: z.string().optional(), area: z.string(), category: z.string(), source: z.string() }),

@@ -1,4 +1,4 @@
-import { Button, Card, Empty, errorText, fill, formatDay, formatPKR, formatTime, Loading, Notice, Row, Screen, space, Txt, useLang, windowLabel, type CustomerBooking } from "@mjazo/shared"
+import { Button, Card, Empty, errorText, fill, formatAmount, formatDay, formatPKR, formatTime, Loading, Notice, Row, Screen, space, Txt, useLang, windowLabel, type CustomerBooking } from "@mjazo/shared"
 import { router, useFocusEffect } from "expo-router"
 import { useCallback, useState } from "react"
 import { View } from "react-native"
@@ -99,7 +99,7 @@ function BookingCard({ b }: { b: CustomerBooking }) {
       <Row style={{ justifyContent: "space-between" }}>
         <Txt v="small">{b.pro ? fill(t.yourPro, { name: b.pro.firstName }) : b.areaName}</Txt>
         <Txt v="small" style={{ fontWeight: "700" }}>
-          {formatPKR(b.due)}
+          {b.credit > 0 || b.pack ? formatAmount(b.due) : formatPKR(b.due)}
         </Txt>
       </Row>
       {b.status === "en_route" && b.live && b.live.minutes !== null && (

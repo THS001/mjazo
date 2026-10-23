@@ -3,12 +3,12 @@
 import Link from "@/components/site/locale-link"
 import { useRouter } from "@/components/site/locale-link"
 import { useEffect, useMemo, useState } from "react"
-import { ArrowUpRight, CalendarCheck, Check, Crown, Gift, LifeBuoy, Loader2, MapPin as MapIcon, Pencil, RotateCcw, Star, Trash2, Wallet, X } from "lucide-react"
-import { formatPKR } from "@/lib/catalog"
+import { ArrowUpRight, CalendarCheck, Check, Crown, Gift, LifeBuoy, Loader2, MapPin as MapIcon, Pencil, Repeat, RotateCcw, Star, Trash2, Wallet, X } from "lucide-react"
+import { formatAmount, formatPKR } from "@/lib/catalog"
 import { formatBookingDate, nextDays, windowAvailable, windowLabel, WINDOW_LABELS } from "@/lib/bookings"
 import { ACCOUNT_EVENT, customerApi, CustomerApiError, deviceBookingIds, sendPhoneCode, signOut, signOutEverywhere, type CodeSent, type Me, type PhoneChannels } from "@/lib/client/customer"
 import type { Address } from "@/lib/core/customers"
-import type { CustomerBooking } from "@/lib/server/customer-api"
+import type { CustomerBooking, CustomerPackView } from "@/lib/server/customer-api"
 import { useCart } from "@/lib/store"
 import { track } from "@/lib/site"
 import { cn } from "@/lib/utils"
@@ -168,15 +168,27 @@ export function LiveOverview({ me }: { me: Me }) {
   const locale = useLocale()
   const [next, setNext] = useState<CustomerBooking | null | undefined>(undefined)
   const [addresses, setAddresses] = useState<number | null>(null)
+  const [packs, setPacks] = useState<string | null>(null)
+  const p = useT().packs
   useEffect(() => {
     customerApi<{ upcoming: CustomerBooking[] }>("/api/v1/customer/bookings").then((r) => setNext(r.upcoming[0] ?? null), () => setNext(null))
     customerApi<{ addresses: Address[] }>("/api/v1/customer/addresses").then((r) => setAddresses(r.addresses.length), () => setAddresses(0))
+    // Their pack in use (visits left), or one waiting for payment, or what packs are.
+    customerApi<{ mine: CustomerPackView[] }>("/api/v1/customer/packs").then(
+      (r) => {
+        const k = r.mine.find((x) => x.status === "active" && !x.expired && x.left > 0) ?? r.mine.find((x) => x.status === "requested")
+        setPacks(k ? `${k.name}: ${k.status === "requested" ? fill(p.waiting, { total: formatPKR(k.total) }) : fill(p.left, { left: k.left, visits: k.visits })}` : p.sub)
+      },
+      () => setPacks(p.sub),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const tiles = [
     { href: "/account/bookings", icon: CalendarCheck, t: m.nextVisit, d: next === undefined ? "…" : next ? `${formatBookingDate(next.date, locale)} · ${windowLabel(next.window, locale)}` : m.noUpcoming },
     { href: "/account/bookings", icon: Wallet, t: m.credit, d: me.credit.available > 0 ? fill(m.creditSub, { amount: formatPKR(me.credit.available) }) : m.noCredit },
     { href: "/account/addresses", icon: MapIcon, t: m.addresses, d: addresses === null ? "…" : addresses ? fill(m.addressCount, { count: addresses }) : m.addAddress },
     { href: "/home-pulse", icon: CalendarCheck, t: a.homePulse, d: a.homePulseSub },
+    { href: "/account/packs", icon: Repeat, t: p.title, d: packs ?? "…" },
     { href: "/plus", icon: Crown, t: a.plus, d: plusLine(me, m, locale) ?? a.plusSub },
     { href: "/refer", icon: Gift, t: a.refer, d: me.referral ? `${m.referTitle}: ${me.referral.code}` : a.referSub },
     { href: "/help", icon: LifeBuoy, t: a.help, d: a.helpSub },
@@ -311,6 +323,7 @@ function BookingCard({ b, phone, onChanged }: { b: CustomerBooking; phone: strin
   const t = useT()
   const a = t.account
   const m = t.myAccount
+  const pk = t.packs
   const locale = useLocale()
   const { whatsappLink } = useSite()
   const [mode, setMode] = useState<"" | "move" | "cancel">("")
@@ -359,10 +372,12 @@ function BookingCard({ b, phone, onChanged }: { b: CustomerBooking; phone: strin
         {b.askedFor && !b.pro && open && <p>{fill(m.askedFor, { name: b.askedFor.firstName })}</p>}
         <p>
           <span className="font-medium text-black">{formatPKR(b.total)}</span>
-          {b.credit > 0 && !ended && (
+          {(b.credit > 0 || b.pack) && !ended && (
             <>
+              {b.pack && ` · ${pk.paidFromPack} (${b.pack.name}): ${formatPKR(b.pack.paid)}`}
+              {b.credit > 0 && ` · ${fill(m.creditPaid, { amount: formatPKR(b.credit) })}`}
               {" · "}
-              {fill(m.creditPaid, { amount: formatPKR(b.credit) })} · {fill(m.toPayAfter, { amount: formatPKR(b.due) })}
+              {fill(m.toPayAfter, { amount: formatAmount(b.due) })}
             </>
           )}
         </p>

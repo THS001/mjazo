@@ -68,6 +68,7 @@ export const T = {
   youEarn: { en: "You earn", ur: "آپ کی کمائی", ro: "Aapki kamai" },
   collect: { en: "Collect", ur: "وصول کریں", ro: "Wasool karein" },
   creditUsed: { en: "paid from their Mjazo credit", ur: "ان کے مجازو کریڈٹ سے ادا", ro: "unke Mjazo credit se ada" },
+  packUsed: { en: "paid from their Mjazo pack", ur: "ان کے مجازو پیک سے ادا", ro: "unke Mjazo pack se ada" },
   askedForYou: { en: "The customer asked for you", ur: "کسٹمر نے آپ کو مانگا ہے", ro: "Customer ne aapko manga hai" },
 
   // Offers

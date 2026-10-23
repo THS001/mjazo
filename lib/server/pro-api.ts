@@ -52,9 +52,10 @@ function visitView(j: Job & { safety: { level: string; message: string } }, pro:
     customer: j.customer,
     items: j.items,
     total: j.total,
-    // Paid from the customer's Mjazo credit; she collects the rest (due).
+    // Paid from the customer's Mjazo credit and their prepaid pack; she collects the rest (due).
     credit: j.credit ?? 0,
-    due: j.total - (j.credit ?? 0),
+    pack: j.pack ? { name: j.pack.name, paid: j.pack.paid } : null,
+    due: j.total - (j.credit ?? 0) - (j.pack?.paid ?? 0),
     askedForYou: j.preferredProId === pro.id,
     earn: visitEarning(j, pro),
     payment: j.payment,
@@ -137,7 +138,7 @@ export async function proVisitAction(pro: Pro, jobId: string, b: VisitAction): P
   if (!job || job.proId !== proId) throw new OpsError("This visit isn't yours")
   if (job.status === "checked_in") job = await addJobEvent(jobId, "checked_out", "pro", g, { proId })
   if (job.status !== "checked_out") throw new OpsError("Check in first, then finish the visit")
-  const due = job.total - (job.credit ?? 0)
+  const due = job.total - (job.credit ?? 0) - (job.pack?.paid ?? 0)
   let record: PaymentRecord = { amount: p.amount, method: p.method, at: nowIso(), status: p.method === "cash" ? "cash" : "pending" }
   let message = p.method === "cash" ? `Cash ${formatPKR(p.amount)} recorded.` : "Payment saved. Ops will check it."
   if (p.method !== "cash") {

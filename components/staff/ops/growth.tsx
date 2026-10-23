@@ -10,13 +10,33 @@ import { inputCls } from "./context"
 // to the ledger and the audit log:
 // - Plus: requests waiting for their fee (activate once paid, or cancel), adding a member by phone,
 //   and the members;
+// - packs (prepaid visits): requests waiting for their money (activate once paid, or cancel), adding
+//   a pack by phone, the packs in use and cancelling one (its unused visits are paid back);
 // - gift cards: issue a paid-for card (then send its code to the buyer), cancel an unused one;
 // - referrals: the credit paid to customers whose friends' first visits are done.
 
 type Plus = { id: string; customerId: string; name: string; phone: string | null; status: "requested" | "active" | "cancelled"; price: number; discountPct: number; endsAt: string | null; requestedAt: string; paidVia: string | null }
 type Gift = { code: string; amount: number; status: "active" | "redeemed" | "cancelled"; buyerName: string | null; buyerPhone: string | null; recipientName: string | null; recipientPhone: string | null; message: string | null; paidVia: string | null; createdBy: string; createdAt: string; redeemedAt: string | null }
 type Reward = { friend: string; friend_phone: string | null; referrer: string; referrer_phone: string | null; code: string | null; booking_id: string; amount: number; at: string }
-type Data = { plus: Plus[]; gifts: Gift[]; rewards: Reward[]; terms: { price: number; discountPct: number; friendOff: number; youGet: number } }
+type Pack = {
+  id: string
+  customerName: string
+  phone: string | null
+  name: string
+  status: "requested" | "active" | "cancelled"
+  visits: number
+  visitPrice: number
+  used: number
+  booked: number
+  left: number
+  endsAt: string | null
+  expired: boolean
+  requestedAt: string
+  paidVia: string | null
+  refunded: number | null
+}
+type Offer = { slug: string; name: string; visits: number; visitPrice: number; listPrice: number; total: number }
+type Data = { plus: Plus[]; packs: Pack[]; offers: Offer[]; gifts: Gift[]; rewards: Reward[]; terms: { price: number; discountPct: number; friendOff: number; youGet: number } }
 
 const METHODS = [
   ["jazzcash", "JazzCash"],
@@ -94,6 +114,8 @@ export function GrowthTab() {
         )}
       </section>
 
+      <Packs data={data} busy={busy} run={run} />
+
       <section className="space-y-3">
         <h3 className="font-serif text-2xl">Gift cards</h3>
         <IssueGift busy={busy === "gift"} onIssue={(b) => run("gift", { action: "issue_gift", ...b })} />
@@ -151,6 +173,129 @@ export function GrowthTab() {
           </ol>
         )}
       </section>
+    </div>
+  )
+}
+
+function Packs({ data, busy, run }: { data: Data; busy: string; run: (key: string, body: Record<string, unknown>) => Promise<boolean> }) {
+  const waiting = data.packs.filter((p) => p.status === "requested")
+  const inUse = data.packs.filter((p) => p.status === "active")
+  return (
+    <section className="space-y-3">
+      <h3 className="font-serif text-2xl">Packs: waiting for the money</h3>
+      <p className="text-sm text-zinc-500">
+        A pack is a few visits of one service paid upfront for less a visit: {data.offers.map((o) => `${o.name} (${o.visits} × ${pkr(o.visitPrice)} = ${pkr(o.total)})`).join(", ") || "none on offer"}. Each booking made with it is paid from the pack, and Mjazo funds the saving. (Change them in /admin → Catalogue → Packs.)
+      </p>
+      {!waiting.length ? (
+        <Empty title="No pack requests waiting" body="Customers ask for a pack from their account (website or app)." />
+      ) : (
+        <div className="grid md:grid-cols-2 gap-3">
+          {waiting.map((p) => (
+            <PackRequest key={p.id} p={p} busy={busy === p.id} onActivate={(m, ref) => run(p.id, { action: "activate_pack", packId: p.id, paidVia: m, reference: ref })} onCancel={() => run(p.id, { action: "cancel_pack", packId: p.id, note: "Didn't go ahead" })} />
+          ))}
+        </div>
+      )}
+      <AddPack offers={data.offers} busy={busy === "addPack"} onAdd={(b) => run("addPack", { action: "activate_pack", ...b })} />
+      <h3 className="font-serif text-2xl pt-2">Packs in use</h3>
+      {!inUse.length ? (
+        <p className="text-sm text-zinc-500">No packs yet.</p>
+      ) : (
+        <ol className="rounded-3xl bg-white border border-black/[0.06] divide-y divide-black/[0.06]">
+          {inUse.map((p) => (
+            <li key={p.id} className="p-3 sm:p-4 text-sm flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="font-medium">{p.customerName || "—"}</span>
+              <span className="text-zinc-500">{p.phone}</span>
+              <span>{p.name}</span>
+              <span className="text-xs text-zinc-500">
+                {p.used} done · {p.booked} booked · {p.left} left
+              </span>
+              <span className="flex-1" />
+              <Badge className={p.expired ? "bg-zinc-100 text-zinc-500" : p.left || p.booked ? "bg-emerald-100 text-emerald-800" : "bg-sky-100 text-sky-800"}>{p.expired ? "time's up" : p.left || p.booked ? `until ${day(p.endsAt!)}` : "all used"}</Badge>
+              {p.used < p.visits && !p.booked && (
+                <Btn
+                  size="sm"
+                  variant="ghost"
+                  busy={busy === p.id}
+                  onClick={() => {
+                    const back = (p.visits - p.used) * p.visitPrice
+                    const reason = window.prompt(`Cancel ${p.customerName}'s ${p.name}? Its ${p.visits - p.used} unused visits (${pkr(back)}) go back to them: pay it back outside the app. Why?`)
+                    if (reason !== null) void run(p.id, { action: "cancel_pack", packId: p.id, note: reason })
+                  }}
+                >
+                  Cancel
+                </Btn>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  )
+}
+
+function PackRequest({ p, busy, onActivate, onCancel }: { p: Pack; busy: boolean; onActivate: (m: Method, ref: string) => void; onCancel: () => void }) {
+  const [m, setM] = useState<Method>("jazzcash")
+  const [ref, setRef] = useState("")
+  const total = p.visits * p.visitPrice
+  return (
+    <article className="rounded-3xl bg-white border border-black/[0.06] p-5 space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className="font-medium">{p.customerName || "—"}</p>
+        <span className="text-sm text-zinc-500">{p.phone}</span>
+        {p.phone && (
+          <a className="text-sm underline" href={waTo(p.phone, `Assalam o Alaikum ${p.customerName}! Thank you for choosing the Mjazo ${p.name} pack: ${p.visits} visits for ${pkr(total)}.`)} target="_blank" rel="noreferrer">
+            WhatsApp
+          </a>
+        )}
+      </div>
+      <p className="text-xs text-zinc-500">
+        Asked {day(p.requestedAt)} · {p.name}: {p.visits} × {pkr(p.visitPrice)} = <b>{pkr(total)}</b>
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <MethodPick value={m} onChange={setM} />
+        <input className={cn(inputCls, "w-auto flex-1 min-w-[8rem]")} placeholder="Reference (optional)" value={ref} onChange={(e) => setRef(e.target.value)} />
+      </div>
+      <div className="flex gap-2">
+        <Btn size="sm" busy={busy} onClick={() => onActivate(m, ref)}>
+          <Check className="w-4 h-4" /> Money received: activate
+        </Btn>
+        <Btn size="sm" variant="ghost" disabled={busy} onClick={onCancel}>
+          Cancel request
+        </Btn>
+      </div>
+    </article>
+  )
+}
+
+function AddPack({ offers, busy, onAdd }: { offers: Offer[]; busy: boolean; onAdd: (b: { slug: string; name: string; phone: string; paidVia: Method; reference: string }) => Promise<boolean> }) {
+  const [open, setOpen] = useState(false)
+  const [f, setF] = useState({ slug: offers[0]?.slug ?? "", name: "", phone: "", paidVia: "jazzcash" as Method, reference: "" })
+  if (!offers.length) return null
+  if (!open)
+    return (
+      <Btn size="sm" variant="light" onClick={() => setOpen(true)}>
+        Add a pack by phone (money already received)
+      </Btn>
+    )
+  return (
+    <div className="rounded-3xl bg-white border border-black/[0.06] p-5 flex flex-wrap gap-2 items-center">
+      <select className={cn(inputCls, "w-auto")} value={f.slug} onChange={(e) => setF({ ...f, slug: e.target.value })} aria-label="Pack">
+        {offers.map((o) => (
+          <option key={o.slug} value={o.slug}>
+            {o.name} ({pkr(o.total)})
+          </option>
+        ))}
+      </select>
+      <input className={cn(inputCls, "w-auto flex-1 min-w-[10rem]")} placeholder="Name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+      <input className={cn(inputCls, "w-auto flex-1 min-w-[10rem]")} placeholder="03xx xxxxxxx" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
+      <MethodPick value={f.paidVia} onChange={(paidVia) => setF({ ...f, paidVia })} />
+      <input className={cn(inputCls, "w-auto flex-1 min-w-[8rem]")} placeholder="Reference (optional)" value={f.reference} onChange={(e) => setF({ ...f, reference: e.target.value })} />
+      <Btn size="sm" busy={busy} onClick={async () => (await onAdd(f)) && setOpen(false)}>
+        Activate the pack
+      </Btn>
+      <Btn size="sm" variant="ghost" onClick={() => setOpen(false)}>
+        Close
+      </Btn>
     </div>
   )
 }

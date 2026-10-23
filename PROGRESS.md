@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 23 October 2026 (the pilot gates in mission control)._
+_Last updated 24 October 2026 (packs: prepaid visits)._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -40,7 +40,8 @@ accounts, and what's left.
 | **After the platform, part 2: live tracking of the pro** (the customer sees how far away she is, ops see it on the board) | **Live 23 Oct 2026** (section 3h): migration 0011 run, deployed and checked |
 | **After the platform, part 3: phone-number sign-in** (a 6-digit code on WhatsApp or by SMS, website and app) | **Deployed 23 Oct 2026** (migration 0012 run). Switched off until a WhatsApp authentication template or Twilio Verify is set (section 7, item 13); the live site offers email sign-in until then |
 | **After the platform, part 4: the AI tools in the apps** (Ask Mjazo, Ghar Scan, Home Pulse, Glam Mirror and Shaadi in Mjazo; the Copilot in Mjazo Pro) | **Deployed 23 Oct 2026**. **The AI answers on the whole live site fail until the Anthropic key is replaced** (section 7, item 14) |
-| **Pilot gates** (mission control → KPIs: the validation sprint's numbers, measured from real visits) | **Built 23 Oct 2026** (section 3i). To go live: deploy (no migration); then Finance enters each month's ad and transport spend |
+| **Pilot gates** (mission control → KPIs: the validation sprint's numbers, measured from real visits) | **Live 24 Oct 2026** (section 3i). Next: Finance enters each month's ad and transport spend |
+| **Packs** (prepaid visits: the maintenance plan; website, both apps, mission control, messages) | **Built 24 Oct 2026** (section 3j). To go live: run `--migrate` (0013), then deploy; confirm the placeholder prices (section 8) |
 | **Platform stage 6: the phone apps** (Mjazo and Mjazo Pro, Expo, in `mobile/`) | **Built 21 Oct 2026** (section 3g); its API is **live** (deployed the same day and checked). Next: try both apps on a phone with Expo Go, then store builds with your Expo account |
 
 ---
@@ -62,6 +63,7 @@ accounts, and what's left.
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 | 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
+| 24 Oct 2026 | **Pilot gates deployed. Packs built:** a few visits of one service or bundle paid upfront for less a visit (the analysis's maintenance plan). Customers ask in their account or the app, Finance activates once paid, "Book your next visit" uses one at checkout, the ledger holds the money until each visit, and a message says when the next visit is due |
 | 23 Oct 2026 | **Pilot gates built:** mission control → KPIs measures the validation sprint's gates from the blueprint analysis (cost per paying customer, second booking within 90 days, visits per pro-day, pros active at day 90, basket, leakage, contribution after transport and sales tax) |
 | 23 Oct 2026 | **The AI tools in the apps built** (after the platform, part 4): Mjazo has Ask Mjazo (the Concierge, booking by chat), Ghar Scan (with the brief sent to the pro), Home Pulse, and Glam Mirror and the Shaadi Orchestrator on the website; Mjazo Pro has the Copilot with today's brief read aloud |
 | 23 Oct 2026 | **Phone-number sign-in built** (after the platform, part 3): customers sign in on the website or in the app with their number and a code on WhatsApp or by SMS, and see every booking made with that number; "Sign out everywhere"; a code also proves a number when an emailed sign-in adds it |
@@ -415,6 +417,22 @@ The blueprint analysis recommends a validation sprint through the Nov 2026–Feb
 - **Tests:** 446 in total. New: the gates (7: spend shared over a range, too early and missing inputs, cost per customer, the 90-day second booking, pro-days, basket and day-90 retention, leakage, contribution with tax inside or on top and on either base), the inputs and the ledger margin on a real database (3), and the permission matrix (3 actions).
 - **Checked locally:** Finance entered October's spend (PKR 6,000 ads, PKR 1,500 transport): cost per customer PKR 194 (581 of ads over 3 new customers), contribution PKR 1,289 (1,325 − 0 − 36); 8% tax inside the price made it PKR 896 (393 tax). A Dispatcher saw the gates with the inputs read-only, and the server refused their save (403).
 
+## 3j. Packs: prepaid visits (24 Oct 2026)
+
+The blueprint analysis says the pilot should test a cheap **maintenance plan** as the repeat engine (threading and waxing every 3–4 weeks), and lists prepaid packages against customers and pros going direct. Packs are that: a few visits of one service or bundle, paid upfront for less a visit. Schema: `supabase/migrations/0013_packs.sql` (`customer_packs`; `bookings.pack_id` and `pack_paid`). Code: `lib/packs.ts` (the terms, shared), `lib/core/packs.ts` (asking, activating, using, cancelling), `/api/v1/customer/packs`, mission control → Plus & gifts.
+
+- **The packs** are a new Catalogue collection in `/admin` → Catalogue → Packs: the service (or a bundle) with its options, the number of visits, the price a visit, how often to book and the time to use them. Three to start, **with placeholder prices** (section 8):
+  - Monthly Quick Refresh: the Quick Refresh bundle (threading, underarms, clean-up), 3 visits every 4 weeks at PKR 2,250 instead of 2,600 (PKR 6,750 upfront), within 120 days;
+  - Wax Every Month: full arms and legs wax, 3 visits at PKR 2,150 instead of 2,500 (PKR 6,450);
+  - AC Care for the Year: one split AC serviced 3 times, every 120 days, at PKR 2,150 instead of 2,500, within 400 days.
+- **Customers** see them on `/offers` and in their account (website: Account → **Packs**; app: Account → Packs), in English and Urdu, and ask for one in a tap; ops are emailed. **Finance or an Owner takes the money** (JazzCash, Easypaisa, bank, Raast or cash) and activates it in mission control → **Plus & gifts → Packs**, or adds a pack by phone when the customer paid on WhatsApp.
+- **Using it:** "Book your next visit" puts one visit in the cart and opens checkout with the pack (website and app). The pack pays its price a visit; the rest of the service's price is the pack's saving; add-ons and anything else in the cart are paid as usual, with Plus or a promo code counting on that rest only. The booking, the pro's visit screen (web and app) and mission control's booking page show "From their pack". A cancelled booking gives its visit back to the pack.
+- **Money:** activating posts the whole price to the ledger as **"Packs not yet used"** (a liability); each visit done moves its price from there to what the customer owes. Mjazo funds the saving, as with Plus: **the pro earns her share of the full price**, so pros don't lose by packs (the pilot gates' margin counts the saving). Cancelling a pack gives back its unused visits' money (paid back outside the app, like a gift card); one with visits booked can't be cancelled until they're done or cancelled.
+- **Messages** (mission control → Automations, both on): "Your pack is ready" when it's activated, and **"Time for your next visit"** two days before the next one falls due (the last visit plus the pack's interval) when none is booked: once per visit, 10 am to 8 pm, never after STOP. Both are in /admin → Customer messages with Urdu, and go by WhatsApp template, email or a push to the app.
+- Until migration 0013 has run, packs are off and the rest of Plus & gifts works.
+- **Tests:** 457 in total. New: the pack rules on a real database (6: the terms from the catalogue; asked for, activated and a visit paid from the ledger with the pro's full share and Mjazo's margin; a cancelled booking giving its visit back, and the refusals; Plus only on the rest; added by phone, cancelling and the refund; the end of its time), the API (asking, refused before payment, booking with it, nobody else using it), the two messages, and the permission matrix (2 actions).
+- **Checked locally (24 Oct 2026):** `/offers` shows the three packs. A test customer asked for Wax Every Month in Account → Packs ("Waiting for your payment of PKR 6,450"); Finance activated it in mission control (until 21 Feb 2027); "Book your next visit" opened checkout with PKR 2,500 − 350 pack price = 2,150, all from the pack, PKR 0 to pay. The confirmation, Account → Bookings and mission control's booking page ("From their pack", "The pro collects PKR 0") agreed, and `/ur/account/packs` showed it in Urdu. In the Mjazo app (web mode, phone size): the Packs screen, checkout with the pack, and a second visit booked from the app with PKR 0 to pay. **Not checked in the browser:** the pro's visit screen with a pack (the same code as credit) and finishing a pack visit (the ledger side is in the tests).
+
 ## 4. Brand kit
 
 Saved in `F:\mjazo\brand\`, outside this repo. A copy of the PDF is in the user's Downloads folder.
@@ -570,6 +588,7 @@ Project `xjyafabyscamelebzrsb` (https://xjyafabyscamelebzrsb.supabase.co), set u
 | `0010_plus_gifts_referrals.sql` | Plus memberships, gift cards, referral rewards; customers' referral codes and who referred them |
 | `0011_live_tracking.sql` | `visit_locations`: a pro's latest point while she's on the way to a visit |
 | `0012_phone_sign_in.sql` | `phone_codes` (sign-in codes: hash, channel, tries, expiry) and `customers.session_epoch` ("sign out everywhere") |
+| `0013_packs.sql` | `customer_packs` (prepaid visits: the pack, its price a visit, status, time to use it) and `bookings.pack_id` / `pack_paid` |
 
 With Supabase connected, the cross-page flows (apply → interview link, booking → ops console,
 complaint → Trust Desk) can now work end to end on the live site. They haven't been re-tested live yet.
@@ -633,6 +652,7 @@ All are listed with explanations in [.env.example](.env.example).
    - **SMS:** a Twilio account with a Verify service; put `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_VERIFY_SID` (the service's VA… id) in Vercel;
    - then redeploy. Until one is set, the live site offers email sign-in only.
 14. **Replace the Anthropic key** (found 23 Oct 2026): Anthropic answers "invalid x-api-key" to the key in Vercel (set 2 Oct), so every AI feature on the live site and in the apps falls back to WhatsApp or plain wording. In the Anthropic Console (console.anthropic.com → API keys) make a new key, check the account has credit, then in a normal PowerShell run `cd F:mjazowebsite; npx vercel env rm ANTHROPIC_API_KEY production --yes; npx vercel env add ANTHROPIC_API_KEY production` (paste the key when it asks; choose Sensitive if offered), then redeploy.
+15. **For packs:** run `node scripts/setup-supabase.mjs --migrate` (0013) **before** deploying, then deploy. Then check the three packs' prices in `/admin` → Catalogue → Packs (or hide them) and, for WhatsApp, make templates for "Your pack is ready" and "Time for your next visit" in Meta and name them in mission control → Automations.
 
 ---
 
@@ -650,6 +670,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - a 30-day technician warranty
   - the late-change fee amount
 - **Plus:** PKR 2,500 a year for 10% off.
+- **Packs:** the three packs and their prices a visit (PKR 2,250 for the Quick Refresh, 2,150 for arms and legs wax, 2,150 for an AC service; about 14% off), and that Mjazo, not the pro, funds the saving.
 - **Referral rewards:** PKR 500 for the friend, PKR 500 for the referrer.
 - **Legal text:** needs a lawyer's review.
 - **Ops:** the pro share (75%) and the protocol manual.
@@ -668,6 +689,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
    5. ~~Automation~~: live 21 October (section 3f). Still to do: `CRON_SECRET` and the automation pinger, then WhatsApp templates or Resend (section 7, item 10). Keep auto-assign on "suggest" until the real pros are verified.
    6. ~~Mobile apps~~: built 21 October, API live (section 3g). To do: try both apps with Expo Go (mobile/README.md), add the apps' redirect URLs in Supabase for email sign-in, then `eas init` and store builds with your Expo account (and Google Play to publish).
    7. ~~After the platform~~ (Plus, gift cards and referrals; live tracking; phone-number sign-in; the AI tools in the apps): built 21 to 23 October and **deployed 23 October** (migrations 0010–0012 run; section 3h). Still to do: a new Anthropic key (section 7, item 14), then a WhatsApp authentication template or Twilio Verify for phone sign-in (item 13).
+   8. **Packs** (section 3j): built 24 October. To do: `--migrate` (0013), deploy, then confirm the prices (section 8 and section 7, item 15).
 3. **Owner setup:** section 7 (rotate secrets, SMTP, `CRON_SECRET` and pingers, `SESSION_SECRET` for the pro app, staff roles).
 4. **Re-test the live flows** that need Supabase: booking → ops console, apply → interview, complaint → Trust Desk.
 5. **Urdu content:** the AI translation pass, a human review (including the new interface Urdu), then switching on the Urdu site.
@@ -726,5 +748,5 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - Wallet credit is set aside on the booking (`credit_used`) and posted with `applyCredit` when the visit completes (`postLedger` in `lib/core/jobs.ts`). What the pro collects is total − credit.
   - Locally, `/login` offers the test sign-in (`/api/v1/customer/dev-login`); the browser keeps its token in localStorage.
 - **Staff tools locally:** start the `mjazo-web-staff` preview configuration (`.claude/launch.json`). Without Supabase, `/ops` offers "Continue as local …" for any role (`/api/ops/dev-login`, refused in production); pros get PINs from ops.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (446 tests), then `npx next build` (866 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (457 tests), then `npx next build` (869 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
 - **New API routes on the dev server:** a route added while an older `.next/dev` cache exists can answer 404 (the request falls through to the page catch-all). Touch the new `route.ts` and it's picked up.

@@ -29,12 +29,12 @@ type Detail = {
   pros?: OpsPro[]
 }
 
-const KIND: Record<string, string> = { visit_completed: "Visit completed", payment: "Payment", refund: "Refund", credit_issued: "Credit given", credit_applied: "Credit used", payout: "Payout", cash_handed_in: "Cash handed in" }
+const KIND: Record<string, string> = { visit_completed: "Visit completed", payment: "Payment", refund: "Refund", credit_issued: "Credit given", credit_applied: "Credit used", payout: "Payout", cash_handed_in: "Cash handed in", pack_used: "Paid from their pack" }
 const ACCOUNT = (a: string) => {
   const [scope, , what] = a.split(":")
   if (scope === "cust") return what === "ar" ? "Customer owes" : "Customer credit"
   if (scope === "pro") return what === "cash" ? "Cash with the pro" : "Owed to the pro"
-  return { "mjazo:bank": "Mjazo bank", "mjazo:commission": "Commission", "mjazo:discounts": "Discounts", "mjazo:goodwill": "Goodwill", "mjazo:refunds": "Refunds" }[a] ?? a
+  return { "mjazo:bank": "Mjazo bank", "mjazo:commission": "Commission", "mjazo:discounts": "Discounts", "mjazo:goodwill": "Goodwill", "mjazo:refunds": "Refunds", "mjazo:packs": "Packs not yet used" }[a] ?? a
 }
 const day = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
 const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Karachi" })
@@ -134,6 +134,8 @@ function Body({ d, pros, act, refresh }: { d: Detail; pros: OpsPro[]; act: Act; 
   const event = (type: string, note?: string) => run(type, () => api("/api/ops/jobs", { action: "event", jobId: j.id, type, note }).then(refresh))
   const lines = j.items.map((i) => ({ ...i, line: i.unitPrice * i.qty }))
   const subtotal = d.money?.subtotal ?? lines.reduce((s, l) => s + l.line, 0)
+  // What the discount is: the pack's price for one visit, and a code (or PLUS).
+  const discountWhy = [j.pack && "pack price", d.money?.promo].filter(Boolean).join(" + ")
   const notStarted = ["new", "assigned", "en_route"].includes(j.status)
 
   return (
@@ -221,10 +223,11 @@ function Body({ d, pros, act, refresh }: { d: Detail; pros: OpsPro[]; act: Act; 
         </ul>
         <div className="mt-3 pt-3 border-t border-black/[0.06] text-sm space-y-1">
           <Row k="Subtotal" v={pkr(subtotal)} />
-          {!!d.money?.discount && <Row k={`Discount${d.money.promo ? ` (${d.money.promo})` : ""}`} v={`− ${pkr(d.money.discount)}`} />}
+          {!!d.money?.discount && <Row k={`Discount${discountWhy ? ` (${discountWhy})` : ""}`} v={`− ${pkr(d.money.discount)}`} />}
           <Row k="Total" v={pkr(j.total)} strong />
           {!!j.credit && <Row k="From their Mjazo credit" v={`− ${pkr(j.credit)}`} />}
-          {!!j.credit && <Row k="The pro collects" v={pkr(j.total - j.credit)} />}
+          {j.pack && <Row k={`From their pack (${j.pack.name})`} v={`− ${pkr(j.pack.paid)}`} />}
+          {(!!j.credit || j.pack) && <Row k="The pro collects" v={pkr(j.total - (j.credit ?? 0) - (j.pack?.paid ?? 0))} />}
           <Row k="Pays by" v={j.payment} />
         </div>
       </Card>

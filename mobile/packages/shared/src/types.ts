@@ -65,6 +65,8 @@ export type CustomerBooking = {
   discount: number
   total: number
   credit: number
+  /** A visit of their prepaid pack: the pack pays this much of the total. */
+  pack: { name: string; paid: number } | null
   due: number
   payment: string
   pro: { firstName: string } | null
@@ -79,6 +81,28 @@ export type CustomerBooking = {
 }
 export type PromoProblem = "invalid" | "notYet" | "expired" | "minOrder" | "usedUp" | "used"
 export type PromoCheck = { ok: true; code: string; discount: number; kind?: "referral" } | { ok: false; code?: string; problem: PromoProblem; minOrder?: number }
+/** One visit of a pack as a cart line (unitPrice: the service's own price, without the pack). */
+export type PackLine = { name: string; category: string; service: string; options: string[]; unitPrice: number; duration: number }
+export type PackOffer = { slug: string; name: string; note: string; itemName: string; visits: number; visitPrice: number; listPrice: number; total: number; saving: number; everyDays: number; validDays: number; line: PackLine }
+export type MyPack = {
+  id: string
+  slug: string
+  name: string
+  itemName: string
+  line: PackLine | null
+  status: "requested" | "active" | "cancelled"
+  visits: number
+  visitPrice: number
+  total: number
+  everyDays: number
+  endsAt: string | null
+  used: number
+  booked: number
+  left: number
+  nextDue: string | null
+  expired: boolean
+}
+export type Packs = { offers: PackOffer[]; mine: MyPack[] }
 
 // ---------------------------------------------------------------------------
 // The pro (/api/v1/pro)
@@ -100,6 +124,7 @@ export type Visit = {
   items: { name: string; options: string[]; addOns: string[]; qty: number; unitPrice: number }[]
   total: number
   credit: number
+  pack: { name: string; paid: number } | null
   due: number
   askedForYou: boolean
   earn: number

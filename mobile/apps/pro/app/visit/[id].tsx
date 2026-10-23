@@ -130,6 +130,7 @@ export default function VisitScreen() {
         <Line label={t.youEarn} value={money(v.earn)} />
         <Line label={t.collect} value={`${money(v.due)} · ${v.payment}`} strong />
         {v.credit > 0 && <Txt v="muted">{`${money(v.credit)} ${t.creditUsed}`}</Txt>}
+        {v.pack && <Txt v="muted">{`${money(v.pack.paid)} ${t.packUsed} (${v.pack.name})`}</Txt>}
       </Card>
 
       {v.notes ? (

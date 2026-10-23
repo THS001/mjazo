@@ -1,4 +1,4 @@
-import { DEFAULT_CATALOG, type Area, type Bundle, type Category, type Service, type World } from "@/lib/catalog"
+import { DEFAULT_CATALOG, type Area, type Bundle, type Category, type Pack, type Service, type World } from "@/lib/catalog"
 import { f } from "../fields"
 import { register } from "../registry"
 import { seoGroup } from "./seo"
@@ -171,6 +171,40 @@ export const bundleType = register<Bundle, Bundle>({
   defaults: () => DEFAULT_CATALOG.bundles,
   idOf: (b) => b.slug,
   titleOf: (b) => b.name,
+  path: () => "/offers",
+})
+
+export const packType = register<Pack, Pack>({
+  type: "pack",
+  label: "Pack",
+  plural: "Packs",
+  group: "Catalogue",
+  kind: "collection",
+  icon: "Repeat",
+  description: "Prepaid visits: a few visits of one service or bundle, paid upfront for less per visit (the maintenance plan). Customers ask for one in their account; Finance takes the money and activates it in mission control → Plus & gifts. Mjazo funds the saving: the pro earns her share of the full price.",
+  tags: ["catalog"],
+  columns: [
+    { key: "visitPrice", label: "A visit", format: "price" },
+    { key: "visits", label: "Visits" },
+    { key: "status", label: "Status", format: "status" },
+  ],
+  fields: {
+    name: f.text("Name", { required: true, max: 50 }),
+    slug: f.slug(),
+    status: f.select("Status", STATUS.filter((s) => s.value !== "waitlist")),
+    bundle: f.ref("Bundle", "bundle", { help: "Each visit is this bundle. Leave empty to use one service below." }),
+    category: f.ref("Category", "category"),
+    service: f.ref("Service", "service"),
+    options: f.list("Options", f.code("Option"), { help: "The service's options in order, exactly as on its page, e.g. “Split” then “1 unit”. None for a bundle." }),
+    visits: f.number("Visits", { min: 1, max: 24 }),
+    visitPrice: f.price("Price a visit (PKR)", { help: "What each visit costs with the pack; the customer pays visits × this upfront." }),
+    everyDays: f.number("Book every", { min: 1, max: 365, unit: "days" }),
+    validDays: f.number("Use all visits within", { min: 7, max: 730, unit: "days" }),
+    note: f.textarea("Note", { max: 160 }),
+  },
+  defaults: () => DEFAULT_CATALOG.packs,
+  idOf: (p) => p.slug,
+  titleOf: (p) => p.name,
   path: () => "/offers",
 })
 

@@ -1,5 +1,5 @@
-import { ApiError, Button, Card, Chip, color, currentLocation, errorText, Field, fill, formatDay, formatPKR, Line, Loading, normalisePhone, Notice, request, Row, Screen, space, Switch, Txt, useLang, validPhone, windowLabel, type Address, type Area, type PromoCheck, type Slots } from "@mjazo/shared"
-import { Redirect, router } from "expo-router"
+import { ApiError, Button, Card, Chip, color, currentLocation, errorText, Field, fill, formatAmount, formatDay, formatPKR, Line, Loading, normalisePhone, Notice, request, Row, Screen, space, Switch, Txt, useLang, validPhone, windowLabel, type Address, type Area, type MyPack, type Packs, type PromoCheck, type Slots } from "@mjazo/shared"
+import { Redirect, router, useLocalSearchParams } from "expo-router"
 import { LocateFixed } from "lucide-react-native"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Image, View } from "react-native"
@@ -9,8 +9,9 @@ import { clearBrief, loadBrief, type Brief } from "../src/tools"
 
 // Checkout: where (a saved address, or the area, street and an optional location), when (the real
 // free windows for this cart and area), who, how they'll pay, a promo code and their credit, and a
-// Ghar Scan brief for the pro when one is saved. The server checks and prices it all again; the
-// app shows its reason when something's refused.
+// Ghar Scan brief for the pro when one is saved, and a visit of their pack (?pack=, from Account →
+// Packs). The server checks and prices it all again; the app shows its reason when something's
+// refused.
 
 type Pay = "cash" | "jazzcash" | "easypaisa" | "raast"
 
@@ -33,6 +34,16 @@ export default function Checkout() {
   const { catalog } = useCatalog()
   const { account, api } = useAccount()
   const me = account.state === "in" ? account.me : null
+  const { pack: packId } = useLocalSearchParams<{ pack?: string }>()
+  const [pack, setPack] = useState<MyPack | null>(null)
+  useEffect(() => {
+    if (!me || !packId) return setPack(null)
+    api<Packs>(`/api/v1/customer/packs?lang=${lang}`).then(
+      (r) => setPack(r.mine.find((k) => k.id === packId && k.status === "active" && !k.expired && k.left > 0) ?? null),
+      () => setPack(null),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.customer.id, packId, lang])
 
   const [addresses, setAddresses] = useState<Address[]>([])
   const [addressId, setAddressId] = useState<string | null>(null)
@@ -157,14 +168,23 @@ export default function Checkout() {
   }
   const promoProblem = (p: Extract<PromoCheck, { ok: false }>) => fill(t[`promo-${p.problem}` as keyof typeof t] ?? t["promo-invalid"], { min: formatPKR(p.minOrder ?? 0) })
 
-  // One discount per booking, as the server decides: the larger of Mjazo Plus and the code.
+  // Their pack pays one visit of its line: its price a visit, with the rest of the service's own
+  // price as the pack's saving (raised to the pack's price should the service cost less, as the
+  // server does).
+  const packLine = pack?.line ? cart.items.find((i) => i.service === pack.line!.service && (i.service.startsWith("bundle-") || (i.category === pack.line!.category && i.options.join("|") === pack.line!.options.join("|")))) : undefined
+  const packUse = pack && packLine ? { paid: pack.visitPrice, saving: Math.max(0, pack.line!.unitPrice - pack.visitPrice), raise: Math.max(0, pack.visitPrice - pack.line!.unitPrice) } : null
+  const subtotal = cart.subtotal + (packUse?.raise ?? 0)
+  const rest = subtotal - (packUse ? packUse.paid + packUse.saving : 0)
+  // One discount per booking, as the server decides: the larger of Mjazo Plus and the code, on what
+  // the pack doesn't pay for.
   const plus = me?.plus?.status === "active" ? me.plus : null
-  const plusOff = plus ? Math.round((cart.subtotal * plus.discountPct) / 100) : 0
-  const codeOff = promo?.ok ? Math.min(promo.discount, cart.subtotal) : 0
+  const plusOff = plus ? Math.round((rest * plus.discountPct) / 100) : 0
+  const codeOff = promo?.ok ? Math.min(promo.discount, rest) : 0
   const usingPlus = plusOff > codeOff
   const discount = Math.max(plusOff, codeOff)
-  const total = cart.subtotal - discount
-  const credit = me && useCredit ? Math.min(me.credit.available, total) : 0
+  const total = subtotal - discount - (packUse?.saving ?? 0)
+  const packPaid = packUse?.paid ?? 0
+  const credit = me && useCredit ? Math.min(me.credit.available, total - packPaid) : 0
 
   const submit = async () => {
     const e: Record<string, string> = {}
@@ -190,15 +210,16 @@ export default function Checkout() {
         payment: pay,
         ...(notes.trim() ? { notes: notes.trim() } : {}),
         items,
-        total: total - credit,
+        total: total - credit - packPaid,
         ...(promo?.ok && !usingPlus ? { promo: promo.code } : {}),
         ...(me && credit > 0 ? { useCredit: true } : {}),
         ...(proId ? { preferredProId: proId } : {}),
         ...(pin ? { lat: pin.lat, lng: pin.lng } : {}),
         ...(addressId ? { addressId } : {}),
+        ...(packUse ? { packId: pack!.id } : {}),
         ...(brief && sendBrief ? { brief: { kind: brief.kind, title: brief.title, text: brief.text, causes: brief.causes, parts: brief.parts, pins: brief.pins, hasPhotos: brief.photos.length > 0 } } : {}),
       }
-      const r = await api<{ id: string; total?: number; credit?: number }>("/api/v1/bookings", { body })
+      const r = await api<{ id: string; total?: number; credit?: number; packPaid?: number }>("/api/v1/bookings", { body })
       // A new address, saved to their account (best effort: the booking is made either way).
       if (me && !addressId && saveAddress) await api("/api/v1/customer/addresses", { body: { area, subArea: subArea || null, line: line.trim(), landmark: landmark.trim() || null, lat: pin?.lat ?? null, lng: pin?.lng ?? null } }).catch(() => {})
       if (brief && sendBrief) {
@@ -208,21 +229,23 @@ export default function Checkout() {
       await rememberBooking({ id: r.id, date, window: win, total: r.total ?? total, services: cart.items.map((i) => i.name), at: new Date().toISOString() })
       placed.current = true
       cart.clear()
-      router.replace({ pathname: "/booked/[id]", params: { id: r.id, name: name.trim().split(" ")[0], date, window: win, total: String((r.total ?? total) - (r.credit ?? credit)) } })
+      router.replace({ pathname: "/booked/[id]", params: { id: r.id, name: name.trim().split(" ")[0], date, window: win, total: String((r.total ?? total) - (r.credit ?? credit) - (r.packPaid ?? packPaid)), ...((r.credit ?? credit) + (r.packPaid ?? packPaid) > 0 ? { paid: "1" } : {}) } })
     } catch (err) {
       const c = err instanceof ApiError ? err.code : undefined
       if (c === "slotFull") {
         setWin("")
         setSlotsTick((n) => n + 1) // re-reads the windows
       }
-      setFailed(c === "slotFull" ? t.slotFull : c === "unavailable" ? t.unavailable : c?.startsWith("promo-") ? fill(t[c as keyof typeof t] ?? t["promo-invalid"], { min: formatPKR(catalog.minOrder) }) : errorText(err, t.offline))
+      if (c?.startsWith("pack-")) setPack(null)
+      setFailed(c === "slotFull" ? t.slotFull : c === "unavailable" ? t.unavailable : c?.startsWith("pack-") ? t.packProblem : c?.startsWith("promo-") ? fill(t[c as keyof typeof t] ?? t["promo-invalid"], { min: formatPKR(catalog.minOrder) }) : errorText(err, t.offline))
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <Screen footer={<Button title={`${t.confirm} · ${formatPKR(total - credit)}`} variant="brand" busy={busy} onPress={submit} />}>
+    <Screen footer={<Button title={`${t.confirm} · ${credit > 0 || packPaid > 0 ? formatAmount(total - credit - packPaid) : formatPKR(total)}`} variant="brand" busy={busy} onPress={submit} />}>
+      {pack && <Notice tone={packUse ? "green" : "amber"} text={packUse ? fill(t.packUsing, { name: pack.name }) : fill(t.packAddLine, { item: pack.itemName, name: pack.name })} />}
       <Section title={t.where} />
       {addresses.length > 0 && (
         <View style={{ gap: space.sm }}>
@@ -365,9 +388,11 @@ export default function Checkout() {
         {cart.items.map((i) => (
           <Line key={i.key} label={`${i.name}${i.qty > 1 ? ` ×${i.qty}` : ""}`} value={i.unitPrice > 0 ? formatPKR(i.unitPrice * i.qty) : t.onRequest} />
         ))}
+        {packUse && packUse.saving > 0 && <Line label={fill(t.packSaving, { name: pack!.name })} value={`− ${formatPKR(packUse.saving)}`} />}
         {discount > 0 && <Line label={usingPlus ? fill(t.plusLine, { pct: plus!.discountPct }) : promo?.ok && promo.kind === "referral" ? fill(t.friendWelcome, { code: promo.code }) : t.discount} value={`− ${formatPKR(discount)}`} />}
+        {packPaid > 0 && <Line label={t.packPaid} value={`− ${formatPKR(packPaid)}`} />}
         {credit > 0 && <Line label={t.creditUsed} value={`− ${formatPKR(credit)}`} />}
-        <Line label={t.payAfter} value={total - credit > 0 ? formatPKR(total - credit) : t.onRequest} strong />
+        <Line label={t.payAfter} value={credit > 0 || packPaid > 0 ? formatAmount(total - credit - packPaid) : total > 0 ? formatPKR(total) : t.onRequest} strong />
       </Card>
       {failed ? <Notice text={failed} /> : null}
     </Screen>

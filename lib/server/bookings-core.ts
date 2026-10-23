@@ -4,6 +4,7 @@ import { core } from "@/lib/core/db"
 import { slots, windowOpen, type SlotNeed } from "@/lib/core/capacity"
 import { createBooking, listJobs, listPros } from "@/lib/core/jobs"
 import { checkPromo, PromoError } from "@/lib/core/promos"
+import { PackError, packForBooking } from "@/lib/core/packs"
 import { normalisePhone } from "@/lib/core/phone"
 import { eligible } from "@/lib/ops/logic"
 import { zoneCaps } from "@/lib/core/pros"
@@ -16,12 +17,12 @@ import { kick } from "./kick"
 // Placing a booking. With the core engine on, the server prices every line from the catalogue,
 // checks the arrival window still has room, then saves the submission (kept as the email copy and
 // the fallback record) and creates the booking. Without the core it is a plain submission, as
-// before. Used by the website checkout and by the Concierge.
+// before. Used by the website checkout, the phone app and the Concierge.
 
 type BookingData = z.infer<typeof schemas.booking>
 
-/** `customerId`: the signed-in customer placing it (their wallet credit and saved addresses can be used). */
-export async function placeBooking(raw: unknown, attribution: Record<string, unknown> = {}, page?: string, customerId?: string): Promise<{ id: string; total?: number; credit?: number }> {
+/** `customerId`: the signed-in customer placing it (their wallet credit, saved addresses and packs can be used). */
+export async function placeBooking(raw: unknown, attribution: Record<string, unknown> = {}, page?: string, customerId?: string): Promise<{ id: string; total?: number; credit?: number; packPaid?: number }> {
   const parsed = schemas.booking.safeParse(raw)
   if (!parsed.success) throw new ValidationError(parsed.error.issues[0]?.message ?? "Invalid data")
   const d: BookingData = parsed.data
@@ -48,6 +49,17 @@ export async function placeBooking(raw: unknown, attribution: Record<string, unk
   }
   if (full) throw new ValidationError("That time just filled up. Please pick another window.", "slotFull")
 
+  // A pack that can't pay for this visit is turned down before anything is saved (signed in only).
+  if (d.packId && !customerId) throw new ValidationError("Sign in to use your pack", "pack-missing")
+  if (d.packId && customerId) {
+    try {
+      await packForBooking(db, { packId: d.packId, customerId, items: priceItems(d.items, cat).items, cat })
+    } catch (e) {
+      if (e instanceof PackError) throw new ValidationError(e.message, `pack-${e.code}`)
+      throw e
+    }
+  }
+
   // A promo code that can't be used is turned down before anything is saved.
   if (d.promo?.trim()) {
     const c = await checkPromo(db, d.promo, { subtotal: priceItems(d.items, cat).subtotal, customerId: customerId ?? (await customerIdForPhone(db, d.phone)) })
@@ -55,9 +67,9 @@ export async function placeBooking(raw: unknown, attribution: Record<string, unk
   }
   const { id } = await saveSubmission("booking", d, attribution, page)
   try {
-    const job = await createBooking(db, { id, ...d, customerId, useCredit: Boolean(customerId && d.useCredit) }, cat, { referralOff: settings.referral.friendOff })
+    const job = await createBooking(db, { id, ...d, customerId, useCredit: Boolean(customerId && d.useCredit), packId: customerId ? d.packId : undefined }, cat, { referralOff: settings.referral.friendOff })
     kick()
-    return { id, total: job.total, credit: job.credit ?? 0 }
+    return { id, total: job.total, credit: job.credit ?? 0, packPaid: job.pack?.paid ?? 0 }
   } catch (e) {
     // The submission is safe; the ops catch-up (syncJobs) imports it on the next read.
     console.error(`[booking] ${id}: core write failed`, e)

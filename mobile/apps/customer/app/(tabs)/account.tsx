@@ -1,14 +1,14 @@
 import { Button, Card, color, errorText, Field, fill, formatDay, formatPKR, karachiNow, Loading, Notice, prefs, Row, Screen, SITE_URL, space, Switch, Txt, useLang, whatsappLink } from "@mjazo/shared"
 import Constants from "expo-constants"
 import { router } from "expo-router"
-import { ChevronRight, Crown, Gift, MapPin, MessageCircle, Share2, Wallet } from "lucide-react-native"
+import { ChevronRight, Crown, Gift, MapPin, MessageCircle, Repeat, Share2, Wallet } from "lucide-react-native"
 import { useState } from "react"
 import { Linking, Pressable, Share, View } from "react-native"
 import { LangSwitch } from "../../src/parts"
 import { useAccount, useCatalog, useT } from "../../src/state"
 
-// Account: sign in (or finish with the phone number), credit, saved addresses, the messages
-// switch, language, help and sign out.
+// Account: sign in (or finish with the phone number), credit, saved addresses, packs, the
+// messages switch, language, help and sign out.
 
 export default function Account() {
   const t = useT()
@@ -61,6 +61,7 @@ export default function Account() {
           </Card>
           <Item icon={<Wallet size={20} color={color.ink} />} title={t.credit} sub={me.credit.available > 0 ? fill(t.creditSub, { amount: formatPKR(me.credit.available) }) : t.noCredit} />
           <Item icon={<MapPin size={20} color={color.ink} />} title={t.addresses} onPress={() => router.push("/addresses")} />
+          <Item icon={<Repeat size={20} color={color.ink} />} title={t.packs} sub={t.packsSub} onPress={() => router.push("/packs")} />
           <PlusCard />
           <ReferCard />
           <GiftCard />

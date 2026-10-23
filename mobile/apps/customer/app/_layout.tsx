@@ -46,6 +46,7 @@ function Screens() {
       <Stack.Screen name="assistant" options={{ headerShown: false }} />
       <Stack.Screen name="scan" options={{ title: t.toolScan }} />
       <Stack.Screen name="pulse" options={{ title: t.toolPulse }} />
+      <Stack.Screen name="packs" options={{ title: t.packs }} />
     </Stack>
   )
 }

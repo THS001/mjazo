@@ -23,6 +23,8 @@ export interface LocalBooking {
   total: number
   /** Paid from the customer's Mjazo credit: they pay total − credit after the visit. */
   credit?: number
+  /** Paid from their prepaid pack (they pay total − credit − packPaid). */
+  packPaid?: number
 }
 
 const KEY = "mjazo-bookings"

@@ -2,7 +2,7 @@ import "server-only"
 import { cache } from "react"
 import { unstable_cache } from "next/cache"
 import { draftMode } from "next/headers"
-import { buildCatalog, type Area, type Bundle, type Category, type World } from "@/lib/catalog"
+import { buildCatalog, type Area, type Bundle, type Category, type Pack, type World } from "@/lib/catalog"
 import { DEFAULT_SETTINGS, SITE_URL, waLink, type Settings } from "@/lib/site"
 import { hasMediaFields, hydrateMedia, resolveObject, zodObject, type Img, type Locale, type MediaInfo, type TokenContext } from "./fields"
 import { SINGLETON, storedDefaults, withDefaultUrdu } from "./defaults"
@@ -199,12 +199,13 @@ export async function getContent<S>(type: string, locale: Locale = requestLocale
 
 export const getCatalogData = cache(async (locale: Locale = requestLocale()) => {
   const ctx = await getSettingsTokens(locale)
-  const [worlds, categories, services, areas, bundles, rules, search] = await Promise.all([
+  const [worlds, categories, services, areas, bundles, packs, rules, search] = await Promise.all([
     getCollection<World>("world", locale, ctx),
     getCollection<Category>("category", locale, ctx),
     getCollection<ServiceCms>("service", locale, ctx),
     getCollection<Area>("area", locale, ctx),
     getCollection<Bundle>("bundle", locale, ctx),
+    getCollection<Pack>("pack", locale, ctx),
     getSingleton<{ minOrder: number; coverage: string }>("settings-catalog", locale, ctx),
     getSingleton<{ synonyms: Record<string, string>; stopWords: string[] }>("settings-search", locale),
   ])
@@ -215,6 +216,7 @@ export const getCatalogData = cache(async (locale: Locale = requestLocale()) => 
     categories: categories.map((c) => ({ ...c, services: (byCategory.get(c.slug) ?? []).map(({ category, ...s }) => s) })),
     areas,
     bundles,
+    packs,
     minOrder: rules.minOrder,
     coverage: rules.coverage,
     synonyms: search.synonyms,

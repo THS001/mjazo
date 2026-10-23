@@ -139,6 +139,8 @@ const CASES: Case[] = [
   { name: "see promo codes", roles: ["owner", "admin", "finance"], run: () => (R.promos.GET as () => Promise<Response>)() },
   { name: "see Plus and gift cards", roles: ["owner", "finance"], run: () => (R.growth.GET as () => Promise<Response>)() },
   { name: "issue a gift card", roles: ["owner", "finance"], run: () => post(R.growth, { action: "issue_gift", amount: 1000, paidVia: "cash" }) },
+  { name: "add a pack by phone", roles: ["owner", "finance"], run: () => post(R.growth, { action: "activate_pack", slug: "ac-year", phone: "03219998887", name: "Pack Test", paidVia: "cash" }) },
+  { name: "cancel a pack", roles: ["owner", "finance"], run: () => post(R.growth, { action: "cancel_pack", packId: "PK-NONE" }) },
   { name: "create a promo code", roles: ["owner", "admin", "finance"], run: () => post(R.promos, { action: "create", promo: { code: `T${Math.random().toString(36).slice(2, 8).toUpperCase()}`, kind: "percent", value: 10 } }) },
   { name: "see KPIs", roles: ["owner", "admin", "dispatcher", "finance"], run: () => get(R.kpi, "?days=7") },
   { name: "see the pilot gates", roles: ["owner", "admin", "dispatcher", "finance"], run: () => get(R.pilot, "?window=30") },

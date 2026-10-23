@@ -1,6 +1,8 @@
 // Money, dates, time windows and phone numbers, the way the website writes them.
 
 export const formatPKR = (n: number) => (n <= 0 ? "On request" : `PKR ${Math.round(n).toLocaleString("en-US")}`)
+/** An amount of money (what's left to pay can be PKR 0, unlike a price). */
+export const formatAmount = (n: number) => `PKR ${Math.max(0, Math.round(n)).toLocaleString("en-US")}`
 
 const TZ = "Asia/Karachi"
 

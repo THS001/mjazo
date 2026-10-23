@@ -2,7 +2,7 @@
 
 import Link from "@/components/site/locale-link"
 import { useEffect, useState } from "react"
-import { ArrowUpRight, CalendarCheck, Crown, Gift, LifeBuoy, MapPin, RotateCcw } from "lucide-react"
+import { ArrowUpRight, CalendarCheck, Crown, Gift, LifeBuoy, MapPin, Repeat, RotateCcw } from "lucide-react"
 import { formatPKR } from "@/lib/catalog"
 import { formatBookingDate, getBookings, karachiNow, type LocalBooking } from "@/lib/bookings"
 import { track } from "@/lib/site"
@@ -29,11 +29,12 @@ const readContact = (): Contact => {
 /** `sub`: the line under the title (null: none, e.g. once signed in). */
 export function AccountShell({ title, sub, children }: { title: string; sub?: string | null; children: React.ReactNode }) {
   const t = useT().account
+  const p = useT().packs
   return (
     <div className="bg-zinc-50 min-h-screen pt-28 sm:pt-32 pb-24">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         <nav className="flex gap-2 overflow-x-auto no-scrollbar mb-8">
-          {[["/account", t.overview], ["/account/bookings", t.bookings], ["/account/addresses", t.details]].map(([h, l]) => (
+          {[["/account", t.overview], ["/account/bookings", t.bookings], ["/account/packs", p.title], ["/account/addresses", t.details]].map(([h, l]) => (
             <Link key={h} href={h} className="shrink-0 rounded-full h-10 px-4 text-sm flex items-center border bg-white border-zinc-200 hover:border-zinc-400">{l}</Link>
           ))}
         </nav>
@@ -59,6 +60,7 @@ const Skeleton = () => <div className="h-40 rounded-3xl bg-white border border-z
 /** Signed out: what's saved on this device, and a sign-in prompt. */
 function DeviceOverview() {
   const a = useT().account
+  const p = useT().packs
   const [c, setC] = useState<Contact>({})
   const [n, setN] = useState(0)
   useEffect(() => {
@@ -69,6 +71,7 @@ function DeviceOverview() {
     { href: "/account/bookings", icon: CalendarCheck, t: a.bookings, d: n ? fill(a.onDevice, { count: n }) : a.noneYet },
     { href: "/account/addresses", icon: MapPin, t: a.savedDetails, d: c.address ? `${c.address}` : a.addAddress },
     { href: "/home-pulse", icon: CalendarCheck, t: a.homePulse, d: a.homePulseSub },
+    { href: "/account/packs", icon: Repeat, t: p.title, d: p.sub },
     { href: "/plus", icon: Crown, t: a.plus, d: a.plusSub },
     { href: "/refer", icon: Gift, t: a.refer, d: a.referSub },
     { href: "/help", icon: LifeBuoy, t: a.help, d: a.helpSub },

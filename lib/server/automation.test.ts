@@ -215,6 +215,33 @@ describe("referrals and Plus", () => {
     expect(m.body).toContain("Iqra")
     expect(m.body).toContain("10%")
   })
+
+  it("says a pack is ready, then asks for the next visit when it falls due (once per visit)", async () => {
+    const { activatePack } = await import("@/lib/core/packs")
+    const { packOffers } = await import("@/lib/packs")
+    const { getCatalog } = await import("@/lib/cms/read")
+    const cat = await getCatalog()
+    const wax = packOffers(cat).find((o) => o.slug === "wax-monthly")!
+    const k = await activatePack(db, { phone: "03019990004", name: "Mehwish Ali", offer: wax, paidVia: "cash", by: "fin@mjazo.test" })
+    await A.runAutomation()
+    const [m] = await notes("rule = 'packWelcome'")
+    expect(m).toMatchObject({ recipient: "03019990004", dedupe_key: `pack:${k.id}` })
+    expect(m.body).toContain("Wax Every Month")
+    expect(m.body).toContain("3 visits")
+    expect(m.body).toContain("/account/packs")
+
+    // Her first visit with it was 26 days ago: the next (every 28 days) is due in two days.
+    const b = await cj.createBooking(db, { id: `MJ-AU${++n}`, name: "Mehwish Ali", phone: "03019990004", area: "dha", address: "House 2", date: addDays(today, -26), window: "3–5 pm", payment: "cash", customerId: k.customerId, packId: k.id, items: [{ ...wax.item }] }, cat)
+    await complete(b.id, "P-SANA", at(addDays(today, -26), 17))
+    await A.runAutomation(at(today, 8)) // not before 10 am
+    expect(await notes("rule = 'packDue'")).toHaveLength(0)
+    await A.runAutomation(at(today, 11))
+    await A.runAutomation(at(today, 12))
+    const due = await notes("rule = 'packDue'")
+    expect(due).toHaveLength(1)
+    expect(due[0]).toMatchObject({ recipient: "03019990004", dedupe_key: `packDue:${k.id}:1` })
+    expect(due[0].body).toContain("2 left")
+  })
 })
 
 describe("on a timer", () => {
