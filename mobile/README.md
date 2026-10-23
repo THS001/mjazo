@@ -4,8 +4,8 @@ Two Expo (React Native) apps on one shared package:
 
 | App | Folder | Who | What |
 |---|---|---|---|
-| **Mjazo** | `apps/customer` | Customers | Browse the catalogue, book (address, real free time windows, promo code, credit), follow bookings live, move or cancel within the free-change time, rate, book a pro again, saved addresses, the WhatsApp messages switch. English and Urdu. |
-| **Mjazo Pro** | `apps/pro` | Pros | Sign in with phone + PIN (or an emailed link), today's visits and the coming days, offers to accept or decline, On my way → check in → I'm safe → finish with the payment (a screenshot for digital payments), SOS, earnings and payouts from the ledger, ratings, weekly windows and days off. English, Urdu and Roman Urdu. |
+| **Mjazo** | `apps/customer` | Customers | Browse the catalogue, book (address, real free time windows, promo code, credit), follow bookings live, move or cancel within the free-change time, rate, book a pro again, saved addresses, the WhatsApp messages switch, sign-in by phone number (a code) or email. The AI tools: Ask Mjazo (the Concierge chat that can book), Ghar Scan (with the brief sent to the pro), Home Pulse, and Glam Mirror and the Shaadi Orchestrator on the website. English and Urdu. |
+| **Mjazo Pro** | `apps/pro` | Pros | Sign in with phone + PIN (or an emailed link), today's visits and the coming days, offers to accept or decline, On my way → check in → I'm safe → finish with the payment (a screenshot for digital payments), SOS, earnings and payouts from the ledger, ratings, weekly windows and days off, live location while on the way, and the AI Copilot (today's brief read aloud, questions with a photo). English, Urdu and Roman Urdu. |
 
 `packages/shared` holds what both use: the API client, sign-in, storage, the design (brand colours, cards, buttons), languages, formatting, location and push.
 

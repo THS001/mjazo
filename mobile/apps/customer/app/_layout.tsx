@@ -5,7 +5,8 @@ import { useEffect } from "react"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 import { AccountProvider, CartProvider, CatalogProvider, useAccount, useT } from "../src/state"
 
-// The Mjazo app: browse and book, track bookings live, rate, and the account, in English or Urdu.
+// The Mjazo app: browse and book, track bookings live, rate, the account, and the AI tools (the
+// Concierge chat, Ghar Scan, Home Pulse), in English or Urdu.
 // Everything goes through the website's /api/v1, so it always shows what the website shows.
 
 export default function Root() {
@@ -42,6 +43,9 @@ function Screens() {
       <Stack.Screen name="phone" options={{ title: t.phoneTitle }} />
       <Stack.Screen name="addresses" options={{ title: t.addresses }} />
       <Stack.Screen name="address" options={{ title: t.addAddress, presentation: "modal" }} />
+      <Stack.Screen name="assistant" options={{ headerShown: false }} />
+      <Stack.Screen name="scan" options={{ title: t.toolScan }} />
+      <Stack.Screen name="pulse" options={{ title: t.toolPulse }} />
     </Stack>
   )
 }

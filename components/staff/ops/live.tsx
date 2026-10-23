@@ -131,7 +131,7 @@ function JobCard({ job: j, pros, offer, suggestion, live, reload }: { job: OpsJo
       <div className="flex items-center gap-2 flex-wrap">
         <Badge className={STATUS[j.status].cls}>{STATUS[j.status].label}</Badge>
         {j.safety.level !== "ok" && <Badge className={cn("border", safety.cls)}>{safety.label}</Badge>}
-        {j.channel && j.channel !== "web" && <Badge className="bg-violet-100 text-violet-800">{j.channel === "concierge-whatsapp" ? "WhatsApp AI" : j.channel === "app" ? "App" : "Concierge"}</Badge>}
+        {j.channel && j.channel !== "web" && <Badge className="bg-violet-100 text-violet-800">{j.channel === "concierge-whatsapp" ? "WhatsApp AI" : j.channel === "concierge-app" ? "App AI" : j.channel === "app" ? "App" : "Concierge"}</Badge>}
         {j.preferredProId && <Badge className="bg-sky-100 text-sky-900">Asked for {pros.find((p) => p.id === j.preferredProId)?.name.split(" ")[0] ?? j.preferredProId}</Badge>}
         <span className="ml-auto text-xs text-zinc-400 font-mono">{j.id}</span>
       </div>

@@ -2,13 +2,15 @@ import { ApiError, Button, Card, Chip, color, currentLocation, errorText, Field,
 import { Redirect, router } from "expo-router"
 import { LocateFixed } from "lucide-react-native"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { View } from "react-native"
+import { Image, View } from "react-native"
 import { Section } from "../src/parts"
 import { rememberBooking, useAccount, useCart, useCatalog, useT } from "../src/state"
+import { clearBrief, loadBrief, type Brief } from "../src/tools"
 
 // Checkout: where (a saved address, or the area, street and an optional location), when (the real
-// free windows for this cart and area), who, how they'll pay, a promo code and their credit. The
-// server checks and prices it all again; the app shows its reason when something's refused.
+// free windows for this cart and area), who, how they'll pay, a promo code and their credit, and a
+// Ghar Scan brief for the pro when one is saved. The server checks and prices it all again; the
+// app shows its reason when something's refused.
 
 type Pay = "cash" | "jazzcash" | "easypaisa" | "raast"
 
@@ -59,6 +61,12 @@ export default function Checkout() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState("")
+  // A Ghar Scan diagnosis saved for this booking: it goes to the pro (photos until the visit is done).
+  const [brief, setBrief] = useState<Brief | null>(null)
+  const [sendBrief, setSendBrief] = useState(true)
+  useEffect(() => {
+    void loadBrief().then(setBrief)
+  }, [])
   // Once booked, the emptied cart must not send them back to it.
   const placed = useRef(false)
 
@@ -188,10 +196,15 @@ export default function Checkout() {
         ...(proId ? { preferredProId: proId } : {}),
         ...(pin ? { lat: pin.lat, lng: pin.lng } : {}),
         ...(addressId ? { addressId } : {}),
+        ...(brief && sendBrief ? { brief: { kind: brief.kind, title: brief.title, text: brief.text, causes: brief.causes, parts: brief.parts, pins: brief.pins, hasPhotos: brief.photos.length > 0 } } : {}),
       }
       const r = await api<{ id: string; total?: number; credit?: number }>("/api/v1/bookings", { body })
       // A new address, saved to their account (best effort: the booking is made either way).
       if (me && !addressId && saveAddress) await api("/api/v1/customer/addresses", { body: { area, subArea: subArea || null, line: line.trim(), landmark: landmark.trim() || null, lat: pin?.lat ?? null, lng: pin?.lng ?? null } }).catch(() => {})
+      if (brief && sendBrief) {
+        if (brief.photos.length) await request("/api/booking/attach", { body: { bookingId: r.id, phone: normalisePhone(phone), photos: brief.photos.slice(0, 3).map((p) => `data:image/jpeg;base64,${p}`) } }).catch(() => {})
+        await clearBrief()
+      }
       await rememberBooking({ id: r.id, date, window: win, total: r.total ?? total, services: cart.items.map((i) => i.name), at: new Date().toISOString() })
       placed.current = true
       cart.clear()
@@ -310,6 +323,21 @@ export default function Checkout() {
       </Row>
       <Txt v="muted">{pay === "cash" ? t.cashSub : t.nothingNow}</Txt>
       <Field label={t.notes} value={notes} onChangeText={setNotes} placeholder={t.notesHint} multiline maxLength={500} />
+      {brief && (
+        <Card>
+          <Row style={{ alignItems: "flex-start" }}>
+            {brief.photos[0] ? <Image source={{ uri: `data:image/jpeg;base64,${brief.photos[0]}` }} style={{ width: 56, height: 56, borderRadius: 12 }} /> : null}
+            <View style={{ flex: 1, gap: 2 }}>
+              <Txt v="tiny">{t.briefFor}</Txt>
+              <Txt v="h3">{brief.title}</Txt>
+            </View>
+          </Row>
+          <Row style={{ justifyContent: "space-between" }}>
+            <Txt v="small" style={{ flex: 1 }}>{t.briefSend}</Txt>
+            <Switch on={sendBrief} onChange={setSendBrief} label={t.briefSend} />
+          </Row>
+        </Card>
+      )}
 
       <Section title={t.promo} />
       <Row>

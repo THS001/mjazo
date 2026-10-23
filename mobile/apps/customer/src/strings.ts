@@ -257,6 +257,27 @@ export const S = {
   support: { en: "Help", ur: "مدد" },
   supportSub: { en: "Questions about a visit? We're on WhatsApp.", ur: "کسی وزٹ کے بارے میں سوال؟ ہم واٹس ایپ پر ہیں۔" },
   terms: { en: "Terms and privacy", ur: "شرائط اور پرائیویسی" },
+
+  // AI tools (their own wording comes from the website: /api/v1/tools)
+  aiTools: { en: "Smart tools", ur: "اسمارٹ ٹولز" },
+  aiToolsSub: { en: "Mjazo AI can make mistakes. A person is always one tap away.", ur: "مجازو اے آئی سے غلطی ہو سکتی ہے۔ کوئی انسان ہمیشہ ایک ٹیپ کی دوری پر ہے۔" },
+  toolChat: { en: "Ask Mjazo", ur: "مجازو سے پوچھیں" },
+  toolChatSub: { en: "Book by chat, in English or Urdu", ur: "چیٹ سے بُکنگ، انگریزی یا اردو میں" },
+  toolScan: { en: "Ghar Scan", ur: "گھر اسکین" },
+  toolScanSub: { en: "A photo of the problem: the fix and the price", ur: "مسئلے کی تصویر: حل اور قیمت" },
+  toolPulse: { en: "Home Pulse", ur: "ہوم پلس" },
+  toolPulseSub: { en: "Your home's 90-day care plan", ur: "آپ کے گھر کا 90 دن کا نگہداشت پلان" },
+  toolGlam: { en: "Glam Mirror", ur: "گلیم مرر" },
+  toolGlamSub: { en: "Try mehndi and makeup on your photo", ur: "اپنی تصویر پر مہندی اور میک اپ آزمائیں" },
+  toolShaadi: { en: "Shaadi Orchestrator", ur: "شادی آرکیسٹریٹر" },
+  toolShaadiSub: { en: "Plan the whole family's wedding glam", ur: "پورے خاندان کی شادی کی تیاری کا پلان" },
+  opensWebsite: { en: "Opens on the Mjazo website", ur: "مجازو ویب سائٹ پر کھلتا ہے" },
+  takePhoto: { en: "Take a photo", ur: "تصویر لیں" },
+  fromGallery: { en: "From the gallery", ur: "گیلری سے" },
+  viewBookings: { en: "See my bookings", ur: "میری بُکنگز دیکھیں" },
+  briefFor: { en: "Ghar Scan brief for your pro", ur: "آپ کے پرو کے لیے گھر اسکین بریف" },
+  briefSend: { en: "Send it (and its photos) with this booking. Photos are deleted after the visit.", ur: "اسے (اور اس کی تصاویر) اس بُکنگ کے ساتھ بھیجیں۔ تصاویر وزٹ کے بعد ڈیلیٹ ہو جاتی ہیں۔" },
+  eventDateHint: { en: "Give the event a name and a date from today, like 2026-12-20.", ur: "تقریب کا نام اور آج کے بعد کی تاریخ لکھیں، جیسے 2026-12-20۔" },
   version: { en: "Mjazo app {{v}}", ur: "مجازو ایپ {{v}}" },
 } satisfies Table
 

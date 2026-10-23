@@ -174,4 +174,20 @@ export const T = {
   statusIn: { en: "Checked in", ur: "چیک اِن", ro: "Check in" },
   sharingLive: { en: "While you're on the way and Mjazo Pro is open, your location goes to the customer and ops about once a minute. It stops when you check in.", ur: "راستے میں ہوتے ہوئے اور مجازو پرو کھلا ہو تو آپ کی لوکیشن تقریباً ہر منٹ کسٹمر اور آپریشنز کو جاتی ہے۔ چیک اِن پر رک جاتی ہے۔", ro: "Raste mein hote hue aur Mjazo Pro khula ho to aapki location taqreeban har minute customer aur ops ko jaati hai. Check in par ruk jaati hai." },
   badEmail: { en: "Enter your email address", ur: "اپنا ای میل ایڈریس لکھیں", ro: "Apna email address likhein" },
+
+  // The AI Copilot (as on the web pro app)
+  copilotSub: { en: "AI · can make mistakes · ops are one call away", ur: "اے آئی · غلطی ہو سکتی ہے · آپریشنز ایک کال کی دوری پر", ro: "AI · ghalti ho sakti hai · ops ek call ki doori par" },
+  copilotCard: { en: "Ask about your day, a customer, a technique or safety. Send a photo too.", ur: "اپنے دن، کسٹمر، کام کے طریقے یا حفاظت کے بارے میں پوچھیں۔ تصویر بھی بھیج سکتی ہیں۔", ro: "Apne din, customer, kaam ke tareeqe ya safety ke baare mein poochein. Photo bhi bhej sakti hain." },
+  copilotHello: { en: "Hi! I'm your Mjazo Copilot (AI). Ask me about your day, a customer, a technique or a safety question. You can send a photo too.", ur: "السلام علیکم! میں آپ کا مجازو کو پائلٹ (اے آئی) ہوں۔ اپنے دن، کسٹمر، کام کے طریقے یا حفاظت کے بارے میں پوچھیں۔ تصویر بھیج کر بھی پوچھ سکتی ہیں۔", ro: "Salaam! Main aapka Mjazo Copilot (AI) hoon. Apne din, customer, kaam ke tareeqe ya safety ke baare mein poochein. Photo bhej kar bhi pooch sakti hain." },
+  chip1: { en: "Brief me on my next visit", ur: "اگلے وزٹ کا بتائیں", ro: "Agle visit ka batao" },
+  chip2: { en: "Client has sensitive skin. Can I wax?", ur: "حساس جلد پر ویکس کیسے کروں؟", ro: "Sensitive skin pe wax kar sakti hoon?" },
+  chip3: { en: "What does this AC error code mean?", ur: "یہ ایرر کوڈ کیا ہے؟", ro: "Ye error code kya hai?" },
+  chip4: { en: "Save a note for this customer", ur: "کسٹمر کا نوٹ محفوظ کریں", ro: "Customer ka note save karo" },
+  askAnything: { en: "Ask anything…", ur: "کچھ بھی پوچھیں…", ro: "Kuch bhi poochein…" },
+  thinking: { en: "Thinking…", ur: "سوچ رہا ہوں…", ro: "Soch raha hoon…" },
+  stop: { en: "Stop", ur: "روکیں", ro: "Rokein" },
+  newChat: { en: "New conversation", ur: "نئی گفتگو", ro: "Nayi baat cheet" },
+  addPhoto: { en: "Add a photo", ur: "تصویر شامل کریں", ro: "Photo add karein" },
+  send: { en: "Send", ur: "بھیجیں", ro: "Bhejein" },
+  back: { en: "Back", ur: "واپس", ro: "Wapas" },
 } satisfies Table

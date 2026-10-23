@@ -153,7 +153,7 @@ function ReferCard() {
       </Txt>
       <Txt v="muted">{fill(t.referSub, { friendOff: formatPKR(r.friendOff), youGet: formatPKR(r.youGet) })}</Txt>
       {r.friends > 0 && <Txt v="small" style={{ fontWeight: "600" }}>{fill(t.referEarned, { count: r.friends, amount: formatPKR(r.earned) })}</Txt>}
-      <Button title={t.share} variant="whatsapp" icon={<Share2 size={16} color={color.paper} />} onPress={share} />
+      <Button title={t.share} variant="whatsapp" icon={<Share2 size={16} color={color.ink} />} onPress={share} />
     </Card>
   )
 }

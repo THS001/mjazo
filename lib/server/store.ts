@@ -35,7 +35,7 @@ export const schemas = {
     notes: z.string().optional(),
     items: z.array(bookingItem).min(1),
     total: z.number(),
-    channel: z.enum(["web", "concierge-web", "concierge-whatsapp", "app"]).optional(),
+    channel: z.enum(["web", "concierge-web", "concierge-whatsapp", "concierge-app", "app"]).optional(),
     referral: z.string().max(40).optional(), // a friend's referral code (first booking only)
     // Ghar Scan diagnosis or Glam Mirror Look Card for the pro (photos travel separately, see /api/booking/attach)
     brief: z

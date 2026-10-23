@@ -18,7 +18,7 @@ export type UiAction =
   | { type: "handoff"; reason: string }
 
 export type ToolOutcome = { result: unknown; ui?: UiAction[] }
-export type Channel = "web" | "whatsapp"
+export type Channel = "web" | "whatsapp" | "app"
 
 const itemSchema = {
   type: "object",
@@ -212,7 +212,8 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
       const { priced, problems, total } = priceItems(items, cat)
       const lines = priced.map((p) => ({ name: p.service.name, options: p.options, addOns: p.addOns.map((a) => a.name), people: p.qty, each: formatPKR(p.unitPrice), subtotal: formatPKR(p.unitPrice * p.qty) }))
       const result = { lines, total: formatPKR(total), meetsMinimum: total >= MIN_ORDER, minimum: formatPKR(MIN_ORDER), problems }
-      if (name === "quote" || ctx.channel !== "web" || problems.length) return { result }
+      // WhatsApp has no cart; the website and the app add the items to theirs.
+      if (name === "quote" || ctx.channel === "whatsapp" || problems.length) return { result }
       return {
         result: { ...result, added: true },
         ui: priced.map((p) => ({
@@ -251,7 +252,7 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
         notes: [input.notes ? String(input.notes) : "", "Booked via Mjazo Concierge (AI)"].filter(Boolean).join(" · "),
         items: priced.map((p) => ({ name: p.service.name, category: p.category.slug, service: p.service.slug, options: p.options, addOns: p.addOns.map((a) => a.name), qty: p.qty, unitPrice: p.unitPrice })),
         total,
-        channel: ctx.channel === "web" ? ("concierge-web" as const) : ("concierge-whatsapp" as const),
+        channel: ({ web: "concierge-web", whatsapp: "concierge-whatsapp", app: "concierge-app" } as const)[ctx.channel],
       }
       try {
         const { id } = await placeBooking(data, ctx.attribution ?? {}, "concierge")

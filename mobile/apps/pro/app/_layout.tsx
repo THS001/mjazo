@@ -35,6 +35,7 @@ function Screens() {
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="auth-callback" options={{ headerShown: false }} />
       <Stack.Screen name="visit/[id]" options={{ title: "" }} />
+      <Stack.Screen name="copilot" options={{ headerShown: false }} />
     </Stack>
   )
 }

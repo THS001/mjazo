@@ -1,5 +1,6 @@
-import { Card, Empty, errorText, fill, formatDay, Loading, Notice, Row, Screen, space, Txt, useLang } from "@mjazo/shared"
+import { Card, color, Empty, errorText, fill, formatDay, Loading, Notice, Row, Screen, space, Txt, useLang } from "@mjazo/shared"
 import { router } from "expo-router"
+import { Sparkles } from "lucide-react-native"
 import { useState } from "react"
 import { View } from "react-native"
 import { money, SosButton, VisitCard } from "../../src/parts"
@@ -7,7 +8,8 @@ import { useSchedule } from "../../src/schedule"
 import { useSession, useT } from "../../src/session"
 
 // Today: her visits in route order (with any safety prompt), her week's earnings, new offers
-// waiting, the coming days, and SOS always at hand.
+// waiting, the AI Copilot (today's brief, read aloud, and questions), the coming days, and SOS
+// always at hand.
 
 export default function Today() {
   const t = useT()
@@ -53,6 +55,13 @@ export default function Today() {
           <Txt v="h3">{fill(t.offersWaiting, { n: schedule.openOffers })}</Txt>
         </Card>
       )}
+      <Card onPress={() => router.push("/copilot")}>
+        <Row>
+          <Sparkles size={18} color={color.brand} />
+          <Txt v="h3">{`${t.copilot} · ${t.brief}`}</Txt>
+        </Row>
+        <Txt v="muted">{t.copilotCard}</Txt>
+      </Card>
       {today.length ? today.map((v) => <VisitCard key={v.id} v={v} />) : <Empty title={t.noVisits} body={t.noJobs} />}
       {coming.length > 0 && <Txt v="h2">{t.comingDays}</Txt>}
       {coming.map((d, i) => (

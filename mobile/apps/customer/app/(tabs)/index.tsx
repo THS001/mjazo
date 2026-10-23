@@ -1,12 +1,13 @@
-import { Badge, Card, CatalogIcon, color, errorText, fill, Loading, Notice, radius, Row, Screen, space, Txt, useDir } from "@mjazo/shared"
+import { Badge, Card, CatalogIcon, color, errorText, fill, Loading, Notice, radius, Row, Screen, SITE_URL, space, Txt, useDir, useLang } from "@mjazo/shared"
 import { router } from "expo-router"
-import { Search } from "lucide-react-native"
+import * as WebBrowser from "expo-web-browser"
+import { CalendarHeart, Camera, ExternalLink, HeartPulse, MessageCircle, Search, Sparkles } from "lucide-react-native"
 import { useMemo, useState } from "react"
 import { Pressable, ScrollView, TextInput, View } from "react-native"
 import { CartBar, ServiceRow, servicePrice } from "../../src/parts"
 import { useAccount, useCatalog, useT } from "../../src/state"
 
-// Home: a greeting, search, every world with its categories, and the popular services.
+// Home: a greeting, search, the AI tools, every world with its categories, and the popular services.
 
 export default function Home() {
   const t = useT()
@@ -52,6 +53,7 @@ export default function Home() {
 
         {catalog && !results && (
           <>
+            <SmartTools />
             {popular.length > 0 && (
               <View style={{ gap: space.sm }}>
                 <Txt v="h2">{t.popular}</Txt>
@@ -100,6 +102,46 @@ export default function Home() {
         )}
       </Screen>
       <CartBar />
+    </View>
+  )
+}
+
+/**
+ * The AI tools: the Concierge chat, Ghar Scan and Home Pulse in the app; Glam Mirror (it runs the
+ * camera's face and hand tracking in the browser) and the Shaadi Orchestrator open on the website.
+ */
+function SmartTools() {
+  const t = useT()
+  const { lang } = useLang()
+  const { row } = useDir()
+  const web = (path: string) => void WebBrowser.openBrowserAsync(`${SITE_URL}${lang === "ur" ? "/ur" : ""}${path}`)
+  const tools = [
+    { title: t.toolChat, sub: t.toolChatSub, icon: <MessageCircle size={20} color={color.ink} />, go: () => router.push("/assistant") },
+    { title: t.toolScan, sub: t.toolScanSub, icon: <Camera size={20} color={color.ink} />, go: () => router.push("/scan") },
+    { title: t.toolPulse, sub: t.toolPulseSub, icon: <HeartPulse size={20} color={color.ink} />, go: () => router.push("/pulse") },
+    { title: t.toolGlam, sub: t.toolGlamSub, icon: <Sparkles size={20} color={color.ink} />, go: () => web("/glam-mirror"), site: true },
+    { title: t.toolShaadi, sub: t.toolShaadiSub, icon: <CalendarHeart size={20} color={color.ink} />, go: () => web("/weddings/planner"), site: true },
+  ]
+  return (
+    <View style={{ gap: space.sm }}>
+      <Txt v="h2">{t.aiTools}</Txt>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, flexDirection: row }}>
+        {tools.map((x) => (
+          <Card key={x.title} style={{ width: 168 }} onPress={x.go}>
+            <Row style={{ justifyContent: "space-between" }}>
+              <View style={{ backgroundColor: color.brandSoft, borderRadius: radius.md, padding: 8 }}>{x.icon}</View>
+              {x.site ? <ExternalLink size={14} color={color.faint} accessibilityLabel={t.opensWebsite} /> : null}
+            </Row>
+            <Txt v="h3" numberOfLines={1}>
+              {x.title}
+            </Txt>
+            <Txt v="muted" numberOfLines={2}>
+              {x.sub}
+            </Txt>
+          </Card>
+        ))}
+      </ScrollView>
+      <Txt v="muted">{t.aiToolsSub}</Txt>
     </View>
   )
 }

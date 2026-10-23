@@ -55,7 +55,8 @@ type BtnVariant = "dark" | "brand" | "light" | "danger" | "ghost" | "whatsapp"
 export function Button({ title, onPress, variant = "dark", busy, disabled, icon, small, style }: { title: string; onPress: () => void; variant?: BtnVariant; busy?: boolean; disabled?: boolean; icon?: ReactNode; small?: boolean; style?: StyleProp<ViewStyle> }) {
   const { row } = useDir()
   const bg = { dark: color.ink, brand: color.brand, light: color.paper, danger: color.red, ghost: "transparent", whatsapp: color.whatsapp }[variant]
-  const fg = variant === "light" || variant === "ghost" || variant === "brand" ? color.ink : color.paper
+  // WhatsApp green takes ink text, as on the website (brand kit).
+  const fg = variant === "light" || variant === "ghost" || variant === "brand" || variant === "whatsapp" ? color.ink : color.paper
   return (
     <Pressable
       accessibilityRole="button"

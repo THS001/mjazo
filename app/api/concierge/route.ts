@@ -9,6 +9,8 @@ export const maxDuration = 60
 
 const body = z.object({
   messages: z.array(z.unknown()).min(1).max(40),
+  // The Mjazo app says so: its bookings are marked "concierge-app".
+  channel: z.enum(["web", "app"]).optional(),
   context: z
     .object({
       name: z.string().max(80).optional(),
@@ -34,7 +36,7 @@ export async function POST(req: Request) {
   if (!history.length || history[history.length - 1].role !== "user") return NextResponse.json({ error: "Send a message first." }, { status: 400 })
 
   try {
-    const { reply, ui } = await runConcierge(history, { channel: "web", ...parsed.data.context })
+    const { reply, ui } = await runConcierge(history, { channel: parsed.data.channel ?? "web", ...parsed.data.context })
     return NextResponse.json({ reply, ui })
   } catch (e) {
     if (e instanceof Anthropic.RateLimitError) return NextResponse.json({ code: "busy", error: "The assistant is busy. Try again in a moment." }, { status: 429 })

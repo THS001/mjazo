@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 23 October 2026 (after the platform, part 3: phone-number sign-in)._
+_Last updated 23 October 2026 (after the platform, part 4: the AI tools in the apps)._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -39,6 +39,7 @@ accounts, and what's left.
 | **After the platform, part 1: Plus, gift cards and referral rewards** (they were request forms) | **Built 21 Oct 2026** (section 3h). To go live: `--migrate` (0010), then deploy |
 | **After the platform, part 2: live tracking of the pro** (the customer sees how far away she is, ops see it on the board) | **Built 23 Oct 2026** (section 3h). To go live: `--migrate` (0011), then deploy |
 | **After the platform, part 3: phone-number sign-in** (a 6-digit code on WhatsApp or by SMS, website and app) | **Built 23 Oct 2026** (section 3h). To go live: `--migrate` (0012), deploy, then a WhatsApp authentication template or Twilio Verify (section 7, item 13) |
+| **After the platform, part 4: the AI tools in the apps** (Ask Mjazo, Ghar Scan, Home Pulse, Glam Mirror and Shaadi in Mjazo; the Copilot in Mjazo Pro) | **Built 23 Oct 2026** (section 3h). To go live: deploy (no migration); the apps pick it up |
 | **Platform stage 6: the phone apps** (Mjazo and Mjazo Pro, Expo, in `mobile/`) | **Built 21 Oct 2026** (section 3g); its API is **live** (deployed the same day and checked). Next: try both apps on a phone with Expo Go, then store builds with your Expo account |
 
 ---
@@ -60,6 +61,7 @@ accounts, and what's left.
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 | 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
+| 23 Oct 2026 | **The AI tools in the apps built** (after the platform, part 4): Mjazo has Ask Mjazo (the Concierge, booking by chat), Ghar Scan (with the brief sent to the pro), Home Pulse, and Glam Mirror and the Shaadi Orchestrator on the website; Mjazo Pro has the Copilot with today's brief read aloud |
 | 23 Oct 2026 | **Phone-number sign-in built** (after the platform, part 3): customers sign in on the website or in the app with their number and a code on WhatsApp or by SMS, and see every booking made with that number; "Sign out everywhere"; a code also proves a number when an emailed sign-in adds it |
 | 23 Oct 2026 | **Live tracking of the pro built** (after the platform, part 2): while she's on her way with Mjazo Pro or `/pro` open, the customer sees how far away she is and about how long, and ops see it on the board. Only her latest point is kept, and it's deleted at check-in |
 | 21 Oct 2026 | **Plus, gift cards and referral rewards built** (after the platform, part 1): they were request forms; now real memberships, gift card codes that become credit, and referral codes with automatic rewards, on the ledger |
@@ -372,7 +374,23 @@ Schema: `supabase/migrations/0012_phone_sign_in.sql` (`phone_codes`, and `custom
 - **Safety:** Pakistani mobile numbers only. Only the code's hash is kept; it lives 10 minutes, takes 5 tries and works once, and asking again stops the earlier one. A new code at most every 30 seconds, 5 an hour and 10 a day per number, 20 an hour from one internet address and 300 an hour for the whole site (so nobody can run up the SMS bill), kept in the database so they hold across Vercel's servers, plus per-address limits on the two routes. Codes older than two days are cleared.
 - **Interface text:** 29 new texts in `/admin` → Buttons & labels → Customer account (with Urdu); the app's in `mobile/apps/customer/src/strings.ts`.
 - **Tests:** 429 in total. New (14): sign-in with a code and the token on the account API, bookings made with the number brought in, wrong and used codes, other countries' numbers, the 30-second wait, forged tokens, sign out everywhere, the code limits (per number, per hour and day, per address, the whole site, tries, 10 minutes) and the clean-up, the WhatsApp template's content, SMS through Twilio Verify after WhatsApp fails, off in production without a provider, and a code as proof when adding a number.
-- **Checked locally (23 Oct 2026):** `/login` → Phone number → the test customer's number → the code on screen → their account (credit, Plus, referral code, "Signed in with 0300…"); "Sign out everywhere" signed out and the old token was refused; a new number on `/ur/login` asked for the name in Urdu and opened a new account with its referral code; an emailed test sign-in adding a number with a guest booking proved it with a code and saw that booking.
+- **Checked locally (23 Oct 2026), website:** `/login` → Phone number → the test customer's number → the code on screen → their account (credit, Plus, referral code, "Signed in with 0300…"); "Sign out everywhere" signed out and the old token was refused; a new number on `/ur/login` asked for the name in Urdu and opened a new account with its referral code; an emailed test sign-in adding a number with a guest booking proved it with a code and saw that booking.
+- **Checked in the Mjazo app (web mode, phone size):** the sign-in screen offers Phone number and Email; the test customer's number and its code opened their account ("Signed in with 0300…", Sign out everywhere).
+
+### Part 4: the AI tools in the apps
+
+No schema change. New API: `GET /api/v1/tools?lang=` (the Concierge's and Ghar Scan's wording from the CMS, and whether the AI is on) and `POST /api/v1/pulse` (Home Pulse's plan from the website's engine). The Concierge (`/api/concierge`) takes `channel: "app"`.
+
+- **Mjazo (customers): a "Smart tools" row on the home screen.**
+  - **Ask Mjazo:** the website's AI Concierge as a chat screen. They type, or send up to 3 photos (camera or gallery), in English, Urdu or Roman Urdu. It answers from the real catalogue and prices, shows services (tap to choose options), adds what they agree to the app's cart, and can place the booking itself after a clear yes: those bookings are kept on the phone and marked **"App AI"** in mission control. A person on WhatsApp is one tap away; when the AI is off or busy it says so and offers WhatsApp. The conversation stays on the phone (without photos).
+  - **Ghar Scan:** photos of a problem at home (or of a beauty look) → the likely issue marked on the photos, causes, what to check now, a safety note, parts, the free video check when it's unsure, follow-up questions that sharpen the diagnosis, and the right services with their price ranges. **"Send this to my technician when I book"** keeps the brief, and checkout sends it with the next booking (photos go to the pro and are deleted after the visit), as on the website.
+  - **Home Pulse:** their home and routine (kept on the phone) → the next 90 days of care, from the same engine as the website (seasons, the week's heat, Eid, family events and, when signed in, their finished visits), worded by Mjazo AI when it's on. Each item books in one tap; "Done" hides it; WhatsApp reminders are opt-in (they reach the team and the automation's Home Pulse rule).
+  - **Glam Mirror and the Shaadi Orchestrator** open on the website inside the app (Glam Mirror runs the camera's face and hand tracking in the browser), in the app's language.
+  - Their wording comes from the CMS (Buttons & labels → AI chat; Pages → Ghar Scan and Home Pulse → Tool text), so the app and the website say the same and the team edits it once.
+- **Mjazo Pro: the AI Copilot** on the Today screen, as on the web pro app: **today's brief** (her route, customer notes and kit reminders), **read aloud** in English or Urdu; and a chat about her day, a customer, a technique or safety, with a photo when it helps. It can save a note on her own visits for next time.
+- WhatsApp buttons in both apps now use ink text on WhatsApp green, as the brand kit says (they had white text).
+- **Tests:** 433 in total. New (4): Home Pulse's plan through `/api/v1/pulse` (services, prices and the CMS text; Urdu; "done" items; a broken profile refused; a signed-in customer's finished wax moving the next one out), and the Concierge on the app's channel (cart additions come back to the app, not on WhatsApp; its booking is stored as `concierge-app`). Both apps type-check.
+- **Checked locally (23 Oct 2026), in both apps in web mode at phone size:** the Smart tools row on Mjazo's home; Ask Mjazo with the CMS welcome and chips, and (no AI key on this laptop) its "taking a break" answer with the WhatsApp button; Ghar Scan's screen with the CMS wording; Home Pulse's plan (the signed-in test customer's wax from two days ago moved her next wax out, the week's 36°C forecast, switching Pets on added a pet-grooming item); Mjazo Pro's Copilot card and screen, which said Copilot isn't switched on (no key). **Not checked yet:** the AI's real answers in the apps (a chat booking, a scan, the spoken brief). They need the live site, after the deploy.
 
 ## 4. Brand kit
 
@@ -625,6 +643,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
    4. ~~Client account~~: live 21 October (section 3e). Still to do: section 7, item 9 (Supabase sign-ups and redirect URLs, SMTP), then try a real email sign-in.
    5. ~~Automation~~: live 21 October (section 3f). Still to do: `CRON_SECRET` and the automation pinger, then WhatsApp templates or Resend (section 7, item 10). Keep auto-assign on "suggest" until the real pros are verified.
    6. ~~Mobile apps~~: built 21 October, API live (section 3g). To do: try both apps with Expo Go (mobile/README.md), add the apps' redirect URLs in Supabase for email sign-in, then `eas init` and store builds with your Expo account (and Google Play to publish).
+   7. ~~After the platform~~ (Plus, gift cards and referrals; live tracking; phone-number sign-in; the AI tools in the apps): built 21 to 23 October (section 3h). To go live: run `--migrate` (0010, 0011, 0012), then deploy; then a WhatsApp authentication template or Twilio Verify for phone sign-in (section 7, item 13).
 3. **Owner setup:** section 7 (rotate secrets, SMTP, `CRON_SECRET` and pingers, `SESSION_SECRET` for the pro app, staff roles).
 4. **Re-test the live flows** that need Supabase: booking → ops console, apply → interview, complaint → Trust Desk.
 5. **Urdu content:** the AI translation pass, a human review (including the new interface Urdu), then switching on the Urdu site.
@@ -683,5 +702,5 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - Wallet credit is set aside on the booking (`credit_used`) and posted with `applyCredit` when the visit completes (`postLedger` in `lib/core/jobs.ts`). What the pro collects is total − credit.
   - Locally, `/login` offers the test sign-in (`/api/v1/customer/dev-login`); the browser keeps its token in localStorage.
 - **Staff tools locally:** start the `mjazo-web-staff` preview configuration (`.claude/launch.json`). Without Supabase, `/ops` offers "Continue as local …" for any role (`/api/ops/dev-login`, refused in production); pros get PINs from ops.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (429 tests), then `npx next build` (828 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (433 tests), then `npx next build` (865 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
 - **New API routes on the dev server:** a route added while an older `.next/dev` cache exists can answer 404 (the request falls through to the page catch-all). Touch the new `route.ts` and it's picked up.
