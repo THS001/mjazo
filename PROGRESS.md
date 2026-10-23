@@ -36,10 +36,10 @@ accounts, and what's left.
 | **Platform stage 3: the pro app** (versioned `/api/v1/pro` API, job offers, schedule, earnings from the ledger, payouts, ratings, availability, email sign-in) | **Live 21 Oct 2026** (section 3d): migration 0007 run, `SESSION_SECRET` set, deployed and checked. Next: PINs (and emails) for the real pros in mission control |
 | **Platform stage 4: the client account** (email sign-in, live bookings, change and cancel, saved addresses with a map pin, promo codes, wallet credit, book a pro again, `/api/v1/customer`) | **Live 21 Oct 2026** (section 3e): migration 0008 run, deployed and checked. Still to do: Supabase sign-in settings and SMTP (section 7, item 9), then a real email sign-in |
 | **Platform stage 5: automation** (customer messages, auto-assign, weekly payout drafts, opt-in Home Pulse and win-back messages, mission control → Automations) | **Live 21 Oct 2026** (section 3f): migration 0009 run, deployed and checked. Messages stay in test mode (logged only) until WhatsApp templates or Resend are set; the automation pinger needs `CRON_SECRET` (section 7, item 10) |
-| **After the platform, part 1: Plus, gift cards and referral rewards** (they were request forms) | **Built 21 Oct 2026** (section 3h). To go live: `--migrate` (0010), then deploy |
-| **After the platform, part 2: live tracking of the pro** (the customer sees how far away she is, ops see it on the board) | **Built 23 Oct 2026** (section 3h). To go live: `--migrate` (0011), then deploy |
-| **After the platform, part 3: phone-number sign-in** (a 6-digit code on WhatsApp or by SMS, website and app) | **Built 23 Oct 2026** (section 3h). To go live: `--migrate` (0012), deploy, then a WhatsApp authentication template or Twilio Verify (section 7, item 13) |
-| **After the platform, part 4: the AI tools in the apps** (Ask Mjazo, Ghar Scan, Home Pulse, Glam Mirror and Shaadi in Mjazo; the Copilot in Mjazo Pro) | **Built 23 Oct 2026** (section 3h). To go live: deploy (no migration); the apps pick it up |
+| **After the platform, part 1: Plus, gift cards and referral rewards** (they were request forms) | **Live 23 Oct 2026** (section 3h): migration 0010 run, deployed and checked |
+| **After the platform, part 2: live tracking of the pro** (the customer sees how far away she is, ops see it on the board) | **Live 23 Oct 2026** (section 3h): migration 0011 run, deployed and checked |
+| **After the platform, part 3: phone-number sign-in** (a 6-digit code on WhatsApp or by SMS, website and app) | **Deployed 23 Oct 2026** (migration 0012 run). Switched off until a WhatsApp authentication template or Twilio Verify is set (section 7, item 13); the live site offers email sign-in until then |
+| **After the platform, part 4: the AI tools in the apps** (Ask Mjazo, Ghar Scan, Home Pulse, Glam Mirror and Shaadi in Mjazo; the Copilot in Mjazo Pro) | **Deployed 23 Oct 2026**. **The AI answers on the whole live site fail until the Anthropic key is replaced** (section 7, item 14) |
 | **Platform stage 6: the phone apps** (Mjazo and Mjazo Pro, Expo, in `mobile/`) | **Built 21 Oct 2026** (section 3g); its API is **live** (deployed the same day and checked). Next: try both apps on a phone with Expo Go, then store builds with your Expo account |
 
 ---
@@ -391,6 +391,7 @@ No schema change. New API: `GET /api/v1/tools?lang=` (the Concierge's and Ghar S
 - WhatsApp buttons in both apps now use ink text on WhatsApp green, as the brand kit says (they had white text).
 - **Tests:** 433 in total. New (4): Home Pulse's plan through `/api/v1/pulse` (services, prices and the CMS text; Urdu; "done" items; a broken profile refused; a signed-in customer's finished wax moving the next one out), and the Concierge on the app's channel (cart additions come back to the app, not on WhatsApp; its booking is stored as `concierge-app`). Both apps type-check.
 - **Checked locally (23 Oct 2026), in both apps in web mode at phone size:** the Smart tools row on Mjazo's home; Ask Mjazo with the CMS welcome and chips, and (no AI key on this laptop) its "taking a break" answer with the WhatsApp button; Ghar Scan's screen with the CMS wording; Home Pulse's plan (the signed-in test customer's wax from two days ago moved her next wax out, the week's 36°C forecast, switching Pets on added a pet-grooming item); Mjazo Pro's Copilot card and screen, which said Copilot isn't switched on (no key). **Not checked yet:** the AI's real answers in the apps (a chat booking, a scan, the spoken brief). They need the live site, after the deploy.
+- **Checked live after the deploy (23 Oct 2026):** `/api/v1/tools` answers in Urdu with the AI marked on; `/api/v1/pulse` plans 10 items with today's 36°C forecast; the Plus, tracking and sign-out-everywhere routes refuse signed-out calls (401); phone sign-in answers "not available yet" (no provider set, as expected); `/login` and `/ur/login` load. **The AI itself failed:** the Concierge (app channel) and Home Pulse's wording both got "invalid x-api-key" from Anthropic (Vercel's error log). The key in Vercel is 21 days old and unchanged, so it was switched off on Anthropic's side; the deploy didn't cause it. Re-test the AI once the key is replaced (section 7, item 14).
 
 ## 4. Brand kit
 
@@ -557,7 +558,7 @@ All are listed with explanations in [.env.example](.env.example).
 
 | Setting | Needed for | Status |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | All AI features, AI translation, alt text, SEO suggestions | Set (production) |
+| `ANTHROPIC_API_KEY` | All AI features, AI translation, alt text, SEO suggestions | Set (production, 2 Oct 2026), **but Anthropic rejects it since at least 23 Oct 2026 ("invalid x-api-key")**: replace it (section 7, item 14) |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Saving anything durably | Set (production; rotate the secret key, see section 7) |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | CMS sign-in and media uploads | Set (production) |
 | `CMS_OWNER_EMAIL` | The CMS Owners | Set: mjazosupport@gmail.com, thehashirsukhera@gmail.com |
@@ -609,6 +610,7 @@ All are listed with explanations in [.env.example](.env.example).
    - **WhatsApp:** the WhatsApp Cloud API settings (item 6), and in WhatsApp Manager → Message templates an **Authentication** template with a "Copy code" button, in English (and Urdu if wanted). Put its name in Vercel as `WHATSAPP_OTP_TEMPLATE` and its languages as `WHATSAPP_OTP_LANGS` (e.g. `en,ur`);
    - **SMS:** a Twilio account with a Verify service; put `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_VERIFY_SID` (the service's VA… id) in Vercel;
    - then redeploy. Until one is set, the live site offers email sign-in only.
+14. **Replace the Anthropic key** (found 23 Oct 2026): Anthropic answers "invalid x-api-key" to the key in Vercel (set 2 Oct), so every AI feature on the live site and in the apps falls back to WhatsApp or plain wording. In the Anthropic Console (console.anthropic.com → API keys) make a new key, check the account has credit, then in a normal PowerShell run `cd F:mjazowebsite; npx vercel env rm ANTHROPIC_API_KEY production --yes; npx vercel env add ANTHROPIC_API_KEY production` (paste the key when it asks; choose Sensitive if offered), then redeploy.
 
 ---
 
@@ -643,7 +645,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
    4. ~~Client account~~: live 21 October (section 3e). Still to do: section 7, item 9 (Supabase sign-ups and redirect URLs, SMTP), then try a real email sign-in.
    5. ~~Automation~~: live 21 October (section 3f). Still to do: `CRON_SECRET` and the automation pinger, then WhatsApp templates or Resend (section 7, item 10). Keep auto-assign on "suggest" until the real pros are verified.
    6. ~~Mobile apps~~: built 21 October, API live (section 3g). To do: try both apps with Expo Go (mobile/README.md), add the apps' redirect URLs in Supabase for email sign-in, then `eas init` and store builds with your Expo account (and Google Play to publish).
-   7. ~~After the platform~~ (Plus, gift cards and referrals; live tracking; phone-number sign-in; the AI tools in the apps): built 21 to 23 October (section 3h). To go live: run `--migrate` (0010, 0011, 0012), then deploy; then a WhatsApp authentication template or Twilio Verify for phone sign-in (section 7, item 13).
+   7. ~~After the platform~~ (Plus, gift cards and referrals; live tracking; phone-number sign-in; the AI tools in the apps): built 21 to 23 October and **deployed 23 October** (migrations 0010–0012 run; section 3h). Still to do: a new Anthropic key (section 7, item 14), then a WhatsApp authentication template or Twilio Verify for phone sign-in (item 13).
 3. **Owner setup:** section 7 (rotate secrets, SMTP, `CRON_SECRET` and pingers, `SESSION_SECRET` for the pro app, staff roles).
 4. **Re-test the live flows** that need Supabase: booking → ops console, apply → interview, complaint → Trust Desk.
 5. **Urdu content:** the AI translation pass, a human review (including the new interface Urdu), then switching on the Urdu site.
