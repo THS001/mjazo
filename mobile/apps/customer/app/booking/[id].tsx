@@ -65,7 +65,14 @@ export default function BookingScreen() {
       {!["cancelled", "no_show"].includes(b.status) && <Steps b={b} />}
       {done ? <Notice tone="green" text={done} /> : null}
       {b.pro && <Txt v="h3">{fill(t.yourPro, { name: b.pro.firstName })}</Txt>}
-      {b.status === "en_route" && b.eta && <Notice tone="brand" text={fill(t.eta, { time: formatTime(b.eta) })} />}
+      {b.status === "en_route" && b.live && b.live.minutes !== null ? (
+        <Card tint={color.brandSoft}>
+          <Txt v="h3">{fill(t.liveAway, { name: b.pro?.firstName ?? "", minutes: b.live.minutes, km: b.live.km ?? "" })}</Txt>
+          <Button title={t.liveMap} variant="light" small onPress={() => void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${b.live!.lat},${b.live!.lng}`)} style={{ alignSelf: "flex-start" }} />
+        </Card>
+      ) : b.status === "en_route" && b.eta ? (
+        <Notice tone="brand" text={fill(t.eta, { time: formatTime(b.eta) })} />
+      ) : null}
       {!b.pro && b.askedFor && <Txt v="muted">{fill(t.askedFor, { name: b.askedFor.firstName })}</Txt>}
 
       <Card>

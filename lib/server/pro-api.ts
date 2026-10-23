@@ -8,6 +8,7 @@ import { emit } from "@/lib/core/events"
 import { earnedSince, proBalances, proShare, proStatement } from "@/lib/core/ledger"
 import { proPayouts, proRatings } from "@/lib/core/pro-history"
 import { setProProfile, type ProProfilePatch } from "@/lib/core/pros"
+import { saveLocation } from "@/lib/core/tracking"
 import { jobMinutes, windowIndex } from "@/lib/ops/logic"
 import { isVerified, type Job, type PaymentRecord, type Pro } from "@/lib/ops/types"
 import { karachiNow, WINDOW_LABELS } from "@/lib/time"
@@ -165,6 +166,11 @@ export async function proVisitAction(pro: Pro, jobId: string, b: VisitAction): P
     j.events.push({ type: "payment", at: nowIso(), by: "pro", actor: proId, note: `${p.method} ${p.amount} (${record.status})` })
   })
   return { job: await addJobEvent(jobId, "completed", "pro", {}, { proId }), message }
+}
+
+/** Her latest location while she's on the way (false once the visit has moved on: the app stops sending). */
+export async function proVisitLocation(pro: Pro, jobId: string, p: { lat: number; lng: number; accuracy?: number }) {
+  return saveLocation(await requireCore(), { bookingId: jobId, proId: pro.id, lat: p.lat, lng: p.lng, accuracy: p.accuracy ?? null })
 }
 
 /** SOS: on a visit it goes on the visit (and ops are told at once); between visits it's logged and ops are told. */

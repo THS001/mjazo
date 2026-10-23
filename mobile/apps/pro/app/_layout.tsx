@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar"
 import { useEffect } from "react"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 import { ScheduleProvider } from "../src/schedule"
+import { LiveTracker } from "../src/tracker"
 import { PUSH_KEY, SessionProvider, useSession, useT } from "../src/session"
 
 // Mjazo Pro: her day, her offers, her money and her safety, in English, Urdu or Roman Urdu. All
@@ -17,6 +18,7 @@ export default function Root() {
           <ScheduleProvider>
             <StatusBar style="dark" />
             <Push />
+            <LiveTracker />
             <Screens />
           </ScheduleProvider>
         </SessionProvider>

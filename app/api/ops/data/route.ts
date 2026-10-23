@@ -8,6 +8,8 @@ import type { Job } from "@/lib/ops/types"
 import { paymentNeedsCheck, windowIndex } from "@/lib/ops/logic"
 import { ROLE_INFO } from "@/lib/cms/roles"
 import { boardSuggestions, tickAutomation } from "@/lib/server/automation"
+import { core } from "@/lib/core/db"
+import { livePoints, withEta } from "@/lib/core/tracking"
 
 // Everything the ops console's live board needs, in one poll. Also runs the Safety Guardian sweep.
 
@@ -41,6 +43,11 @@ export async function GET(req: Request) {
       weddingsPending: weddings.filter((w) => w.status === "submitted").length,
     }
     const offers = await openOffers(dayJobs.map((j) => j.id))
+    // Where each pro on her way is now (her phone sends it while Mjazo Pro is open).
+    const db = await core()
+    const onWay = dayJobs.filter((j) => j.status === "en_route")
+    const points = db && onWay.length ? await livePoints(db, onWay.map((j) => j.id)) : new Map()
+    const where = Object.fromEntries(onWay.filter((j) => points.has(j.id)).map((j) => [j.id, withEta(points.get(j.id)!, { lat: j.lat, lng: j.lng, area: j.area })]))
     // Auto-assign's pick for each unassigned visit; and, while someone watches the board, the
     // automation runs (in case the 5-minute pinger isn't set up).
     const suggest = await boardSuggestions(dayJobs, pros)
@@ -55,6 +62,7 @@ export async function GET(req: Request) {
       alerts: alerts.map(lite),
       sos,
       offers: offers.map((o) => ({ id: o.id, jobId: o.bookingId, proId: o.proId, expiresAt: o.expiresAt })),
+      live: where,
       assignMode: suggest.mode,
       suggestions: suggest.byJob,
       pros: pros.map(publicPro),

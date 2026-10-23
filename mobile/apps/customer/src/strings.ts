@@ -142,6 +142,8 @@ export const S = {
   statusMissed: { en: "Missed", ur: "رہ گیا" },
   yourPro: { en: "Your pro: {{name}}", ur: "آپ کی پرو: {{name}}" },
   eta: { en: "Arriving around {{time}}", ur: "تقریباً {{time}} تک پہنچیں گی" },
+  liveAway: { en: "{{name}} is about {{minutes}} min away ({{km}} km)", ur: "{{name}} تقریباً {{minutes}} منٹ کی دوری پر ہیں ({{km}} کلومیٹر)" },
+  liveMap: { en: "See where she is", ur: "دیکھیں وہ کہاں ہیں" },
   askedFor: { en: "You asked for {{name}}", ur: "آپ نے {{name}} کو مانگا" },
   changeUntil: { en: "Free to change or cancel until {{time}}", ur: "{{time}} تک مفت تبدیلی یا منسوخی" },
   tooLate: { en: "It's too late to change this online. Message us on WhatsApp.", ur: "اب آن لائن تبدیلی کا وقت گزر گیا۔ ہمیں واٹس ایپ کریں۔" },

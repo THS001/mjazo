@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 21 October 2026 (platform stage 4: the client account, live)._
+_Last updated 23 October 2026 (after the platform, part 2: live tracking of the pro)._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -37,6 +37,7 @@ accounts, and what's left.
 | **Platform stage 4: the client account** (email sign-in, live bookings, change and cancel, saved addresses with a map pin, promo codes, wallet credit, book a pro again, `/api/v1/customer`) | **Live 21 Oct 2026** (section 3e): migration 0008 run, deployed and checked. Still to do: Supabase sign-in settings and SMTP (section 7, item 9), then a real email sign-in |
 | **Platform stage 5: automation** (customer messages, auto-assign, weekly payout drafts, opt-in Home Pulse and win-back messages, mission control → Automations) | **Live 21 Oct 2026** (section 3f): migration 0009 run, deployed and checked. Messages stay in test mode (logged only) until WhatsApp templates or Resend are set; the automation pinger needs `CRON_SECRET` (section 7, item 10) |
 | **After the platform, part 1: Plus, gift cards and referral rewards** (they were request forms) | **Built 21 Oct 2026** (section 3h). To go live: `--migrate` (0010), then deploy |
+| **After the platform, part 2: live tracking of the pro** (the customer sees how far away she is, ops see it on the board) | **Built 23 Oct 2026** (section 3h). To go live: `--migrate` (0011), then deploy |
 | **Platform stage 6: the phone apps** (Mjazo and Mjazo Pro, Expo, in `mobile/`) | **Built 21 Oct 2026** (section 3g); its API is **live** (deployed the same day and checked). Next: try both apps on a phone with Expo Go, then store builds with your Expo account |
 
 ---
@@ -58,6 +59,8 @@ accounts, and what's left.
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 | 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
+| 23 Oct 2026 | **Live tracking of the pro built** (after the platform, part 2): while she's on her way with Mjazo Pro or `/pro` open, the customer sees how far away she is and about how long, and ops see it on the board. Only her latest point is kept, and it's deleted at check-in |
+| 21 Oct 2026 | **Plus, gift cards and referral rewards built** (after the platform, part 1): they were request forms; now real memberships, gift card codes that become credit, and referral codes with automatic rewards, on the ledger |
 | 21 Oct 2026 | **Stage 6, the phone apps, built:** Mjazo (browse, book with real free windows, promo codes and credit, follow bookings live, move or cancel, rate, book a pro again, addresses, English and Urdu) and Mjazo Pro (phone + PIN, today and coming days, offers, On my way → check in → finish with the payment, SOS, earnings, ratings, availability, English, Urdu and Roman Urdu), on one shared package. New API: `/api/v1/catalog`, `/api/v1/config`, `/api/v1/bookings` |
 | 21 Oct 2026 | **Stage 5, automation, built and live** (migration 0009 run, deployed): booking confirmed, the day-before reminder, "on the way" and "rate your visit" messages (WhatsApp templates, email or a push, and only logged until a provider is set); auto-assign that suggests or offers each visit to the best verified pro; Monday's payout run drafted for Finance; opt-in Home Pulse and win-back messages with quiet hours, a monthly limit and STOP; mission control → Automations |
 | 21 Oct 2026 | **Stage 4, the client account, built:** customers sign in with an emailed link and see their bookings live (steps, their pro's first name), move or cancel them within the free-change hours, save addresses with a map pin, use promo codes and their Mjazo credit at checkout, and book a pro they liked again. `/api/v1/customer` for the coming app. Deployed and migration 0008 run the same day |
@@ -343,6 +346,18 @@ Schema: `supabase/migrations/0010_plus_gifts_referrals.sql` (Plus memberships, g
 - **Tests:** the growth core (5: Plus from request to discount and renewal, members added by phone, gift cards from sale to credit and cancelling, referral codes, the reward once), the API (2), the automation (2: the referral credit and message, the Plus welcome), the permissions, and the referral rules in the booking tests now use real codes.
 - **Checked locally:** issued a PKR 1,500 gift card in mission control; the test customer joined Plus from the API, an Owner activated it (until 21 October 2027), the gift card became PKR 1,500 credit, a booking got 10% off by itself (PKR 450 off PKR 4,500), and the account page showed the membership, the credit, the code STAGE-0099 and the gift card box. The welcome message was logged.
 
+### Part 2: live tracking of the pro
+
+Schema: `supabase/migrations/0011_live_tracking.sql` (`visit_locations`: one row per visit, the latest point only). Code: `lib/core/tracking.ts`; the route `POST /api/v1/pro/jobs/{id}/location`.
+
+- **While a pro is on her way** (she tapped "On my way") and Mjazo Pro is open on her phone, or `/pro` is open in her browser, her location goes to Mjazo about once a minute. It uses the permission she already gave for "On my way" (it never asks by itself) and never runs in the background. The app and `/pro` tell her so under the visit.
+- **Only the latest point is kept, only for that visit,** and it's deleted as soon as the visit moves on (check-in, cancel, anything: `mutateJob()`). Further points are refused (409) and the app stops sending. A point older than 10 minutes isn't shown (her phone went quiet).
+- **The customer** sees "Hina is about 8 min away (2.2 km)" and "See where she is" (Google Maps) on their bookings, on the website and in the Mjazo app, in English and Urdu. The minutes are a straight-line estimate for Karachi's roads (× 1.35 at 22 km/h) to their map pin, or to the area's centre without one.
+- **Mission control:** each visit on the way shows "Live: 2.2 km away, about 8 min · seen at 8:34 am" on the live board, linking to the map.
+- Until migration 0011 has run, tracking is simply off: nothing else fails because of it.
+- **Tests:** 415 in total. The API test runs a visit through it: refused before "On my way", only the latest point kept, another pro refused, the customer's distance and minutes, the point deleted at check-in and further points refused.
+- **Checked locally (23 Oct 2026):** a test pro on her way sent a point; the board showed it with the distance and minutes; a test customer's bookings page showed "Test is about 10 min away (2.6 km)" with the map link, and the Urdu page the same in Urdu; `/pro` showed the sharing notice under each visit on the way.
+
 ## 4. Brand kit
 
 Saved in `F:\mjazo\brand\`, outside this repo. A copy of the PDF is in the user's Downloads folder.
@@ -494,6 +509,9 @@ Project `xjyafabyscamelebzrsb` (https://xjyafabyscamelebzrsb.supabase.co), set u
 | `0006_mission_control.sql` | Mission control: the operations roles on `cms_users`, `money_requests` (refunds and credits waiting for approval), `payout_runs` (+ new payout columns), `ops_requests` (the requests inbox's status), who changed each promo code. Run on the live database on 21 Oct 2026 |
 | `0007_pro_app.sql` | The pro app: `job_offers` (one open offer per visit), and pros found by email without regard to case. Run on the live database on 21 Oct 2026 |
 | `0008_client_account.sql` | The client account: a booking's `preferred_pro_id`, `credit_used` and `address_id`, and indexes for customers' emails, addresses and promo uses. Run on the live database on 21 Oct 2026 |
+| `0009_automation.sql` | Automation: the rules, the message log (one message per reason), STOP opt-outs, phone push tokens. Run on the live database on 21 Oct 2026 |
+| `0010_plus_gifts_referrals.sql` | Plus memberships, gift cards, referral rewards; customers' referral codes and who referred them |
+| `0011_live_tracking.sql` | `visit_locations`: a pro's latest point while she's on the way to a visit |
 
 With Supabase connected, the cross-page flows (apply → interview link, booking → ops console,
 complaint → Trust Desk) can now work end to end on the live site. They haven't been re-tested live yet.
@@ -642,4 +660,5 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - Wallet credit is set aside on the booking (`credit_used`) and posted with `applyCredit` when the visit completes (`postLedger` in `lib/core/jobs.ts`). What the pro collects is total − credit.
   - Locally, `/login` offers the test sign-in (`/api/v1/customer/dev-login`); the browser keeps its token in localStorage.
 - **Staff tools locally:** start the `mjazo-web-staff` preview configuration (`.claude/launch.json`). Without Supabase, `/ops` offers "Continue as local …" for any role (`/api/ops/dev-login`, refused in production); pros get PINs from ops.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (376 tests), then `npx next build` (828 pages, plus two per published block page).
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (415 tests), then `npx next build` (828 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
+- **New API routes on the dev server:** a route added while an older `.next/dev` cache exists can answer 404 (the request falls through to the page catch-all). Touch the new `route.ts` and it's picked up.

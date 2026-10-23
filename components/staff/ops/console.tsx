@@ -39,6 +39,8 @@ export type OpsData = {
   /** Auto-assign (mission control → Automations): off, suggest or auto, and its pick per unassigned visit. */
   assignMode?: "off" | "suggest" | "auto"
   suggestions?: Record<string, { proId: string; reasons: string[] }>
+  /** Where each pro on her way is now, how far and about how long (live tracking). */
+  live?: Record<string, { lat: number; lng: number; at: string; km: number | null; minutes: number | null }>
   pros: OpsPro[]
   stats: { jobs: number; unassigned: number; live: number; done: number; revenue: number; perProDay: number; unreconciled: number; openComplaints: number; weddingsPending: number }
   days: { date: string; count: number }[]

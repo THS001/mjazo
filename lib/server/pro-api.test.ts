@@ -37,7 +37,7 @@ vi.mock("@/lib/server/store", async (orig) => ({
 vi.mock("@/lib/cms/read", async () => {
   const { buildCatalog, DEFAULT_CATALOG } = await import("@/lib/catalog")
   const cat = buildCatalog(DEFAULT_CATALOG)
-  return { getCatalog: async () => cat, getSettings: async () => ({ referral: { friendOff: 500 }, policy: { leadHours: 2 } }) }
+  return { getCatalog: async () => cat, getSettings: async () => ({ referral: { friendOff: 500, youGet: 500 }, plus: { price: 2500, period: "year", discount: 0.1 }, policy: { leadHours: 2, freeChangeHours: 3 } }) }
 })
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -80,6 +80,7 @@ beforeAll(async () => {
     ratings: await import("../../app/api/v1/pro/ratings/route"),
     availability: await import("../../app/api/v1/pro/availability/route"),
     sos: await import("../../app/api/v1/pro/sos/route"),
+    location: await import("../../app/api/v1/pro/jobs/[id]/location/route"),
     copilot: await import("../../app/api/v1/pro/copilot/route"),
   } as typeof R
   const cj = await import("@/lib/core/jobs")
@@ -225,6 +226,36 @@ describe("a visit from offer to earnings", () => {
     const text = await res.clone().text()
     expect(await res.json()).toMatchObject({ count: 1, average: 5, recent: [{ stars: 5, tags: ["On time"], comment: "Lovely" }] })
     expect(text).not.toContain("Ayesha")
+  })
+})
+
+describe("live tracking", () => {
+  it("keeps her latest point only while she's on the way; the customer sees how far and how long", async () => {
+    const { body } = await signIn("03122222222", "5678")
+    const t = body.token
+    const at = (lat: number, lng: number) => call(R.location.POST!, { token: t, id: hers, body: { lat, lng, accuracy: 20 } })
+    // Not on the way yet: refused, so the app doesn't start sending.
+    expect((await at(24.86, 67.0)).status).toBe(409)
+    expect((await call(R.job.POST!, { token: t, id: hers, body: { action: "en_route", lat: 24.86, lng: 67.0 } })).status).toBe(200)
+    expect(await (await at(24.86, 67.0)).json()).toEqual({ tracking: true })
+    expect(await (await at(24.83, 67.03)).json()).toEqual({ tracking: true }) // only the latest is kept
+    expect(await db.query("select lat, lng from visit_locations where booking_id = $1", [hers])).toEqual([{ lat: 24.83, lng: 67.03 }])
+    // Another pro can't send a point for her visit.
+    const sana = (await signIn("03111111111", "1234")).body.token
+    expect((await call(R.location.POST!, { token: sana, id: hers, body: { lat: 1, lng: 1 } })).status).toBe(400)
+    // The customer's view: about 4.4 km from DHA's centre, about 16 minutes.
+    const { customerBooking } = await import("@/lib/server/customer-api")
+    const c = (await db.one<{ id: string; name: string; phone: string }>("select c.id, c.name, c.phone from customers c join bookings b on b.customer_id = c.id where b.id = $1", [hers]))!
+    const me = { id: c.id, name: c.name, phone: c.phone, email: null, lang: "en", marketingOk: false }
+    const view = await customerBooking(me, hers)
+    expect(view.live).toMatchObject({ lat: 24.83, lng: 67.03, km: expect.any(Number), minutes: expect.any(Number) })
+    expect(view.live!.km).toBeGreaterThan(3)
+    expect(view.live!.km).toBeLessThan(6)
+    // Checked in: the point is deleted, and further points are refused.
+    expect((await call(R.job.POST!, { token: t, id: hers, body: { action: "check_in", lat: 24.8, lng: 67.06 } })).status).toBe(200)
+    expect(await db.query("select 1 from visit_locations where booking_id = $1", [hers])).toEqual([])
+    expect((await at(24.8, 67.06)).status).toBe(409)
+    expect((await customerBooking(me, hers)).live).toBeNull()
   })
 })
 

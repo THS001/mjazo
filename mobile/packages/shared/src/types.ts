@@ -70,6 +70,7 @@ export type CustomerBooking = {
   pro: { firstName: string } | null
   askedFor: { id: string; firstName: string } | null
   eta: string | null
+  live: { lat: number; lng: number; at: string; km: number | null; minutes: number | null } | null
   steps: { booked: string; assigned: string | null; onTheWay: string | null; arrived: string | null; done: string | null; cancelled: string | null }
   canChange: boolean
   changeUntil: string | null

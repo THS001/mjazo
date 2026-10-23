@@ -172,5 +172,6 @@ export const T = {
   week: { en: "7 days", ur: "۷ دن", ro: "7 din" },
   statusAssigned: { en: "Coming up", ur: "آنے والا", ro: "Aane wala" },
   statusIn: { en: "Checked in", ur: "چیک اِن", ro: "Check in" },
+  sharingLive: { en: "While you're on the way and Mjazo Pro is open, your location goes to the customer and ops about once a minute. It stops when you check in.", ur: "راستے میں ہوتے ہوئے اور مجازو پرو کھلا ہو تو آپ کی لوکیشن تقریباً ہر منٹ کسٹمر اور آپریشنز کو جاتی ہے۔ چیک اِن پر رک جاتی ہے۔", ro: "Raste mein hote hue aur Mjazo Pro khula ho to aapki location taqreeban har minute customer aur ops ko jaati hai. Check in par ruk jaati hai." },
   badEmail: { en: "Enter your email address", ur: "اپنا ای میل ایڈریس لکھیں", ro: "Apna email address likhein" },
 } satisfies Table

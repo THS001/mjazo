@@ -303,6 +303,14 @@ function BookingCard({ b, phone, onChanged }: { b: CustomerBooking; phone: strin
       <div className="mt-4 text-sm text-zinc-600 space-y-1">
         {b.pro && open && <p>{fill(m.yourPro, { name: b.pro.firstName })}</p>}
         {b.eta && ["assigned", "en_route"].includes(b.status) && <p>{fill(m.eta, { time: b.eta })}</p>}
+        {b.live && b.status === "en_route" && b.live.minutes !== null && (
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-medium">{fill(m.liveAway, { name: b.pro?.firstName ?? "", minutes: b.live.minutes, km: b.live.km ?? "" })}</span>
+            <a href={`https://www.google.com/maps/search/?api=1&query=${b.live.lat},${b.live.lng}`} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+              {m.liveMap}
+            </a>
+          </p>
+        )}
         {b.askedFor && !b.pro && open && <p>{fill(m.askedFor, { name: b.askedFor.firstName })}</p>}
         <p>
           <span className="font-medium text-black">{formatPKR(b.total)}</span>

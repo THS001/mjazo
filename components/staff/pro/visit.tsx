@@ -160,6 +160,7 @@ export function VisitCard({ visit: j, n, lang, focus, busy, onAct, onPay }: { vi
               </a>
             </div>
           </div>
+          {j.status === "en_route" && <p className={cn("mt-3 text-xs opacity-60", ur)}>{T.sharingLive[lang]}</p>}
         </>
       )}
       {done && j.paid && (

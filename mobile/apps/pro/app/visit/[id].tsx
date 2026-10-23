@@ -114,7 +114,7 @@ export default function VisitScreen() {
               <Txt v="muted">{fill(t.elapsed, { done: elapsed, total: v.minutes })}</Txt>
             </View>
           )}
-          <Txt v="muted">{t.locationWhy}</Txt>
+          <Txt v="muted">{v.status === "en_route" ? t.sharingLive : t.locationWhy}</Txt>
         </View>
       )}
       {v.status === "completed" && v.paid && <Notice tone="green" text={`${t.done} · ${money(v.paid.amount)} ${v.paid.method}${v.paid.status === "matched" ? " · ✓" : ""}`} />}

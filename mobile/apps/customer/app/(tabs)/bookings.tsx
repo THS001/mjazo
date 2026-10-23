@@ -102,7 +102,12 @@ function BookingCard({ b }: { b: CustomerBooking }) {
           {formatPKR(b.due)}
         </Txt>
       </Row>
-      {b.status === "en_route" && b.eta && (
+      {b.status === "en_route" && b.live && b.live.minutes !== null && (
+        <Txt v="small" style={{ fontWeight: "600" }}>
+          {fill(t.liveAway, { name: b.pro?.firstName ?? "", minutes: b.live.minutes, km: b.live.km ?? "" })}
+        </Txt>
+      )}
+      {b.status === "en_route" && !b.live && b.eta && (
         <View>
           <Txt v="small" style={{ fontWeight: "600" }}>
             {fill(t.eta, { time: formatTime(b.eta) })}

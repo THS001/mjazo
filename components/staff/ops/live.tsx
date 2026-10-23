@@ -89,7 +89,7 @@ export function LiveBoard({ data, reload }: { data: OpsData; reload: () => void 
             </h3>
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
               {g.jobs.map((j) => (
-                <JobCard key={j.id} job={j} pros={data.pros} offer={data.offers?.find((o) => o.jobId === j.id)} suggestion={data.suggestions?.[j.id]} reload={reload} />
+                <JobCard key={j.id} job={j} pros={data.pros} offer={data.offers?.find((o) => o.jobId === j.id)} suggestion={data.suggestions?.[j.id]} live={data.live?.[j.id]} reload={reload} />
               ))}
             </div>
           </section>
@@ -99,7 +99,7 @@ export function LiveBoard({ data, reload }: { data: OpsData; reload: () => void 
   )
 }
 
-function JobCard({ job: j, pros, offer, suggestion, reload }: { job: OpsJob; pros: OpsData["pros"]; offer?: OpsOffer; suggestion?: { proId: string; reasons: string[] }; reload: () => void }) {
+function JobCard({ job: j, pros, offer, suggestion, live, reload }: { job: OpsJob; pros: OpsData["pros"]; offer?: OpsOffer; suggestion?: { proId: string; reasons: string[] }; live?: NonNullable<OpsData["live"]>[string]; reload: () => void }) {
   const cat = useCatalog()
   const { getArea } = cat
   const { can, openBooking } = useOps()
@@ -153,6 +153,14 @@ function JobCard({ job: j, pros, offer, suggestion, reload }: { job: OpsJob; pro
         </button>
       </div>
 
+      {live && j.status === "en_route" && (
+        <a href={`https://www.google.com/maps/search/?api=1&query=${live.lat},${live.lng}`} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-xs rounded-2xl bg-amber-50 text-amber-900 px-3 py-2 hover:underline">
+          <MapPin className="w-3.5 h-3.5 shrink-0" />
+          <span>
+            Live: {live.km !== null ? `${live.km} km away, about ${live.minutes} min` : "on the map"} · seen at {clock(live.at)}
+          </span>
+        </a>
+      )}
       {offer && <OfferLine offer={offer} pros={pros} busy={busy === "withdraw_offer"} canWithdraw={can("ops.dispatch")} onWithdraw={() => run("withdraw_offer", { action: "withdraw_offer", jobId: j.id })} />}
       {!offer && suggestion && j.status === "new" && (
         <p className="mt-2 flex items-center gap-2 text-xs rounded-2xl bg-violet-50 text-violet-900 px-3 py-2">

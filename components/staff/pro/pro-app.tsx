@@ -9,7 +9,7 @@ import { locate, speak } from "@/lib/client/media"
 import { cn } from "@/lib/utils"
 import { usePartnerLang } from "@/components/partner/lang"
 import { browserSupabase } from "@/components/admin/supabase-browser"
-import { api, Btn, usePoll } from "../kit"
+import { api, ApiError, Btn, usePoll } from "../kit"
 import { ProCopilot } from "./copilot"
 import { T } from "./strings"
 import { MeTab, MoneyTab, OffersTab, ScheduleTab } from "./tabs"
@@ -162,6 +162,42 @@ function Login({ lang, setLang, enabled, emailSignIn, error: linkError, onIn }: 
 // The signed-in app
 // ---------------------------------------------------------------------------
 
+/**
+ * Live tracking, as in the phone app: while she's on the way to a visit and this page is open, her
+ * location goes to Mjazo about once a minute (the customer sees how far away she is; ops see it on
+ * the board). Only with the permission she already gave for "On my way" (never asked for here),
+ * and it stops when the visit moves on (check-in: the server answers 409).
+ */
+function useLiveTracking(data: Schedule | null, reload: () => void) {
+  const key = (data?.days.flatMap((d) => d.visits) ?? []).filter((v) => v.status === "en_route").map((v) => v.id).join(",")
+  const reloadRef = useRef(reload)
+  reloadRef.current = reload
+  useEffect(() => {
+    if (!key || !navigator.geolocation) return
+    let watch: number | null = null
+    let stopped = false
+    let last = 0
+    const send = (p: GeolocationPosition) => {
+      if (document.visibilityState !== "visible" || Date.now() - last < 55_000) return
+      last = Date.now()
+      for (const id of key.split(","))
+        api(`/api/v1/pro/jobs/${encodeURIComponent(id)}/location`, { lat: +p.coords.latitude.toFixed(5), lng: +p.coords.longitude.toFixed(5), accuracy: Math.round(p.coords.accuracy) }).catch((e) => {
+          // The visit moved on (checked in, cancelled): the schedule updates and tracking stops.
+          if (e instanceof ApiError && e.status === 409) reloadRef.current()
+        })
+    }
+    void (async () => {
+      const state = await navigator.permissions?.query({ name: "geolocation" }).then((s) => s.state, () => null)
+      if (state !== "granted" || stopped) return
+      watch = navigator.geolocation.watchPosition(send, () => {}, { enableHighAccuracy: true, maximumAge: 30_000 })
+    })()
+    return () => {
+      stopped = true
+      if (watch !== null) navigator.geolocation.clearWatch(watch)
+    }
+  }, [key])
+}
+
 type Tab = "today" | "schedule" | "offers" | "money" | "me"
 
 function Shell({ lang, setLang, onLogout }: { lang: Lang; setLang: (l: Lang) => void; onLogout: () => void }) {
@@ -184,6 +220,7 @@ function Shell({ lang, setLang, onLogout }: { lang: Lang; setLang: (l: Lang) => 
     }
   }
   usePoll(load, 30000)
+  useLiveTracking(data, load)
   useEffect(() => {
     if (!toast) return
     const t = setTimeout(() => setToast(""), 5000)

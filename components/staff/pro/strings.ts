@@ -127,4 +127,5 @@ export const T = {
   saved: { en: "Saved", ur: "محفوظ ہو گیا", ro: "Save ho gaya" },
   clearAll: { en: "Clear: every day, every window", ur: "صاف کریں: ہر دن، ہر وقت", ro: "Clear: har din, har waqt" },
   mostADay: { en: "Most visits a day (set by ops)", ur: "ایک دن میں زیادہ سے زیادہ وزٹ (آپریشنز طے کرتے ہیں)", ro: "Ek din mein zyada se zyada visits (ops tay karte hain)" },
+  sharingLive: { en: "While you're on the way and this page is open, your location goes to the customer and ops about once a minute. It stops when you check in.", ur: "راستے میں ہوتے ہوئے اور یہ صفحہ کھلا ہو تو آپ کی لوکیشن تقریباً ہر منٹ کسٹمر اور آپریشنز کو جاتی ہے۔ چیک اِن پر رک جاتی ہے۔", ro: "Raste mein hote hue aur yeh page khula ho to aapki location taqreeban har minute customer aur ops ko jaati hai. Check in par ruk jaati hai." },
 } satisfies Record<string, Record<Lang, string>>

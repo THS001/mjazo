@@ -7,6 +7,7 @@ import { emit } from "./events"
 import { applyCredit, customerBalances, settlePayment, visitCompleted, type PayMethod } from "./ledger"
 import { creditFor } from "./customers"
 import { plusDiscount, referrerOf } from "./growth"
+import { clearLocation } from "./tracking"
 import { coreId, normalisePhone } from "./phone"
 import { priceItems, type ClientItem } from "./pricing"
 import { checkPromo, PromoError } from "./promos"
@@ -416,6 +417,8 @@ export async function mutateJob(db: Db, id: string, fn: (job: Job) => void): Pro
     const ref = { bookingId: id, proId: after.proId, customerId: row.customer_id ?? undefined }
     if (after.status !== before.status) await emit(t, `booking.${after.status}`, ref, { from: before.status })
     else if (after.proId !== before.proId) await emit(t, "booking.reassigned", ref, { from: before.proId ?? null })
+    // Her live location is kept only while she's on the way.
+    if (before.status === "en_route" && after.status !== "en_route") await clearLocation(t, id)
     if (!same(after.paymentRecord, before.paymentRecord) && after.paymentRecord) await emit(t, "payment.recorded", ref, { amount: after.paymentRecord.amount, method: after.paymentRecord.method, status: after.paymentRecord.status })
     if (!same(after.rating, before.rating) && after.rating) await emit(t, "rating.received", ref, { stars: after.rating.stars })
     return after

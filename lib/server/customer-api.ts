@@ -6,6 +6,7 @@ import { optIn } from "@/lib/core/automation"
 import { plusFor, redeemGiftCard, referralCode, referralSummary, referrerOf, requestPlus } from "@/lib/core/growth"
 import { creditFor, deleteAddress, linkAccount, listAddresses, saveAddress, updateCustomer, type AddressInput, type Customer } from "@/lib/core/customers"
 import { listCustomerJobs } from "@/lib/core/jobs"
+import { livePoints, withEta, type LivePoint } from "@/lib/core/tracking"
 import { windowStart } from "@/lib/core/offers"
 import { checkPromo } from "@/lib/core/promos"
 import { priceItems, type ClientItem } from "@/lib/core/pricing"
@@ -31,7 +32,7 @@ export function changeDeadline(j: Pick<Job, "date" | "window">, freeChangeHours:
 const lastAt = (j: Job, type: string) => j.events.filter((e) => e.type === type).at(-1)?.at ?? null
 
 /** One booking as its customer sees it. */
-function bookingView(j: Job, cat: Cat, pros: Pro[], freeChangeHours: number, now = new Date()) {
+function bookingView(j: Job, cat: Cat, pros: Pro[], freeChangeHours: number, live?: LivePoint, now = new Date()) {
   const subtotal = j.items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
   const pro = pros.find((p) => p.id === j.proId)
   const asked = pros.find((p) => p.id === j.preferredProId)
@@ -58,6 +59,8 @@ function bookingView(j: Job, cat: Cat, pros: Pro[], freeChangeHours: number, now
     pro: pro ? { firstName: firstName(pro.name) } : null,
     askedFor: asked ? { id: asked.id, firstName: firstName(asked.name) } : null,
     eta: j.eta ?? null,
+    // Where the pro is while she's on the way (her phone sends it with Mjazo Pro open), how far and how long.
+    live: live && j.status === "en_route" ? withEta(live, { lat: j.lat, lng: j.lng, area: j.area }) : null,
     // When each step happened (null: not yet).
     steps: { booked: j.createdAt, assigned: j.proId ? lastAt(j, "assigned") : null, onTheWay: lastAt(j, "en_route"), arrived: lastAt(j, "checked_in"), done: lastAt(j, "completed"), cancelled: lastAt(j, "cancelled") },
     canChange: changeable && Boolean(until && now < until),
@@ -78,7 +81,9 @@ async function context() {
 export async function customerBookings(c: Customer) {
   const db = await requireCore()
   const { cat, pros, hours } = await context()
-  const views = (await listCustomerJobs(db, c.id)).map((j) => bookingView(j, cat, pros, hours))
+  const jobs = await listCustomerJobs(db, c.id)
+  const live = await livePoints(db, jobs.filter((j) => j.status === "en_route").map((j) => j.id))
+  const views = jobs.map((j) => bookingView(j, cat, pros, hours, live.get(j.id)))
   const open = (v: CustomerBooking) => !["completed", "cancelled", "no_show"].includes(v.status)
   return {
     upcoming: views.filter(open).sort((a, b) => a.date.localeCompare(b.date)),
@@ -97,7 +102,8 @@ async function ownBooking(c: Customer, id: string) {
 export async function customerBooking(c: Customer, id: string) {
   const j = await ownBooking(c, id)
   const { cat, pros, hours } = await context()
-  return bookingView(j, cat, pros, hours)
+  const live = j.status === "en_route" ? (await livePoints(await requireCore(), [j.id])).get(j.id) : undefined
+  return bookingView(j, cat, pros, hours, live)
 }
 
 /** Cancel or move a visit, online only until the policy's free-change time. */
