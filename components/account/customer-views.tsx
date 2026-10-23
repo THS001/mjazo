@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react"
 import { ArrowUpRight, CalendarCheck, Check, Crown, Gift, LifeBuoy, Loader2, MapPin as MapIcon, Pencil, RotateCcw, Star, Trash2, Wallet, X } from "lucide-react"
 import { formatPKR } from "@/lib/catalog"
 import { formatBookingDate, nextDays, windowAvailable, windowLabel, WINDOW_LABELS } from "@/lib/bookings"
-import { ACCOUNT_EVENT, customerApi, CustomerApiError, deviceBookingIds, signOut, type Me } from "@/lib/client/customer"
+import { ACCOUNT_EVENT, customerApi, CustomerApiError, deviceBookingIds, sendPhoneCode, signOut, signOutEverywhere, type CodeSent, type Me, type PhoneChannels } from "@/lib/client/customer"
 import type { Address } from "@/lib/core/customers"
 import type { CustomerBooking } from "@/lib/server/customer-api"
 import { useCart } from "@/lib/store"
@@ -18,6 +18,7 @@ import { RateVisit, isRated } from "@/components/site/rate-visit"
 import { fill, useCatalog, useLocale, useSite, useT } from "@/components/cms/provider"
 import { MapPin, type Pin } from "./map-pin"
 import { GiftRedeem, plusLine, ReferCard } from "./growth-views"
+import { CodeStep, codeProblem, defaultVia, type Via } from "./phone-code"
 
 // The signed-in client account: adding the phone number, live bookings (with their steps and
 // changes within the policy), credit and saved addresses with a map pin. Every call goes through
@@ -38,14 +39,20 @@ export function SignInPrompt({ className }: { className?: string }) {
   )
 }
 
-export function AccountBar({ email }: { email: string | null }) {
+export function AccountBar({ me }: { me: Me }) {
   const m = useT().myAccount
+  const phone = me.by === "phone" ? me.customer?.phone : null
   return (
     <p className="text-sm text-zinc-500 mb-6 flex flex-wrap items-center gap-x-3 gap-y-1">
-      {email && <span>{fill(m.signedInAs, { email })}</span>}
+      {phone ? <span dir="ltr">{fill(m.signedInPhone, { phone })}</span> : me.email && <span>{fill(m.signedInAs, { email: me.email })}</span>}
       <button onClick={() => void signOut()} className="underline underline-offset-4 hover:text-black">
         {m.signOut}
       </button>
+      {me.customer && (
+        <button onClick={() => void signOutEverywhere()} className="underline underline-offset-4 hover:text-black">
+          {m.signOutAll}
+        </button>
+      )}
     </p>
   )
 }
@@ -57,39 +64,72 @@ export function AccountBar({ email }: { email: string | null }) {
 export function PhoneLink({ me }: { me: Me }) {
   const t = useT()
   const m = t.myAccount
+  const locale = useLocale()
   const [name, setName] = useState("")
   const [phone, setPhone] = useState("")
   const [proof, setProof] = useState("")
   const [needProof, setNeedProof] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  // A number with bookings can also be proven with a code sent to it, where codes are set up.
+  const [channels, setChannels] = useState<PhoneChannels>(null)
+  const [sent, setSent] = useState<CodeSent | null>(null)
   useEffect(() => {
     try {
       const c = JSON.parse(localStorage.getItem("mjazo-contact") ?? "{}")
       if (c.name) setName(c.name)
       if (c.phone) setPhone(c.phone)
     } catch {}
+    fetch("/api/v1/config")
+      .then((r) => r.json())
+      .then((c) => setChannels(c.phoneSignIn ?? null), () => {})
   }, [])
-  const go = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const link = async (code?: string) => {
     if (name.trim().length < 2) return setError(t.checkout.errName)
     if (!PK_PHONE.test(normalisePhone(phone))) return setError(t.notify.errPhone)
     setBusy(true)
     setError("")
     try {
-      await customerApi("/api/v1/customer/me/link", { name: name.trim(), phone: normalisePhone(phone), proof: [...deviceBookingIds(), proof.trim()].filter(Boolean) })
-      track("account_linked", {})
+      await customerApi("/api/v1/customer/me/link", { name: name.trim(), phone: normalisePhone(phone), proof: [...deviceBookingIds(), proof.trim()].filter(Boolean), ...(code ? { code } : {}) })
+      track("account_linked", { by: code ? "code" : "proof" })
       window.dispatchEvent(new Event(ACCOUNT_EVENT))
     } catch (err) {
       const code = err instanceof CustomerApiError ? err.code : undefined
       if (code === "proof") setNeedProof(true)
-      setError(code === "proof" ? (proof ? m.proofSub : "") : code === "taken" ? m.linkTaken : code === "hasPhone" ? m.hasPhone : code === "slow" ? m.tooMany : code === "phone" ? t.notify.errPhone : (err as Error).message)
+      setError(code === "proof" ? (proof ? m.proofSub : "") : code === "taken" ? m.linkTaken : code === "hasPhone" ? m.hasPhone : code === "slow" ? m.tooMany : codeProblem(err, t, channels))
       setBusy(false)
     }
   }
+  const sendCode = async (via: Via) => {
+    if (!channels) return
+    setBusy(true)
+    setError("")
+    try {
+      setSent(await sendPhoneCode(normalisePhone(phone), via, locale))
+    } catch (err) {
+      setError(codeProblem(err, t, channels))
+    } finally {
+      setBusy(false)
+    }
+  }
+  if (sent && channels)
+    return (
+      <div className={cn(card, "p-6 sm:p-8 max-w-xl")}>
+        <AccountBar me={me} />
+        <h2 className="font-serif text-3xl">{m.phoneTitle}</h2>
+        <CodeStep phone={normalisePhone(phone)} sent={sent} channels={channels} busy={busy} error={error} submitLabel={m.continue} onCode={(c) => void link(c)} onResend={(via) => void sendCode(via)} onBack={() => (setSent(null), setError(""))} />
+      </div>
+    )
   return (
-    <form onSubmit={go} className={cn(card, "p-6 sm:p-8 max-w-xl")} noValidate>
-      <AccountBar email={me.email} />
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        void link()
+      }}
+      className={cn(card, "p-6 sm:p-8 max-w-xl")}
+      noValidate
+    >
+      <AccountBar me={me} />
       <h2 className="font-serif text-3xl">{m.phoneTitle}</h2>
       <p className="text-sm text-zinc-500 mt-2">{m.phoneSub}</p>
       <div className="grid sm:grid-cols-2 gap-4 mt-6">
@@ -105,6 +145,11 @@ export function PhoneLink({ me }: { me: Me }) {
           </Field>
         )}
       </div>
+      {needProof && channels && (
+        <button type="button" onClick={() => void sendCode(defaultVia(channels))} disabled={busy} className="mt-3 text-sm underline underline-offset-4">
+          {m.proofByCode}
+        </button>
+      )}
       {error && <p className="text-sm text-destructive mt-3">{error}</p>}
       <button disabled={busy} className="mt-6 h-12 px-6 rounded-full bg-foreground text-background disabled:opacity-60 flex items-center gap-2">
         {busy && <Loader2 className="w-4 h-4 animate-spin" />} {m.continue}
@@ -138,7 +183,7 @@ export function LiveOverview({ me }: { me: Me }) {
   ]
   return (
     <>
-      <AccountBar email={me.email} />
+      <AccountBar me={me} />
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {tiles.map((x) => (
           <Link key={x.t} href={x.href} className={cn(card, "group p-6 hover:border-zinc-400 transition-colors")}>
@@ -222,7 +267,7 @@ export function LiveBookings({ me }: { me: Me }) {
   if (!data.upcoming.length && !data.past.length)
     return (
       <>
-        <AccountBar email={me.email} />
+        <AccountBar me={me} />
         <div className="rounded-3xl border border-dashed border-zinc-300 bg-white p-12 text-center">
           <p className="font-serif text-3xl">{a.noBookings}</p>
           <p className="text-zinc-500 mt-2">{a.noBookingsSub}</p>
@@ -234,7 +279,7 @@ export function LiveBookings({ me }: { me: Me }) {
     )
   return (
     <>
-      <AccountBar email={me.email} />
+      <AccountBar me={me} />
       {[
         { title: m.upcomingTitle, list: data.upcoming },
         { title: m.pastTitle, list: data.past },
@@ -518,7 +563,7 @@ export function AddressBook({ me }: { me: Me }) {
   }
   return (
     <>
-      <AccountBar email={me.email} />
+      <AccountBar me={me} />
       {error && <p className="text-sm text-destructive mb-4">{error}</p>}
       {list && !list.length && !editing && <p className="text-zinc-500 mb-4">{m.noAddresses}</p>}
       <ul className="grid sm:grid-cols-2 gap-4">

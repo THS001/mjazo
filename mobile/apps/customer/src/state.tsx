@@ -5,7 +5,8 @@ import { S } from "./strings"
 // The app's state, shared by every screen:
 // - the catalogue, in the app's language (the last copy is kept, so the app opens offline too);
 // - the cart (kept on the phone), and "book her again";
-// - the account: signed out, signed in without a phone number yet, or signed in;
+// - the account: signed out, signed in without a phone number yet, or signed in (with an emailed
+//   link, or with their phone number and a code);
 // - the bookings made on this phone (to show them before sign-in, and as proof of the number).
 
 export const useT = () => useStrings(S)
@@ -134,18 +135,26 @@ type AccountCtx = {
   api: <T = Record<string, unknown>>(path: string, o?: Omit<RequestOptions, "token">) => Promise<T>
   refresh: () => Promise<void>
   signOut: () => Promise<void>
+  /** Every phone sign-in of theirs ends, and the emailed one's sessions everywhere; this phone signs out. */
+  signOutEverywhere: () => Promise<void>
+  /**
+   * Signs in with the number and its code (the token is kept in the keychain). The account catches
+   * up on refresh(), which the screen calls (after a new customer has given their name).
+   */
+  phoneSignIn: (phone: string, code: string) => Promise<{ isNew: boolean; customer: NonNullable<Me["customer"]> }>
   /** Local test sign-in, against a test server only (the live server refuses it). */
   devSignIn: (email: string) => Promise<void>
 }
 const AccountContext = createContext<AccountCtx | null>(null)
 const DEV_KEY = "mjazo.dev-customer"
+const PHONE_KEY = "mjazo.phone-session"
 /** The local test sign-in is offered only when the app talks to a test server. */
 export const testServer = !/^https:\/\/mjazo\.(vercel\.app|pk)$/.test(API_URL)
 
 export function AccountProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<State>({ state: "loading" })
   const [config, setConfig] = useState<AppConfig | null>(null)
-  const token = useCallback(async () => (await secret.get(DEV_KEY)) ?? (await accessToken()), [])
+  const token = useCallback(async () => (await secret.get(DEV_KEY)) ?? (await secret.get(PHONE_KEY)) ?? (await accessToken()), [])
   const api = useCallback(async <T,>(path: string, o: Omit<RequestOptions, "token"> = {}) => request<T>(path, { ...o, token: await token() }), [token])
   const refresh = useCallback(async () => {
     const t = await token()
@@ -156,13 +165,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         await secret.remove(DEV_KEY)
+        await secret.remove(PHONE_KEY)
         await signOutEmail()
         setAccount({ state: "out" })
       } else setAccount((a) => (a.state === "loading" ? { state: "out" } : a))
     }
   }, [token])
   useEffect(() => {
-    void appConfig().then(setConfig, () => setConfig({ emailSignIn: false, supabase: null, contact: null }))
+    void appConfig().then(setConfig, () => setConfig({ emailSignIn: false, phoneSignIn: null, supabase: null, contact: null }))
     void refresh()
     let unsub: (() => void) | undefined
     void supabase()
@@ -183,8 +193,23 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       refresh,
       signOut: async () => {
         await secret.remove(DEV_KEY)
+        await secret.remove(PHONE_KEY)
         await signOutEmail()
         setAccount({ state: "out" })
+      },
+      signOutEverywhere: async () => {
+        await api("/api/v1/customer/me/sessions", { method: "DELETE" }).catch(() => {})
+        const sb = await supabase().catch(() => null)
+        await sb?.auth.signOut({ scope: "global" }).catch(() => {})
+        await secret.remove(DEV_KEY)
+        await secret.remove(PHONE_KEY)
+        await signOutEmail()
+        setAccount({ state: "out" })
+      },
+      phoneSignIn: async (phone, code) => {
+        const r = await request<{ token: string; isNew: boolean; customer: NonNullable<Me["customer"]> }>("/api/v1/customer/phone/session", { body: { phone, code } })
+        await secret.set(PHONE_KEY, r.token)
+        return { isNew: r.isNew, customer: r.customer }
       },
       devSignIn: async (email) => {
         const { token: t } = await request<{ token: string }>("/api/v1/customer/dev-login", { body: { email } })

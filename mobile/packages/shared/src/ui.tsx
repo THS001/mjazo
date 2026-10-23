@@ -76,7 +76,7 @@ export function Button({ title, onPress, variant = "dark", busy, disabled, icon,
   )
 }
 
-export function Field({ label, value, onChangeText, placeholder, keyboardType, secure, multiline, error, autoCapitalize, maxLength, hint, editable = true }: { label?: string; value: string; onChangeText: (t: string) => void; placeholder?: string; keyboardType?: KeyboardTypeOptions; secure?: boolean; multiline?: boolean; error?: string | null; autoCapitalize?: "none" | "sentences" | "words"; maxLength?: number; hint?: string; editable?: boolean }) {
+export function Field({ label, value, onChangeText, placeholder, keyboardType, secure, multiline, error, autoCapitalize, maxLength, hint, editable = true, otp, autoFocus }: { label?: string; value: string; onChangeText: (t: string) => void; placeholder?: string; keyboardType?: KeyboardTypeOptions; secure?: boolean; multiline?: boolean; error?: string | null; autoCapitalize?: "none" | "sentences" | "words"; maxLength?: number; hint?: string; editable?: boolean; /** A one-time code: the phone offers the code from its SMS. */ otp?: boolean; autoFocus?: boolean }) {
   const { align } = useDir()
   return (
     <View style={{ gap: 6 }}>
@@ -92,6 +92,8 @@ export function Field({ label, value, onChangeText, placeholder, keyboardType, s
         autoCapitalize={autoCapitalize}
         maxLength={maxLength}
         editable={editable}
+        autoFocus={autoFocus}
+        {...(otp ? { autoComplete: "sms-otp" as const, textContentType: "oneTimeCode" as const } : {})}
         style={[styles.input, multiline && { height: 96, paddingTop: 12, textAlignVertical: "top" }, { textAlign: align }, error ? { borderColor: color.red } : null, !editable && { opacity: 0.6 }]}
       />
       {error ? <Txt v="small" style={{ color: color.red }}>{error}</Txt> : hint ? <Txt v="muted">{hint}</Txt> : null}

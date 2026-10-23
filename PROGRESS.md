@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 23 October 2026 (after the platform, part 2: live tracking of the pro)._
+_Last updated 23 October 2026 (after the platform, part 3: phone-number sign-in)._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -38,6 +38,7 @@ accounts, and what's left.
 | **Platform stage 5: automation** (customer messages, auto-assign, weekly payout drafts, opt-in Home Pulse and win-back messages, mission control → Automations) | **Live 21 Oct 2026** (section 3f): migration 0009 run, deployed and checked. Messages stay in test mode (logged only) until WhatsApp templates or Resend are set; the automation pinger needs `CRON_SECRET` (section 7, item 10) |
 | **After the platform, part 1: Plus, gift cards and referral rewards** (they were request forms) | **Built 21 Oct 2026** (section 3h). To go live: `--migrate` (0010), then deploy |
 | **After the platform, part 2: live tracking of the pro** (the customer sees how far away she is, ops see it on the board) | **Built 23 Oct 2026** (section 3h). To go live: `--migrate` (0011), then deploy |
+| **After the platform, part 3: phone-number sign-in** (a 6-digit code on WhatsApp or by SMS, website and app) | **Built 23 Oct 2026** (section 3h). To go live: `--migrate` (0012), deploy, then a WhatsApp authentication template or Twilio Verify (section 7, item 13) |
 | **Platform stage 6: the phone apps** (Mjazo and Mjazo Pro, Expo, in `mobile/`) | **Built 21 Oct 2026** (section 3g); its API is **live** (deployed the same day and checked). Next: try both apps on a phone with Expo Go, then store builds with your Expo account |
 
 ---
@@ -59,6 +60,7 @@ accounts, and what's left.
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 | 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
+| 23 Oct 2026 | **Phone-number sign-in built** (after the platform, part 3): customers sign in on the website or in the app with their number and a code on WhatsApp or by SMS, and see every booking made with that number; "Sign out everywhere"; a code also proves a number when an emailed sign-in adds it |
 | 23 Oct 2026 | **Live tracking of the pro built** (after the platform, part 2): while she's on her way with Mjazo Pro or `/pro` open, the customer sees how far away she is and about how long, and ops see it on the board. Only her latest point is kept, and it's deleted at check-in |
 | 21 Oct 2026 | **Plus, gift cards and referral rewards built** (after the platform, part 1): they were request forms; now real memberships, gift card codes that become credit, and referral codes with automatic rewards, on the ledger |
 | 21 Oct 2026 | **Stage 6, the phone apps, built:** Mjazo (browse, book with real free windows, promo codes and credit, follow bookings live, move or cancel, rate, book a pro again, addresses, English and Urdu) and Mjazo Pro (phone + PIN, today and coming days, offers, On my way → check in → finish with the payment, SOS, earnings, ratings, availability, English, Urdu and Roman Urdu), on one shared package. New API: `/api/v1/catalog`, `/api/v1/config`, `/api/v1/bookings` |
@@ -358,6 +360,20 @@ Schema: `supabase/migrations/0011_live_tracking.sql` (`visit_locations`: one row
 - **Tests:** 415 in total. The API test runs a visit through it: refused before "On my way", only the latest point kept, another pro refused, the customer's distance and minutes, the point deleted at check-in and further points refused.
 - **Checked locally (23 Oct 2026):** a test pro on her way sent a point; the board showed it with the distance and minutes; a test customer's bookings page showed "Test is about 10 min away (2.6 km)" with the map link, and the Urdu page the same in Urdu; `/pro` showed the sharing notice under each visit on the way.
 
+### Part 3: phone-number sign-in
+
+Schema: `supabase/migrations/0012_phone_sign_in.sql` (`phone_codes`, and `customers.session_epoch`). Code: `lib/core/phone-sign-in.ts` (codes and their limits), `lib/server/phone-sign-in.ts` (sending, checking, the sign-in token), `/api/v1/customer/phone/code` and `/phone/session`.
+
+- **Customers sign in with their number and a 6-digit code** on the website (`/login`, the "Phone number" tab, first when it's on) and in the Mjazo app. Email sign-in stays as the other tab.
+  - The code goes **on WhatsApp** (an "Authentication" template in Meta with a copy-code button: `WHATSAPP_OTP_TEMPLATE`, plus the Cloud API settings) or **by SMS** through Twilio Verify (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SID`). With both, the customer picks; if WhatsApp fails, the screen says to try SMS. With neither, phone sign-in isn't offered on the live site; locally the code shows on the screen ("test mode").
+  - Having the phone is the proof, so they're the customer that number belongs to, with **every booking made with it**, their credit, addresses, Plus and referral code (the same customer as an emailed sign-in that added that number). A number we haven't seen becomes a new customer, who is asked their name.
+  - The sign-in lasts 90 days (a signed token, `SESSION_SECRET`). **"Sign out everywhere"** on the account (website and app) ends every phone sign-in of theirs, and the emailed sign-in's sessions everywhere.
+- **Adding a number to an emailed sign-in:** a number that already has bookings can now be proven with a code sent to it ("Or get a code on this number instead"), as well as with a booking number.
+- **Safety:** Pakistani mobile numbers only. Only the code's hash is kept; it lives 10 minutes, takes 5 tries and works once, and asking again stops the earlier one. A new code at most every 30 seconds, 5 an hour and 10 a day per number, 20 an hour from one internet address and 300 an hour for the whole site (so nobody can run up the SMS bill), kept in the database so they hold across Vercel's servers, plus per-address limits on the two routes. Codes older than two days are cleared.
+- **Interface text:** 29 new texts in `/admin` → Buttons & labels → Customer account (with Urdu); the app's in `mobile/apps/customer/src/strings.ts`.
+- **Tests:** 429 in total. New (14): sign-in with a code and the token on the account API, bookings made with the number brought in, wrong and used codes, other countries' numbers, the 30-second wait, forged tokens, sign out everywhere, the code limits (per number, per hour and day, per address, the whole site, tries, 10 minutes) and the clean-up, the WhatsApp template's content, SMS through Twilio Verify after WhatsApp fails, off in production without a provider, and a code as proof when adding a number.
+- **Checked locally (23 Oct 2026):** `/login` → Phone number → the test customer's number → the code on screen → their account (credit, Plus, referral code, "Signed in with 0300…"); "Sign out everywhere" signed out and the old token was refused; a new number on `/ur/login` asked for the name in Urdu and opened a new account with its referral code; an emailed test sign-in adding a number with a guest booking proved it with a code and saw that booking.
+
 ## 4. Brand kit
 
 Saved in `F:\mjazo\brand\`, outside this repo. A copy of the PDF is in the user's Downloads folder.
@@ -512,6 +528,7 @@ Project `xjyafabyscamelebzrsb` (https://xjyafabyscamelebzrsb.supabase.co), set u
 | `0009_automation.sql` | Automation: the rules, the message log (one message per reason), STOP opt-outs, phone push tokens. Run on the live database on 21 Oct 2026 |
 | `0010_plus_gifts_referrals.sql` | Plus memberships, gift cards, referral rewards; customers' referral codes and who referred them |
 | `0011_live_tracking.sql` | `visit_locations`: a pro's latest point while she's on the way to a visit |
+| `0012_phone_sign_in.sql` | `phone_codes` (sign-in codes: hash, channel, tries, expiry) and `customers.session_epoch` ("sign out everywhere") |
 
 With Supabase connected, the cross-page flows (apply → interview link, booking → ops console,
 complaint → Trust Desk) can now work end to end on the live site. They haven't been re-tested live yet.
@@ -533,6 +550,8 @@ All are listed with explanations in [.env.example](.env.example).
 | `RESEND_API_KEY`, `OPS_EMAIL`, `OPS_FROM` | Emailing every submission to the team; customer emails from automation | Not set |
 | `MESSAGES_FROM` | The sender of customer emails (falls back to `OPS_FROM`) | Not set |
 | `WHATSAPP_*` | Concierge on WhatsApp; automation's template messages | Not set |
+| `WHATSAPP_OTP_TEMPLATE`, `WHATSAPP_OTP_LANGS` | Phone sign-in codes on WhatsApp (an Authentication template; with the `WHATSAPP_*` settings) | Not set |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SID` | Phone sign-in codes by SMS (Twilio Verify) | Not set |
 | `EXPO_ACCESS_TOKEN` | Push to the phone apps, only with Expo's enhanced push security (optional) | Not set |
 | `STT_API_KEY` | WhatsApp voice notes | Not set |
 | `PAGESPEED_API_KEY` | More PageSpeed audits (optional) | Not set |
@@ -568,6 +587,10 @@ All are listed with explanations in [.env.example](.env.example).
    - try both apps with Expo Go on your phone (`npm run customer` / `npm run pro` in `mobile/`);
    - for email sign-in in the apps, add `mjazo://**`, `mjazopro://**` and `exp://**` to Supabase's Redirect URLs (and the SMTP sender from item 3);
    - for the stores: an Expo account (`eas login`, `eas init` in each app, then `eas build`), and a Google Play developer account to publish. Push notifications start working in the installed apps after `eas init`.
+13. **For Plus, gift cards, referrals, live tracking and phone sign-in (after the platform, parts 1 to 3):** run `--migrate` (0010, 0011 and 0012) **before** deploying, then deploy. Then, for phone sign-in, one or both of:
+   - **WhatsApp:** the WhatsApp Cloud API settings (item 6), and in WhatsApp Manager → Message templates an **Authentication** template with a "Copy code" button, in English (and Urdu if wanted). Put its name in Vercel as `WHATSAPP_OTP_TEMPLATE` and its languages as `WHATSAPP_OTP_LANGS` (e.g. `en,ur`);
+   - **SMS:** a Twilio account with a Verify service; put `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_VERIFY_SID` (the service's VA… id) in Vercel;
+   - then redeploy. Until one is set, the live site offers email sign-in only.
 
 ---
 
@@ -660,5 +683,5 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - Wallet credit is set aside on the booking (`credit_used`) and posted with `applyCredit` when the visit completes (`postLedger` in `lib/core/jobs.ts`). What the pro collects is total − credit.
   - Locally, `/login` offers the test sign-in (`/api/v1/customer/dev-login`); the browser keeps its token in localStorage.
 - **Staff tools locally:** start the `mjazo-web-staff` preview configuration (`.claude/launch.json`). Without Supabase, `/ops` offers "Continue as local …" for any role (`/api/ops/dev-login`, refused in production); pros get PINs from ops.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (415 tests), then `npx next build` (828 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (429 tests), then `npx next build` (828 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
 - **New API routes on the dev server:** a route added while an older `.next/dev` cache exists can answer 404 (the request falls through to the page catch-all). Touch the new `route.ts` and it's picked up.

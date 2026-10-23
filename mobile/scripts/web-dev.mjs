@@ -32,9 +32,13 @@ http
       r.pipe(res)
     })
     up.on("error", () => {
+      if (res.headersSent) return res.destroy()
       res.writeHead(502, { "content-type": "text/plain" })
       res.end("The server behind this proxy isn't running yet.")
     })
+    // A browser that leaves mid-download (a reload while the bundle streams) must not stop the proxy.
+    req.on("error", () => up.destroy())
+    res.on("error", () => up.destroy())
     req.pipe(up)
   })
   // Expo's live reload uses a WebSocket: pass it straight through.
@@ -45,5 +49,6 @@ http
       socket.pipe(up).pipe(socket)
     })
     up.on("error", () => socket.destroy())
+    socket.on("error", () => up.destroy())
   })
   .listen(PORT, () => console.log(`Mjazo ${app} app (web) with the local API: http://localhost:${PORT}`))

@@ -4,16 +4,18 @@ import { getCatalog, getSettings } from "@/lib/cms/read"
 import { requireCore } from "@/lib/core/db"
 import { optIn } from "@/lib/core/automation"
 import { plusFor, redeemGiftCard, referralCode, referralSummary, referrerOf, requestPlus } from "@/lib/core/growth"
-import { creditFor, deleteAddress, linkAccount, listAddresses, saveAddress, updateCustomer, type AddressInput, type Customer } from "@/lib/core/customers"
+import { creditFor, deleteAddress, endPhoneSessions, linkAccount, LinkError, listAddresses, saveAddress, updateCustomer, type AddressInput, type Customer } from "@/lib/core/customers"
 import { listCustomerJobs } from "@/lib/core/jobs"
 import { livePoints, withEta, type LivePoint } from "@/lib/core/tracking"
 import { windowStart } from "@/lib/core/offers"
 import { checkPromo } from "@/lib/core/promos"
 import { priceItems, type ClientItem } from "@/lib/core/pricing"
+import { normalisePhone } from "@/lib/core/phone"
 import type { Job, Pro } from "@/lib/ops/types"
 import type { Account } from "./customer-auth"
 import { audit } from "./audit"
 import { OpsError, addJobEvent, getJob, getPros, rescheduleJob } from "./ops"
+import { proveNumber } from "./phone-sign-in"
 import { notifyOps } from "./store"
 
 // What the client account shows and does (/api/v1/customer, used by /account on the website and
@@ -130,15 +132,17 @@ export async function changeBooking(c: Customer, id: string, a: { action: "cance
 // ---------------------------------------------------------------------------
 
 /**
- * Who's signed in: the account's email, the customer (null until they add their number), their
- * credit, their Mjazo Plus membership (or request) and their referral code with what it has earned.
+ * Who's signed in: the account's email and how they signed in (email or phone), the customer (null
+ * until an emailed sign-in adds its number), their credit, their Mjazo Plus membership (or request)
+ * and their referral code with what it has earned.
  */
-export async function customerMe(account: Account | { email: string | null }, c: Customer | null) {
+export async function customerMe(account: Pick<Account, "email" | "by">, c: Customer | null) {
   const db = await requireCore()
-  if (!c) return { email: account.email, customer: null, credit: { balance: 0, available: 0 }, plus: null, referral: null }
+  if (!c) return { email: account.email, by: account.by, customer: null, credit: { balance: 0, available: 0 }, plus: null, referral: null }
   const [credit, plus, code, summary, settings] = await Promise.all([creditFor(db, c.id), plusFor(db, c.id), referralCode(db, c.id), referralSummary(db, c.id), getSettings("en")])
   return {
     email: account.email,
+    by: account.by,
     customer: c,
     credit,
     plus: plus && { status: plus.status, endsAt: plus.endsAt, discountPct: plus.discountPct, price: plus.price },
@@ -163,9 +167,21 @@ export async function addGiftCard(c: Customer, code: string) {
   return { added: g.amount, credit: await creditFor(db, c.id) }
 }
 
-export async function linkCustomer(account: Account, b: { name: string; phone: string; proof?: string[] }) {
-  return linkAccount(await requireCore(), { userId: account.userId, email: account.email, ...b })
+/**
+ * Adds the number to an emailed sign-in. A code sent to the number (`code`) proves it's theirs;
+ * so do booking numbers made with it (`proof`). A phone sign-in has its number already.
+ */
+export async function linkCustomer(account: Account, b: { name: string; phone: string; proof?: string[]; code?: string }) {
+  if (account.by === "phone") {
+    if (normalisePhone(b.phone) !== account.customer.phone) throw new LinkError("Your account already has a number. To change it, message us on WhatsApp.", "hasPhone")
+    return account.customer
+  }
+  const verified = b.code ? Boolean(await proveNumber(b.phone, b.code)) : false
+  return linkAccount(await requireCore(), { userId: account.userId, email: account.email, name: b.name, phone: b.phone, proof: b.proof, verified })
 }
+
+/** Ends every phone sign-in of theirs, on every device (an emailed sign-in is signed out by Supabase, in the browser or app). */
+export const endCustomerSessions = async (c: Customer) => endPhoneSessions(await requireCore(), c.id)
 
 export async function saveCustomer(c: Customer, p: { name?: string; lang?: string; marketingOk?: boolean }) {
   const db = await requireCore()

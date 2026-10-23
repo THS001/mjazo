@@ -12,7 +12,7 @@ import { useAccount, useCatalog, useT } from "../../src/state"
 
 export default function Account() {
   const t = useT()
-  const { account, api, refresh, signOut } = useAccount()
+  const { account, api, refresh, signOut, signOutEverywhere } = useAccount()
   const { catalog } = useCatalog()
   const [busy, setBusy] = useState(false)
   const whatsapp = catalog?.contact.whatsapp
@@ -28,12 +28,12 @@ export default function Account() {
     } catch {}
     setBusy(false)
   }
-  const out = async () => {
+  const out = async (everywhere = false) => {
     // This phone stops getting their booking updates.
     const token = await prefs.get<string | null>("mjazo.push", null)
     if (token) await api("/api/v1/customer/push-token", { method: "DELETE", body: { token } }).catch(() => {})
     await prefs.remove("mjazo.push")
-    await signOut()
+    await (everywhere ? signOutEverywhere() : signOut())
   }
 
   return (
@@ -85,8 +85,9 @@ export default function Account() {
           {t.terms}
         </Txt>
       </Pressable>
-      {account.state !== "out" && <Button title={t.signOut} variant="light" onPress={out} />}
-      {me?.email ? <Txt v="muted">{fill(t.signedInAs, { email: me.email })}</Txt> : null}
+      {account.state !== "out" && <Button title={t.signOut} variant="light" onPress={() => void out()} />}
+      {me && <Button title={t.signOutAll} variant="ghost" small onPress={() => void out(true)} />}
+      {me?.by === "phone" && me.customer.phone ? <Txt v="muted">{fill(t.signedInPhone, { phone: me.customer.phone })}</Txt> : me?.email ? <Txt v="muted">{fill(t.signedInAs, { email: me.email })}</Txt> : null}
       <Txt v="muted" style={{ marginTop: space.md }}>
         {fill(t.version, { v: Constants.expoConfig?.version ?? "1.0.0" })}
       </Txt>

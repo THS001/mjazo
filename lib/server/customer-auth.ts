@@ -1,18 +1,21 @@
 import "server-only"
 import crypto from "crypto"
 import { authMode } from "@/lib/cms/auth"
-import { core } from "@/lib/core/db"
-import { customerForAccount, type Customer } from "@/lib/core/customers"
+import { core, type Db } from "@/lib/core/db"
+import { customerForAccount, customerForPhoneSession, type Customer } from "@/lib/core/customers"
 import { handle } from "./api"
+import { PHONE_TOKEN, type PhoneSession } from "./phone-sign-in"
 import { AuthError, ForbiddenError, readPayload, signPayload } from "./session"
 import { db as supabase } from "./store"
 
 // Who is using the client account (/api/v1/customer). Customers sign in with an emailed link
-// (Supabase); the website and the phone app both send the Supabase access token as
-// "Authorization: Bearer <token>", so the API works the same for both. Locally without Supabase,
-// a test sign-in gives a signed "mjc." token instead, which is refused anywhere else.
+// (Supabase) or with their phone number and a code (lib/server/phone-sign-in.ts); the website and
+// the phone app both send the token as "Authorization: Bearer <token>", so the API works the same
+// for both. Locally without Supabase, a test sign-in gives a signed "mjc." token instead, which is
+// refused anywhere else.
 
-export type Account = { userId: string; email: string }
+/** An emailed sign-in (the customer is found once they add their number), or a phone sign-in (always a customer). */
+export type Account = { by: "email"; userId: string; email: string } | { by: "phone"; customer: Customer; email: string | null }
 
 const DEV_PREFIX = "mjc."
 
@@ -31,15 +34,31 @@ export async function accountOf(req?: Request): Promise<Account | null> {
   const auth = req?.headers.get("authorization") ?? ""
   const token = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : ""
   if (!token) return null
+  if (token.startsWith(PHONE_TOKEN)) {
+    const v = readPayload<PhoneSession>(token.slice(PHONE_TOKEN.length))
+    const db = v?.kind === "customer-phone" ? await core() : null
+    const customer = db && v ? await customerForPhoneSession(db, { customerId: v.customerId, phone: v.phone, epoch: v.se }) : null
+    return customer ? { by: "phone", customer, email: customer.email } : null
+  }
   if (token.startsWith(DEV_PREFIX)) {
     if (authMode() !== "dev") return null
     const v = readPayload<{ kind: string; email: string; userId: string }>(token.slice(DEV_PREFIX.length))
-    return v?.kind === "customer-dev" ? { userId: v.userId, email: v.email } : null
+    return v?.kind === "customer-dev" ? { by: "email", userId: v.userId, email: v.email } : null
   }
   if (!supabase) return null
   const { data, error } = await supabase.auth.getUser(token)
   if (error || !data.user?.email) return null
-  return { userId: data.user.id, email: data.user.email.toLowerCase() }
+  return { by: "email", userId: data.user.id, email: data.user.email.toLowerCase() }
+}
+
+/** The customer behind an account (null: an emailed sign-in that hasn't added its number yet). */
+export const accountCustomer = async (db: Db, a: Account) => (a.by === "phone" ? a.customer : customerForAccount(db, a.userId))
+
+/** The signed-in customer of a request, or undefined (signed out, or no number yet). For APIs guests use too. */
+export async function customerOf(req: Request): Promise<Customer | undefined> {
+  const a = await accountOf(req)
+  const db = a ? await core() : null
+  return (db && a && (await accountCustomer(db, a))) || undefined
 }
 
 export async function requireAccount(req: Request): Promise<Account> {
@@ -52,7 +71,7 @@ export async function requireAccount(req: Request): Promise<Account> {
 /** The signed-in customer (they've added their number). */
 export async function requireCustomer(req: Request): Promise<{ account: Account; customer: Customer }> {
   const account = await requireAccount(req)
-  const customer = await customerForAccount((await core())!, account.userId)
+  const customer = await accountCustomer((await core())!, account)
   if (!customer) throw new ForbiddenError("Add your phone number to your account first.")
   return { account, customer }
 }

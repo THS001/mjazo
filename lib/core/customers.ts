@@ -10,13 +10,14 @@ import { inKarachi, zoneFor } from "@/lib/geo"
 // Customer accounts. A customer signs in with an emailed link (a Supabase account) and then adds
 // their phone number, which joins the account to the bookings made with that number. To stop
 // anyone reading someone else's bookings by typing their number, a number that already has
-// bookings is joined only with proof: a booking made on this device with that number, or a
-// booking number from one of its confirmations. Also: saved addresses (with a map pin and the
-// area it falls in) and wallet credit (the ledger's balance, less what open bookings have set
-// aside).
+// bookings is joined only with proof: a code sent to that number, a booking made on this device
+// with it, or a booking number from one of its confirmations. Or they sign in with their number
+// and a code (lib/core/phone-sign-in.ts): having the phone is the proof, so they're the customer
+// that number belongs to. Also: saved addresses (with a map pin and the area it falls in) and
+// wallet credit (the ledger's balance, less what open bookings have set aside).
 
 export type Customer = { id: string; name: string; phone: string | null; email: string | null; lang: string; marketingOk: boolean }
-type CustomerRow = { id: string; name: string; phone: string | null; email: string | null; lang: string; marketing_ok: boolean; auth_user_id: string | null }
+type CustomerRow = { id: string; name: string; phone: string | null; email: string | null; lang: string; marketing_ok: boolean; auth_user_id: string | null; session_epoch?: number }
 const toCustomer = (r: CustomerRow): Customer => ({ id: r.id, name: r.name, phone: r.phone, email: r.email, lang: r.lang, marketingOk: r.marketing_ok })
 
 export class LinkError extends InputError {
@@ -38,10 +39,10 @@ const PHONE = /^03\d{9}$/
 
 /**
  * Joins a signed-in account to a phone number (once). A number nobody has used yet starts a new
- * customer; a number with bookings needs `proof`: booking ids that belong to it (saved on the
- * device, or typed from a confirmation).
+ * customer; a number with bookings needs proof: `verified` (they typed a code sent to it), or
+ * `proof`, booking ids that belong to it (saved on the device, or typed from a confirmation).
  */
-export async function linkAccount(db: Db, a: { userId: string; email: string; name: string; phone: string; proof?: string[] }): Promise<Customer> {
+export async function linkAccount(db: Db, a: { userId: string; email: string; name: string; phone: string; proof?: string[]; verified?: boolean }): Promise<Customer> {
   const phone = normalisePhone(a.phone)
   if (!PHONE.test(phone)) throw new LinkError("Enter a Pakistani mobile number (03xx xxxxxxx)", "phone")
   const name = a.name.trim().slice(0, 80)
@@ -64,7 +65,7 @@ export async function linkAccount(db: Db, a: { userId: string; email: string; na
       const has = (await t.one<{ n: number }>("select count(*)::int as n from bookings where customer_id = $1", [existing.id]))!.n
       const proof = (a.proof ?? []).map((x) => x.trim().toUpperCase()).filter(Boolean).slice(0, 50)
       const proven = proof.length ? (await t.one<{ n: number }>("select count(*)::int as n from bookings where customer_id = $1 and upper(id) = any($2::text[])", [existing.id, proof]))!.n : 0
-      if (has && !proven) throw new LinkError("This number already has bookings. Enter a booking number from one of its confirmations (MJ-…) to show it's yours.", "proof")
+      if (has && !proven && !a.verified) throw new LinkError("This number already has bookings. Enter a booking number from one of its confirmations (MJ-…) to show it's yours.", "proof")
       id = existing.id
       await t.query("update customers set auth_user_id = $2, email = $3, name = case when name = '' then $4 else name end, updated_at = now() where id = $1", [id, a.userId, email, name])
     }
@@ -72,6 +73,31 @@ export async function linkAccount(db: Db, a: { userId: string; email: string; na
     await writeAudit(t, { actor: `customer:${id}`, action: existing ? "joined their account to their number" : "made an account", target: id })
     return toCustomer((await t.one<CustomerRow>("select * from customers where id = $1", [id]))!)
   })
+}
+
+/** The customer a number belongs to, once they've proven it with a code (phone sign-in); a number we haven't seen starts a new customer. */
+export async function customerForPhone(db: Db, phone: string): Promise<{ customer: Customer; isNew: boolean; epoch: number }> {
+  return db.tx(async (t) => {
+    const id = coreId("C")
+    const made = await t.one("insert into customers (id, phone) values ($1, $2) on conflict (phone) do nothing returning id", [id, phone])
+    if (made) {
+      await emit(t, "customer.linked", { customerId: id }, { existing: false, by: "phone" })
+      await writeAudit(t, { actor: `customer:${id}`, action: "made an account with their number", target: id })
+    }
+    const r = (await t.one<CustomerRow>("select * from customers where phone = $1", [phone]))!
+    return { customer: toCustomer(r), isNew: Boolean(made), epoch: r.session_epoch ?? 0 }
+  })
+}
+
+/** A phone sign-in's customer, while it still holds: the number is still theirs and they haven't signed out everywhere since. */
+export async function customerForPhoneSession(db: Db, s: { customerId: string; phone: string; epoch: number }) {
+  const r = await db.one<CustomerRow>("select * from customers where id = $1", [s.customerId])
+  return r && r.phone === s.phone && (r.session_epoch ?? 0) === s.epoch ? toCustomer(r) : null
+}
+
+/** Ends every phone sign-in of this customer, on every device ("Sign out everywhere"). */
+export async function endPhoneSessions(db: Db, customerId: string) {
+  await db.query("update customers set session_epoch = session_epoch + 1, updated_at = now() where id = $1", [customerId])
 }
 
 export async function updateCustomer(db: Db, id: string, p: { name?: string; lang?: string; marketingOk?: boolean }) {

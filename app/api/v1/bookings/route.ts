@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
-import { core } from "@/lib/core/db"
-import { customerForAccount } from "@/lib/core/customers"
 import { placeBooking } from "@/lib/server/bookings-core"
-import { accountOf } from "@/lib/server/customer-auth"
+import { customerOf } from "@/lib/server/customer-auth"
 import { ValidationError } from "@/lib/server/store"
 
 // A booking from the phone app: the same checks and prices as the website's checkout, marked as
@@ -12,9 +10,7 @@ export async function POST(req: Request) {
   const data = await req.json().catch(() => null)
   if (!data || typeof data !== "object") return NextResponse.json({ error: "Invalid request" }, { status: 400 })
   try {
-    const account = await accountOf(req)
-    const db = account ? await core() : null
-    const customerId = db && account ? (await customerForAccount(db, account.userId))?.id : undefined
+    const customerId = (await customerOf(req))?.id
     return NextResponse.json(await placeBooking({ ...(data as Record<string, unknown>), channel: "app" }, { source: "app" }, "app", customerId))
   } catch (e) {
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message, code: e.code }, { status: 422 })

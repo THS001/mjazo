@@ -34,13 +34,14 @@ What works in Expo Go and what needs the installed app:
 | Browse, book, track, rate, account | ✓ | ✓ |
 | Pro: schedule, offers, visits, payments, SOS, earnings | ✓ | ✓ |
 | Location (Use my location, On my way, SOS) | ✓ | ✓ |
+| Phone-number sign-in (a code) | ✓ | ✓ |
 | Email sign-in links | ✓ (see below) | ✓ |
 | **Push notifications** (offers to pros, booking updates to customers) | ✗ (Expo Go can't receive pushes) | ✓ |
 
 ## Sign-in
 
 - **Pros:** phone number + the PIN ops set in mission control → Pros. Email sign-in works for a pro whose email is saved on her profile.
-- **Customers:** an emailed link (Supabase). In Supabase → Authentication → URL Configuration, add these to **Redirect URLs**: `mjazo://**` and `mjazopro://**` (the installed apps), and `exp://**` (Expo Go). Supabase needs an SMTP sender for real use (its own email sends only a few an hour).
+- **Customers:** their phone number and a 6-digit code on WhatsApp or by SMS, once the website has `WHATSAPP_OTP_TEMPLATE` or the `TWILIO_*` settings (see `.env.example`; against a test server the code shows on screen). It works in Expo Go too, and Android offers the code from the SMS. Or an emailed link (Supabase). In Supabase → Authentication → URL Configuration, add these to **Redirect URLs**: `mjazo://**` and `mjazopro://**` (the installed apps), and `exp://**` (Expo Go). Supabase needs an SMTP sender for real use (its own email sends only a few an hour).
 
 ## Store builds (EAS)
 

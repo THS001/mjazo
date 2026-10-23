@@ -5,13 +5,16 @@ import * as Linking from "expo-linking"
 import { AppState, Platform } from "react-native"
 import { request } from "./api"
 
-// Email sign-in (Supabase), the same accounts as the website. The emailed link opens the app
+// Email sign-in (Supabase), the same accounts as the website (phone sign-in with a code needs none
+// of this: it's a token from /api/v1/customer/phone/session). The emailed link opens the app
 // (mjazo://auth-callback, or Expo Go's address while testing) with a one-time code, which this
 // phone swaps for a session; the link only works on the phone that asked for it. The session's
 // access token is the bearer token for /api/v1. Supabase's public address and key come from the
 // server (/api/v1/config), so nothing is built into the app.
 
-export type AppConfig = { emailSignIn: boolean; supabase: { url: string; anonKey: string } | null; contact: { phone: string; whatsapp: string; email: string } | null }
+/** How sign-in codes can go to a phone number (null: phone sign-in is off on the server). */
+export type PhoneChannels = { whatsapp: boolean; sms: boolean; test: boolean } | null
+export type AppConfig = { emailSignIn: boolean; phoneSignIn?: PhoneChannels; supabase: { url: string; anonKey: string } | null; contact: { phone: string; whatsapp: string; email: string } | null }
 
 let client: SupabaseClient | null = null
 let config: Promise<AppConfig> | null = null

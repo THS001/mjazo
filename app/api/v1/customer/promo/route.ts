@@ -2,10 +2,9 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { clientIp, rateLimited } from "@/lib/ai/anthropic"
 import { core } from "@/lib/core/db"
-import { customerForAccount } from "@/lib/core/customers"
 import { handle, readJson } from "@/lib/server/api"
 import { checkCustomerPromo } from "@/lib/server/customer-api"
-import { accountOf } from "@/lib/server/customer-auth"
+import { customerOf } from "@/lib/server/customer-auth"
 
 // Checks a promo code against the cart before booking (anyone can; a signed-in customer's own
 // uses count against the per-customer limit). Answers what it takes off, or why it can't be used.
@@ -21,8 +20,6 @@ export async function POST(req: Request) {
     const db = await core()
     if (!db) return { ok: false, problem: "invalid" }
     const b = body.parse(await readJson(req))
-    const account = await accountOf(req)
-    const customer = account ? await customerForAccount(db, account.userId) : null
-    return checkCustomerPromo(b.code, b.items, customer?.id)
+    return checkCustomerPromo(b.code, b.items, (await customerOf(req))?.id)
   })
 }

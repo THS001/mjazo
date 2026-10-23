@@ -2,9 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { saveSubmission, ValidationError } from "@/lib/server/store"
 import { placeBooking } from "@/lib/server/bookings-core"
-import { accountOf } from "@/lib/server/customer-auth"
-import { core } from "@/lib/core/db"
-import { customerForAccount } from "@/lib/core/customers"
+import { customerOf } from "@/lib/server/customer-auth"
 import { createApplication } from "@/lib/server/ops"
 import { aiEnabled } from "@/lib/ai/anthropic"
 
@@ -20,9 +18,7 @@ const body = z.object({
 
 /** The signed-in customer placing a booking, if any (their credit and saved addresses can be used). */
 async function signedInCustomerId(req: Request) {
-  const account = await accountOf(req)
-  const db = account ? await core() : null
-  return db && account ? (await customerForAccount(db, account.userId))?.id : undefined
+  return (await customerOf(req))?.id
 }
 
 export async function POST(req: Request) {
