@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 24 October 2026 (packs: prepaid visits)._
+_Last updated 29 October 2026 (receipts and sales tax)._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -42,6 +42,7 @@ accounts, and what's left.
 | **After the platform, part 4: the AI tools in the apps** (Ask Mjazo, Ghar Scan, Home Pulse, Glam Mirror and Shaadi in Mjazo; the Copilot in Mjazo Pro) | **Deployed 23 Oct 2026**. **The AI answers on the whole live site fail until the Anthropic key is replaced** (section 7, item 14) |
 | **Pilot gates** (mission control → KPIs: the validation sprint's numbers, measured from real visits) | **Live 24 Oct 2026** (section 3i). Next: Finance enters each month's ad and transport spend |
 | **Packs** (prepaid visits: the maintenance plan; website, both apps, mission control, messages) | **Built 24 Oct 2026** (section 3j). To go live: run `--migrate` (0013), then deploy; confirm the placeholder prices (section 8) |
+| **Receipts and sales tax** (a numbered receipt for every visit; Sindh sales tax set in mission control → Money → Policies) | **Built 29 Oct 2026** (section 3k). To go live: run `--migrate` (0013, 0014), then deploy. Sales tax stays off until Finance sets it, once the written tax opinion is in |
 | **Platform stage 6: the phone apps** (Mjazo and Mjazo Pro, Expo, in `mobile/`) | **Built 21 Oct 2026** (section 3g); its API is **live** (deployed the same day and checked). Next: try both apps on a phone with Expo Go, then store builds with your Expo account |
 
 ---
@@ -63,6 +64,7 @@ accounts, and what's left.
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 | 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
+| 29 Oct 2026 | **Receipts and sales tax built:** every finished visit gets a numbered receipt (MJR-000001…) with what was charged, in the account, the app, mission control and a "Your receipt" message, and its link opens without signing in. Finance sets Sindh sales tax in mission control → Money → Policies (from a day, inside the price or on top, on the whole booking or only Mjazo's share); the ledger owes it to the SRB, and Money shows each month's tax with a CSV for the return |
 | 24 Oct 2026 | **Pilot gates deployed. Packs built:** a few visits of one service or bundle paid upfront for less a visit (the analysis's maintenance plan). Customers ask in their account or the app, Finance activates once paid, "Book your next visit" uses one at checkout, the ledger holds the money until each visit, and a message says when the next visit is due |
 | 23 Oct 2026 | **Pilot gates built:** mission control → KPIs measures the validation sprint's gates from the blueprint analysis (cost per paying customer, second booking within 90 days, visits per pro-day, pros active at day 90, basket, leakage, contribution after transport and sales tax) |
 | 23 Oct 2026 | **The AI tools in the apps built** (after the platform, part 4): Mjazo has Ask Mjazo (the Concierge, booking by chat), Ghar Scan (with the brief sent to the pro), Home Pulse, and Glam Mirror and the Shaadi Orchestrator on the website; Mjazo Pro has the Copilot with today's brief read aloud |
@@ -433,6 +435,44 @@ The blueprint analysis says the pilot should test a cheap **maintenance plan** a
 - **Tests:** 457 in total. New: the pack rules on a real database (6: the terms from the catalogue; asked for, activated and a visit paid from the ledger with the pro's full share and Mjazo's margin; a cancelled booking giving its visit back, and the refusals; Plus only on the rest; added by phone, cancelling and the refund; the end of its time), the API (asking, refused before payment, booking with it, nobody else using it), the two messages, and the permission matrix (2 actions).
 - **Checked locally (24 Oct 2026):** `/offers` shows the three packs. A test customer asked for Wax Every Month in Account → Packs ("Waiting for your payment of PKR 6,450"); Finance activated it in mission control (until 21 Feb 2027); "Book your next visit" opened checkout with PKR 2,500 − 350 pack price = 2,150, all from the pack, PKR 0 to pay. The confirmation, Account → Bookings and mission control's booking page ("From their pack", "The pro collects PKR 0") agreed, and `/ur/account/packs` showed it in Urdu. In the Mjazo app (web mode, phone size): the Packs screen, checkout with the pack, and a second visit booked from the app with PKR 0 to pay. **Not checked in the browser:** the pro's visit screen with a pack (the same code as credit) and finishing a pack visit (the ledger side is in the tests).
 
+## 3k. Receipts and sales tax (29 Oct 2026)
+
+The blueprint analysis (C7) says to sort out Sindh sales tax before scaling, and customers had no receipt. Now every finished visit gets one, and Finance can switch sales tax on once the written tax opinion is in. Schema: `supabase/migrations/0014_receipts.sql` (`bookings.tax`, `tax_rate`, `tax_inclusive`, `tax_base`; `receipts`; `receipt_counter`). Code: `lib/ops/policy.ts` (the money policies' rules, pure), `lib/core/policy.ts` (kept in `core_meta`, audited), `lib/receipts.ts`, `lib/core/receipts.ts`, `lib/server/receipts.ts`, `/api/ops/policy`, the page `app/[locale]/receipt/[no]`.
+
+- **Mission control → Money → Policies** (Finance and Owners): sales tax from a start day, the rate (to two decimals, up to 25%), **inside the price** (Mjazo pays it from its share) or **added on top** (checkout adds it and the pro collects it), on **the whole booking** (as principal) or **only Mjazo's share** (as agent, always inside the price), and the SRB/NTN registration printed on receipts. **Off until set**: nothing changes until then. Every change is in the audit log.
+- **Bookings** made from the start day carry their tax, frozen on the booking (a later change to the policy never touches them). On top, the total includes it, so the website and app checkouts, the confirmation, the account, the pro and mission control all show it; inside, the total stays and a small line says it's included. On Mjazo's share, it's worked out again on her real share when the visit is done. A change to the services recalculates it.
+- **The ledger:** a new account **"Sales tax owed (SRB)"** (`mjazo:salestax`). Inside the price it comes out of Mjazo's commission; on top the customer's total carries it. **The pro's share never changes.** The pilot gates count the tax a visit really carried once and model only older visits from the pilot inputs.
+- **Receipts:** issued in the same step that posts a finished visit, with a gapless number (**MJR-000001**, from a locked counter) and a frozen copy: the lines, each discount (promo code, Plus, a friend's referral, a pack's price), the tax, the credit and pack used, the payment, the pro's first name and the registration. Refunds show under it, read live. Visits done before 0014 get theirs the first time it's opened.
+  - **Where:** Account → Bookings → **Receipt** (website), the app's booking screen, mission control's booking page, and a new **"Your receipt"** message (mission control → Automations, on; /admin → Customer messages, with Urdu).
+  - **The link** (`/receipt/MJR-000123?k=…`) is signed with `SESSION_SECRET`, so it opens from WhatsApp or an email without signing in; a wrong or missing key shows the 404 page. It's never indexed, prints cleanly ("Print or save as PDF") and works in Urdu (`/ur/receipt/…`).
+- **Money → Sales tax by month:** receipts, total, taxed value and tax per month (Karachi time) for the SRB return, with a CSV of every receipt. Customer names that look like spreadsheet formulas are kept as text.
+- **The AI Concierge** quotes and confirms the total with sales tax added on top, as checkout does.
+- Until migration 0014 has run, receipts and sales tax are off and checkout works as before.
+- **Reviewed** by a small review workflow (3 reviewers and a skeptic, 29 Oct 2026). It found and I fixed:
+  - the app's booking screen showing a wrong discount with tax on top
+  - the Concierge leaving the tax out
+  - the app keeping the tax terms from when it started (checkout now asks each time, and `/api/v1/config` is no longer cached)
+  - the booking catch-up using today's terms instead of the booking's day
+  - CSV formula injection
+  - "On request" for PKR 0 totals
+  - rates like 7.25% shown as 7.3%
+  - a typo in the rate box switching tax off
+- **Tests:** 476 in total. New:
+  - the tax rules (pure)
+  - inside and on top, and on either base, on a real database (the pro's share, the ledger balanced, a change to the services, the share recalculated at the end)
+  - receipts: numbered once and without gaps, frozen, the registration, the months
+  - the imported catch-up booking
+  - the signed link and a refused wrong one
+  - the account showing the discount and the tax on top as separate lines
+  - the pilot gates counting tax once
+  - the receipt message
+  - the permission matrix (3 actions)
+- **Checked locally (29 Oct 2026):**
+  - Finance set 8% inside the price from today. Stage5 Check booked a full body wax with Plus and credit. The website checkout showed "Includes Sindh sales tax (8%): PKR 300" on PKR 4,050. Hina did the visit.
+  - Account → Bookings and the app showed **Receipt MJR-000003**. The receipt read PKR 4,500, Plus −450, total 4,050 including PKR 300 tax, credit −1,500, PKR 2,550 paid by cash, with the SRB number. The ledger posted the pro's PKR 3,375 unchanged, Mjazo 825 and sales tax 300.
+  - The link opened signed out; a wrong key, no key and another receipt's key gave 404. `/ur/receipt/…` read right to left. The CSV downloaded.
+  - Switched to on top: the website and app checkouts both showed "Sindh sales tax (8%) PKR 324" and PKR 4,374, the server stored the same, and the app's booking screen read −450, +324, 4,374.
+
 ## 4. Brand kit
 
 Saved in `F:\mjazo\brand\`, outside this repo. A copy of the PDF is in the user's Downloads folder.
@@ -589,6 +629,7 @@ Project `xjyafabyscamelebzrsb` (https://xjyafabyscamelebzrsb.supabase.co), set u
 | `0011_live_tracking.sql` | `visit_locations`: a pro's latest point while she's on the way to a visit |
 | `0012_phone_sign_in.sql` | `phone_codes` (sign-in codes: hash, channel, tries, expiry) and `customers.session_epoch` ("sign out everywhere") |
 | `0013_packs.sql` | `customer_packs` (prepaid visits: the pack, its price a visit, status, time to use it) and `bookings.pack_id` / `pack_paid` |
+| `0014_receipts.sql` | Sales tax frozen on each booking (`tax`, `tax_rate`, `tax_inclusive`, `tax_base`), `receipts` (one per finished visit, with a frozen copy) and `receipt_counter` (gapless numbers) |
 
 With Supabase connected, the cross-page flows (apply → interview link, booking → ops console,
 complaint → Trust Desk) can now work end to end on the live site. They haven't been re-tested live yet.
@@ -653,6 +694,7 @@ All are listed with explanations in [.env.example](.env.example).
    - then redeploy. Until one is set, the live site offers email sign-in only.
 14. **Replace the Anthropic key** (found 23 Oct 2026): Anthropic answers "invalid x-api-key" to the key in Vercel (set 2 Oct), so every AI feature on the live site and in the apps falls back to WhatsApp or plain wording. In the Anthropic Console (console.anthropic.com → API keys) make a new key, check the account has credit, then in a normal PowerShell run `cd F:mjazowebsite; npx vercel env rm ANTHROPIC_API_KEY production --yes; npx vercel env add ANTHROPIC_API_KEY production` (paste the key when it asks; choose Sensitive if offered), then redeploy.
 15. **For packs:** run `node scripts/setup-supabase.mjs --migrate` (0013) **before** deploying, then deploy. Then check the three packs' prices in `/admin` → Catalogue → Packs (or hide them) and, for WhatsApp, make templates for "Your pack is ready" and "Time for your next visit" in Meta and name them in mission control → Automations.
+16. **For receipts and sales tax:** run `--migrate` (0014, with 0013) **before** deploying, then deploy. Receipts start by themselves. Sales tax stays off: once the written tax opinion is in, Finance sets it in mission control → Money → Policies (the start day, the rate, inside or on top, the base, and the SRB registration). For WhatsApp, make a "Your receipt" template in Meta and name it in mission control → Automations.
 
 ---
 
@@ -671,6 +713,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - the late-change fee amount
 - **Plus:** PKR 2,500 a year for 10% off.
 - **Packs:** the three packs and their prices a visit (PKR 2,250 for the Quick Refresh, 2,150 for arms and legs wax, 2,150 for an AC service; about 14% off), and that Mjazo, not the pro, funds the saving.
+- **Sales tax** (mission control → Money → Policies): off. It needs the written tax opinion: the rate (8% for beauty services or 15% standard), inside the price or on top, on the whole booking or only Mjazo's share, the start day, and Mjazo's SRB registration number.
 - **Referral rewards:** PKR 500 for the friend, PKR 500 for the referrer.
 - **Legal text:** needs a lawyer's review.
 - **Ops:** the pro share (75%) and the protocol manual.
@@ -690,6 +733,8 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
    6. ~~Mobile apps~~: built 21 October, API live (section 3g). To do: try both apps with Expo Go (mobile/README.md), add the apps' redirect URLs in Supabase for email sign-in, then `eas init` and store builds with your Expo account (and Google Play to publish).
    7. ~~After the platform~~ (Plus, gift cards and referrals; live tracking; phone-number sign-in; the AI tools in the apps): built 21 to 23 October and **deployed 23 October** (migrations 0010–0012 run; section 3h). Still to do: a new Anthropic key (section 7, item 14), then a WhatsApp authentication template or Twilio Verify for phone sign-in (item 13).
    8. **Packs** (section 3j): built 24 October. To do: `--migrate` (0013), deploy, then confirm the prices (section 8 and section 7, item 15).
+   9. **Receipts and sales tax** (section 3k): built 29 October. To do: `--migrate` (0014), deploy; set sales tax once the tax opinion is in (section 7, item 16).
+   10. **Still to build** (the plan of 27 October): a lower rate on repeat customer–pro pairs, the favourite-pro guarantee, and pros' weekly minimum.
 3. **Owner setup:** section 7 (rotate secrets, SMTP, `CRON_SECRET` and pingers, `SESSION_SECRET` for the pro app, staff roles).
 4. **Re-test the live flows** that need Supabase: booking → ops console, apply → interview, complaint → Trust Desk.
 5. **Urdu content:** the AI translation pass, a human review (including the new interface Urdu), then switching on the Urdu site.
@@ -732,6 +777,10 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - pg and PGlite return dates as `YYYY-MM-DD` and timestamps as ISO strings (parsers in `db.ts`). Pass JSON values as `JSON.stringify(x)` with `$n::jsonb`.
   - The local PGlite database (`.data/pglite`) is opened by one process at a time: stop the dev server before any script that opens it.
   - `core()` keeps its handle on `globalThis`. The dev server re-runs modules after each edit, and a second PGlite opened on the same folder split the local data in two (one route saw a change, another didn't). Don't move it back to a module variable.
+- **Money policies and receipts:**
+  - The policies (sales tax now) are one `core_meta` row each ("policy:<key>"), read and saved with `policy()` / `savePolicy()` (`lib/core/policy.ts`, audited); their rules are pure in `lib/ops/policy.ts`. Add a policy there: the type, defaults, `…Problems()`, and a row in `DEFAULTS` / `PROBLEMS` / `LABELS`.
+  - Sales tax is frozen on the booking by `createBooking` (`bookingTaxTerms`) and only recalculated by `mutateJob` and at completion (Mjazo's-share base). Checkout on the website and in the app must work it out exactly as `taxAmount` / `totalWithTax` do; the app has a copy in `mobile/packages/shared/src/format.ts` (`salesTax`, `taxPct`): change both together.
+  - Receipts are issued by `ensureReceipt()` inside the completion transaction (`postLedger`); never write to `receipts` or `receipt_counter` anywhere else. Receipt links are signed (`receiptUrl`); the website opens them by path (`receiptPath`).
 - **Mission control (`/ops`):**
   - Every `/api/ops` handler starts with `requireStaff(<permission>)` (`lib/server/staff.ts`), per action where actions differ. Permissions by role are in `lib/ops/access.ts`; `lib/server/ops-permissions.test.ts` calls every action as every role, so a new action needs a row there.
   - Record staff actions with `audit(email, …)` (`lib/server/audit.ts`). Money actions write their audit entry inside their own transaction (`lib/core/money.ts`).
@@ -748,5 +797,5 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - Wallet credit is set aside on the booking (`credit_used`) and posted with `applyCredit` when the visit completes (`postLedger` in `lib/core/jobs.ts`). What the pro collects is total − credit.
   - Locally, `/login` offers the test sign-in (`/api/v1/customer/dev-login`); the browser keeps its token in localStorage.
 - **Staff tools locally:** start the `mjazo-web-staff` preview configuration (`.claude/launch.json`). Without Supabase, `/ops` offers "Continue as local …" for any role (`/api/ops/dev-login`, refused in production); pros get PINs from ops.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (457 tests), then `npx next build` (869 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (476 tests), then `npx next build` (870 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
 - **New API routes on the dev server:** a route added while an older `.next/dev` cache exists can answer 404 (the request falls through to the page catch-all). Touch the new `route.ts` and it's picked up.

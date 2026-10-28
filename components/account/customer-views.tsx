@@ -3,8 +3,9 @@
 import Link from "@/components/site/locale-link"
 import { useRouter } from "@/components/site/locale-link"
 import { useEffect, useMemo, useState } from "react"
-import { ArrowUpRight, CalendarCheck, Check, Crown, Gift, LifeBuoy, Loader2, MapPin as MapIcon, Pencil, Repeat, RotateCcw, Star, Trash2, Wallet, X } from "lucide-react"
+import { ArrowUpRight, CalendarCheck, Check, Crown, Gift, LifeBuoy, Loader2, MapPin as MapIcon, Pencil, ReceiptText, Repeat, RotateCcw, Star, Trash2, Wallet, X } from "lucide-react"
 import { formatAmount, formatPKR } from "@/lib/catalog"
+import { receiptPath } from "@/lib/receipts"
 import { formatBookingDate, nextDays, windowAvailable, windowLabel, WINDOW_LABELS } from "@/lib/bookings"
 import { ACCOUNT_EVENT, customerApi, CustomerApiError, deviceBookingIds, sendPhoneCode, signOut, signOutEverywhere, type CodeSent, type Me, type PhoneChannels } from "@/lib/client/customer"
 import type { Address } from "@/lib/core/customers"
@@ -403,6 +404,11 @@ function BookingCard({ b, phone, onChanged }: { b: CustomerBooking; phone: strin
           </a>
         )}
         {(b.status === "completed" || ended) && <BookAgain b={b} />}
+        {b.receipt?.url && (
+          <a href={receiptPath(b.receipt.url)} target="_blank" rel="noopener" className="h-10 px-4 rounded-full border border-zinc-300 text-sm flex items-center gap-1.5 hover:border-black">
+            <ReceiptText className="w-4 h-4" /> {t.receipt.open}
+          </a>
+        )}
         {b.status === "completed" && (
           <Link href={`/complaint?id=${b.id}`} className="text-sm text-zinc-500 underline underline-offset-4 hover:text-black">
             {a.report}

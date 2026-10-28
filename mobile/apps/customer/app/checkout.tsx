@@ -1,4 +1,4 @@
-import { ApiError, Button, Card, Chip, color, currentLocation, errorText, Field, fill, formatAmount, formatDay, formatPKR, Line, Loading, normalisePhone, Notice, request, Row, Screen, space, Switch, Txt, useLang, validPhone, windowLabel, type Address, type Area, type MyPack, type Packs, type PromoCheck, type Slots } from "@mjazo/shared"
+import { ApiError, Button, Card, Chip, color, currentLocation, errorText, Field, fill, formatAmount, formatDay, formatPKR, Line, Loading, normalisePhone, Notice, request, Row, salesTax, Screen, space, Switch, taxPct, Txt, useLang, validPhone, windowLabel, type Address, type Area, type MyPack, type Packs, type PromoCheck, type Slots, type TaxTerms } from "@mjazo/shared"
 import { Redirect, router, useLocalSearchParams } from "expo-router"
 import { LocateFixed } from "lucide-react-native"
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -36,6 +36,12 @@ export default function Checkout() {
   const me = account.state === "in" ? account.me : null
   const { pack: packId } = useLocalSearchParams<{ pack?: string }>()
   const [pack, setPack] = useState<MyPack | null>(null)
+  // Sindh sales tax, when Mjazo charges it (added on top, it's in the total). Asked each time
+  // checkout opens, not from the config kept since the app started: it can change any day.
+  const [tax, setTax] = useState<TaxTerms | null>(null)
+  useEffect(() => {
+    request<{ tax?: TaxTerms | null }>("/api/v1/config").then((c) => setTax(c.tax ?? null), () => {})
+  }, [])
   useEffect(() => {
     if (!me || !packId) return setPack(null)
     api<Packs>(`/api/v1/customer/packs?lang=${lang}`).then(
@@ -182,7 +188,8 @@ export default function Checkout() {
   const codeOff = promo?.ok ? Math.min(promo.discount, rest) : 0
   const usingPlus = plusOff > codeOff
   const discount = Math.max(plusOff, codeOff)
-  const total = subtotal - discount - (packUse?.saving ?? 0)
+  const taxAmount = tax ? salesTax(tax, subtotal, discount + (packUse?.saving ?? 0)) : 0
+  const total = subtotal - discount - (packUse?.saving ?? 0) + (tax && !tax.inclusive ? taxAmount : 0)
   const packPaid = packUse?.paid ?? 0
   const credit = me && useCredit ? Math.min(me.credit.available, total - packPaid) : 0
 
@@ -390,9 +397,11 @@ export default function Checkout() {
         ))}
         {packUse && packUse.saving > 0 && <Line label={fill(t.packSaving, { name: pack!.name })} value={`− ${formatPKR(packUse.saving)}`} />}
         {discount > 0 && <Line label={usingPlus ? fill(t.plusLine, { pct: plus!.discountPct }) : promo?.ok && promo.kind === "referral" ? fill(t.friendWelcome, { code: promo.code }) : t.discount} value={`− ${formatPKR(discount)}`} />}
+        {tax && !tax.inclusive && taxAmount > 0 && <Line label={fill(t.taxAdded, { rate: taxPct(tax.rate) })} value={formatPKR(taxAmount)} />}
         {packPaid > 0 && <Line label={t.packPaid} value={`− ${formatPKR(packPaid)}`} />}
         {credit > 0 && <Line label={t.creditUsed} value={`− ${formatPKR(credit)}`} />}
         <Line label={t.payAfter} value={credit > 0 || packPaid > 0 ? formatAmount(total - credit - packPaid) : total > 0 ? formatPKR(total) : t.onRequest} strong />
+        {tax?.inclusive && tax.base === "total" && taxAmount > 0 && <Txt v="tiny">{fill(t.taxIncluded, { rate: taxPct(tax.rate), amount: formatPKR(taxAmount) })}</Txt>}
       </Card>
       {failed ? <Notice text={failed} /> : null}
     </Screen>

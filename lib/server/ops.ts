@@ -14,6 +14,8 @@ import * as promos from "@/lib/core/promos"
 import * as cpros from "@/lib/core/pros"
 import * as creq from "@/lib/core/requests"
 import { listAudit, type AuditFilter } from "@/lib/core/audit"
+import { ensureReceipt } from "@/lib/core/receipts"
+import { receiptUrl } from "./receipts"
 import { windowOpen } from "@/lib/core/capacity"
 import { computeKpis } from "@/lib/ops/kpi"
 import type { PlanLimits } from "@/lib/ops/logic"
@@ -98,11 +100,14 @@ async function catchUpBookings(db: Db) {
     const d = s.data as Parameters<typeof cj.createBooking>[1]
     // Bookings from before the server priced them carry the referral only in the notes.
     const referral = d.referral ?? (typeof d.notes === "string" ? d.notes.match(/Referral (\S+):/)?.[1] : undefined)
+    // Priced as on the day it was made (promo codes, Plus, packs and sales tax).
+    const now = new Date(s.created_at)
     try {
-      await cj.createBooking(db, { ...d, id: s.id, createdAt: s.created_at, referral }, cat, { referralOff: settings.referral.friendOff })
+      await cj.createBooking(db, { ...d, id: s.id, createdAt: s.created_at, referral }, cat, { referralOff: settings.referral.friendOff, now })
     } catch (e) {
       if (!(e instanceof PricingError)) throw e
       await cj.importJobs(db, [submissionJob(s)])
+      await cj.taxImported(db, s.id, now)
     }
   }
 }
@@ -378,7 +383,9 @@ export async function bookingDetail(id: string) {
   }
   const open = (await offers.listOffers(db, { bookingIds: [id], status: "pending" }))[0]
   const offer = open ? { id: open.id, jobId: id, proId: open.proId, expiresAt: open.expiresAt } : null
-  return { job, money: { subtotal: row?.subtotal ?? job.total, discount: row?.discount ?? 0, promo: row?.promo_code ?? null, ...paid }, ledger, requests, customer, offer }
+  const r = job.status === "completed" ? await ensureReceipt(db, job) : null
+  const receipt = r ? { number: r.number, url: receiptUrl(r) } : null
+  return { job, money: { subtotal: row?.subtotal ?? job.total, discount: row?.discount ?? 0, promo: row?.promo_code ?? null, ...paid }, ledger, requests, customer, offer, receipt }
 }
 
 export const addBookingNote = (id: string, note: string, actor: string) => addJobEvent(id, "note", "ops", { note, actor })

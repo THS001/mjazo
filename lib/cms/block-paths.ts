@@ -30,6 +30,7 @@ export const SITE_SECTIONS = [
   "privacy",
   "pro-code-of-conduct",
   "rate",
+  "receipt",
   "refer",
   "safety",
   "search",

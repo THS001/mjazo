@@ -59,6 +59,9 @@ export function signPayload(data: Record<string, unknown>, maxAgeSec: number) {
   return `${payload}.${sig(payload)}`
 }
 
+/** A short signature of a fixed text that never expires (e.g. a receipt's link). Empty when signing is off. */
+export const signText = (text: string, length = 22) => (proEnabled() ? sig(text).slice(0, length) : "")
+
 /** A value signed by signPayload, or null when it's forged or expired. */
 export function readPayload<T extends Record<string, unknown>>(raw: string | null | undefined): T | null {
   if (!raw || !proEnabled()) return null

@@ -1,6 +1,6 @@
 import "server-only"
 import { after } from "next/server"
-import { formatPKR } from "@/lib/catalog"
+import { formatAmount, formatPKR } from "@/lib/catalog"
 import { getCatalog, getMessages, getSettings } from "@/lib/cms/read"
 import { MESSAGES, type MessageKey, type MessageTexts } from "@/lib/cms/types/messages"
 import { core, type Db } from "@/lib/core/db"
@@ -11,12 +11,14 @@ import { rewardReferral } from "@/lib/core/growth"
 import { draftPayoutRun } from "@/lib/core/money"
 import { listOffers, offerJob } from "@/lib/core/offers"
 import { packsDue } from "@/lib/core/packs"
+import { ensureReceipt } from "@/lib/core/receipts"
 import { normalisePhone } from "@/lib/core/phone"
 import { rankPros } from "@/lib/ops/match"
 import type { Job, Pro } from "@/lib/ops/types"
 import { SITE_URL } from "@/lib/site"
 import { formatBookingDate, karachiNow, windowLabel } from "@/lib/time"
 import { visitEarning } from "./pro-api"
+import { receiptUrl } from "./receipts"
 import { listSubmissions, notifyOps } from "./store"
 
 // Automation (platform stage 5). The outbox (`events`, written with every change in lib/core) is
@@ -34,7 +36,7 @@ import { listSubmissions, notifyOps } from "./store"
 // The rules
 // ---------------------------------------------------------------------------
 
-export type RuleKey = "confirm" | "reminder" | "onTheWay" | "rateVisit" | "autoAssign" | "proOffer" | "weeklyPayout" | "pulseNudges" | "winBack" | "referralReward" | "plusWelcome" | "packWelcome" | "packDue"
+export type RuleKey = "confirm" | "reminder" | "onTheWay" | "rateVisit" | "receipt" | "autoAssign" | "proOffer" | "weeklyPayout" | "pulseNudges" | "winBack" | "referralReward" | "plusWelcome" | "packWelcome" | "packDue"
 export type AssignMode = "off" | "suggest" | "auto"
 
 type RuleDef = {
@@ -53,6 +55,7 @@ export const RULES: RuleDef[] = [
   { key: "reminder", label: "Reminder, the day before", description: "From 6 pm the evening before the visit.", on: true, messages: ["reminder"], params: { reminder: ["name", "date", "window", "services", "link"] } },
   { key: "onTheWay", label: "Your pro is on the way", description: "When the pro taps \"On my way\".", on: true, messages: ["onTheWay"], params: { onTheWay: ["pro", "services", "arrive", "id"] } },
   { key: "rateVisit", label: "Rate your visit (review request)", description: "Two hours after the visit, between 10 am and 8 pm, if it isn't rated yet.", on: true, messages: ["rateVisit"], params: { rateVisit: ["name", "pro", "link"] } },
+  { key: "receipt", label: "Your receipt", description: "When a visit is done: its receipt number, the total and a link to the receipt (it opens without signing in).", on: true, messages: ["receipt"], params: { receipt: ["name", "no", "amount", "link"] } },
   { key: "autoAssign", label: "Auto-assign", description: "Off; suggest the best pro on the board; or offer the visit to the best pro by itself (then the next if she declines). Only verified pros are offered automatically. Ops can always assign or offer by hand.", on: true },
   { key: "proOffer", label: "Tell a pro about an offer", description: "When a visit is offered to a pro: a push to the Mjazo Pro app, or WhatsApp.", on: true, messages: ["proOffer"], params: { proOffer: ["services", "area", "date", "window", "earn", "until", "link"] } },
   { key: "weeklyPayout", label: "Weekly payout run", description: "Every Monday from 9 am: a draft payout run for last week (Monday to Sunday). Finance approves it and marks each payout paid.", on: true },
@@ -302,6 +305,14 @@ async function handleEvents(ctx: Ctx) {
         } else if ((e.type === "booking.new" || e.type === "offer.declined" || e.type === "offer.expired") && j && mode === "auto") {
           await autoOffer(ctx, j.id)
         } else if (e.type === "booking.completed" && j) {
+          // The visit's receipt, with its link.
+          if (ctx.rules.receipt.enabled && age < FRESH.confirm) {
+            const r = await ensureReceipt(ctx.db, j)
+            const c = r ? await customerOf(ctx.db, await bookingCustomer(ctx.db, j.id)) : null
+            const lang = c?.lang === "ur" ? "ur" : "en"
+            const link = r && receiptUrl(r, lang)
+            if (r && link) await messageForBooking(ctx, "receipt", "receipt", j, `receipt:${j.id}`, { no: r.number, amount: formatAmount(r.total), link }, e.id)
+          }
           // A friend's first visit with someone's code: their credit (always), and a message.
           const r = await rewardReferral(ctx.db, j.id, ctx.settings.referral?.youGet ?? 0)
           const c = r && ctx.rules.referralReward.enabled ? await ctx.db.one<{ id: string; name: string; phone: string | null; email: string | null; lang: string }>("select id, name, phone, email, lang from customers where id = $1", [r.referrerId]) : null
@@ -537,7 +548,7 @@ export function tickAutomation() {
 
 /** A message as it would read, for mission control's preview. */
 export function previewMessage(texts: MessageTexts, key: MessageKey, lang = "en") {
-  const sample: Record<string, string> = { name: "Ayesha", services: "Full body waxing", date: formatBookingDate("2026-10-23", lang), window: windowLabel("3–5 pm", lang), id: "MJ-EXAMPLE", link: accountLink(lang), pro: "Sana", arrive: "3:40 pm", title: "AC service", area: "DHA", earn: "PKR 3,375", until: key === "plusWelcome" ? longDate("2027-10-21T12:00:00Z", lang) : "1:30 pm", amount: "PKR 500", friend: "Sana", pct: "10" }
+  const sample: Record<string, string> = { name: "Ayesha", services: "Full body waxing", date: formatBookingDate("2026-10-23", lang), window: windowLabel("3–5 pm", lang), id: "MJ-EXAMPLE", link: accountLink(lang), pro: "Sana", arrive: "3:40 pm", title: "AC service", area: "DHA", earn: "PKR 3,375", until: key === "plusWelcome" ? longDate("2027-10-21T12:00:00Z", lang) : "1:30 pm", amount: key === "receipt" ? "PKR 4,500" : "PKR 500", friend: "Sana", pct: "10", no: "MJR-000123" }
   return { subject: fillText(texts[key].subject, sample), text: fillText(texts[key].text, sample) }
 }
 

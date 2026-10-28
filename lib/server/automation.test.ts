@@ -206,6 +206,19 @@ describe("referrals and Plus", () => {
     expect((await creditFor(db, referrer)).balance).toBe(500)
   })
 
+  it("sends the receipt when a visit is done, once, with a link that opens it", async () => {
+    const b = await book({ phone: "03019990010", name: "Nida Rauf" })
+    await complete(b.id, "P-HINA", new Date())
+    await A.runAutomation()
+    await A.runAutomation()
+    const sent = await forBooking(b.id, "receipt")
+    expect(sent).toHaveLength(1)
+    expect(sent[0]).toMatchObject({ recipient: "03019990010", template: "receipt" })
+    expect(sent[0].params[1]).toMatch(/^MJR-\d{6}$/)
+    expect(sent[0].body).toContain("Nida")
+    expect(sent[0].body).toMatch(/\/receipt\/MJR-\d{6}\?k=/)
+  })
+
   it("welcomes a new Plus member", async () => {
     const { activatePlus } = await import("@/lib/core/growth")
     const p = await activatePlus(db, { phone: "03019990003", name: "Iqra Shah", terms: { price: 2500, discountPct: 10 }, paidVia: "jazzcash", by: "fin@mjazo.test" })

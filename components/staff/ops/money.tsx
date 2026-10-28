@@ -5,6 +5,7 @@ import { CheckCircle2, ExternalLink, TriangleAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { api, Badge, Btn, Empty, pkr } from "../kit"
 import { inputCls, useOps } from "./context"
+import { Policies } from "./policies"
 
 // Money: cash each pro is holding and what she's owed (from the ledger), refunds and credits
 // waiting for approval, payments to reconcile, cash handed in, and payout runs.
@@ -234,6 +235,8 @@ export function MoneyTab() {
           </ul>
         )}
       </Section>
+
+      <Policies />
 
       {d.decided.length > 0 && (
         <Section title="Recent refunds and credits">

@@ -291,6 +291,50 @@ describe("packs", () => {
   })
 })
 
+describe("receipts", () => {
+  it("gives a finished visit a receipt link that opens without signing in, and refuses a wrong key", async () => {
+    const t = await devToken("receipts@example.com")
+    await call(R.link.POST!, { token: t, body: { name: "Mehwish Ali", phone: "03007770021" } })
+    const placed = await json(await call(R.bookings.POST!, { token: t, body: booking("03007770021", { date: day(2), window: "11 am–1 pm" }) }))
+    const cj = await import("@/lib/core/jobs")
+    await cj.mutateJob(db, placed.id, (j) => {
+      j.proId = "P-SANA"
+      j.status = "completed"
+      j.events.push({ type: "completed", at: new Date().toISOString(), by: "pro" })
+    })
+    const b = await json(await call(R.booking.GET!, { token: t, id: placed.id }))
+    expect(b.receipt.number).toMatch(/^MJR-\d{6}$/)
+    const url = new URL(b.receipt.url)
+    expect(url.pathname).toBe(`/receipt/${b.receipt.number}`)
+    const { receiptForLink } = await import("./receipts")
+    const page = await receiptForLink(b.receipt.number, url.searchParams.get("k"))
+    expect(page).toMatchObject({ area: "DHA", refunded: 0, receipt: { bookingId: placed.id, data: { customer: { name: "Ayesha Khan" }, pro: "Sana" } } })
+    expect(await receiptForLink(b.receipt.number, "forged-key-forged-key1")).toBeNull()
+    expect(await receiptForLink("MJR-999999", url.searchParams.get("k"))).toBeNull()
+    // Listed too, and not on visits that aren't done.
+    const list = await json(await call(R.bookings.GET!, { token: t }))
+    expect(list.past.find((x: { id: string }) => x.id === placed.id).receipt.number).toBe(b.receipt.number)
+    expect(list.upcoming.every((x: { receipt: unknown }) => x.receipt === null)).toBe(true)
+  })
+
+  it("shows the discount and the sales tax added on top as separate lines that add up", async () => {
+    const { savePolicy } = await import("@/lib/core/policy")
+    const today = new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10)
+    await savePolicy(db, "tax", { from: today, rate: 0.08, inclusive: false, base: "total" }, "finance@mjazo.test")
+    try {
+      const t = await devToken("taxontop@example.com")
+      await call(R.link.POST!, { token: t, body: { name: "Hira Saleem", phone: "03007770022" } })
+      const placed = await json(await call(R.bookings.POST!, { token: t, body: booking("03007770022", { promo: "HELLO10", date: day(4), window: "1–3 pm" }) }))
+      const b = await json(await call(R.booking.GET!, { token: t, id: placed.id }))
+      expect(b.tax).toMatchObject({ inclusive: false, rate: 0.08 })
+      expect(b.discount).toBe(Math.round(b.subtotal * 0.1))
+      expect(b.total).toBe(b.subtotal - b.discount + b.tax.amount)
+    } finally {
+      await savePolicy(db, "tax", { from: null }, "finance@mjazo.test")
+    }
+  })
+})
+
 describe("booking a pro again", () => {
   it("shows only her free windows, and says when she can't do it", async () => {
     const slots = (b: unknown) => call(R.slots.POST!, { body: b }).then(json)

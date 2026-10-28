@@ -21,6 +21,7 @@ import { customerApi, customerToken, useAccount } from "@/lib/client/customer"
 import type { Address } from "@/lib/core/customers"
 import type { CustomerPackView } from "@/lib/server/customer-api"
 import { isPackLine } from "@/lib/packs"
+import { taxAmount, taxPct, totalWithTax, type TaxTerms } from "@/lib/ops/policy"
 import { MapPin, type Pin } from "@/components/account/map-pin"
 
 const payments = (t: UiStrings["checkout"]) =>
@@ -91,6 +92,7 @@ export function CheckoutFlow() {
   const [packId, setPackId] = useState<string | null>(null)
   const [pack, setPack] = useState<CustomerPackView | null>(null)
   const [proNote, setProNote] = useState("")
+  const [taxTerms, setTaxTerms] = useState<TaxTerms | null>(null)
   const started = useRef(false)
   const days = useMemo(() => nextDays(7, { locale, today: t.duration.today, tomorrow: t.duration.tomorrow }), [locale, t])
   // Real availability per day and window (null: no capacity data, so only the time rules apply).
@@ -102,6 +104,10 @@ export function CheckoutFlow() {
     const q = new URLSearchParams(window.location.search)
     if (q.get("with")) setWithPro({ id: q.get("with")!, name: q.get("name") ?? "" })
     if (q.get("pack")) setPackId(q.get("pack"))
+    fetch("/api/v1/config")
+      .then((r) => r.json())
+      .then((c: { tax?: TaxTerms | null }) => setTaxTerms(c.tax ?? null))
+      .catch(() => {})
     let mine: string | null = null
     try {
       mine = localStorage.getItem("mjazo-my-ref")
@@ -145,7 +151,9 @@ export function CheckoutFlow() {
   const usingPromo = promoOff > 0 && promoOff >= referralOff && promoOff >= plusOff
   const usingPlus = !usingPromo && plusOff > 0 && plusOff >= referralOff
   const discount = Math.max(referralOff, promoOff, plusOff)
-  const total = subtotal - discount - (packUse?.saving ?? 0)
+  // Sindh sales tax, when Mjazo charges it: added on top it's in the total (the server works it out the same way).
+  const salesTax = taxTerms ? taxAmount(taxTerms, { subtotal, discount: discount + (packUse?.saving ?? 0) }) : 0
+  const total = totalWithTax(subtotal, discount + (packUse?.saving ?? 0), taxTerms, salesTax)
   const packPaid = packUse?.paid ?? 0
   const creditAvailable = signedIn?.credit.available ?? 0
   const credit = signedIn && useCredit ? Math.min(creditAvailable, total - packPaid) : 0
@@ -574,7 +582,9 @@ export function CheckoutFlow() {
                 <span>− {formatPKR(discount)}</span>
               </div>
             )}
+            {taxTerms && !taxTerms.inclusive && salesTax > 0 && <div className="flex justify-between"><span>{fill(t.receipt.taxAdded, { rate: taxPct(taxTerms.rate) })}</span><span>{formatPKR(salesTax)}</span></div>}
             <div className="flex justify-between text-base"><span>{t.common.total}</span><span className="font-medium">{formatPKR(total)}</span></div>
+            {taxTerms?.inclusive && taxTerms.base === "total" && salesTax > 0 && <p className="text-xs text-zinc-500">{fill(t.receipt.taxIncluded, { rate: taxPct(taxTerms.rate), amount: formatPKR(salesTax) })}</p>}
             {packPaid > 0 && <div className="flex justify-between text-brand-ink"><span className="flex items-center gap-1.5"><Repeat className="w-4 h-4" />{t.packs.paidFromPack}</span><span>− {formatPKR(packPaid)}</span></div>}
             {credit > 0 && <div className="flex justify-between text-brand-ink"><span className="flex items-center gap-1.5"><Wallet className="w-4 h-4" />{m.credit}</span><span>− {formatPKR(credit)}</span></div>}
             {(credit > 0 || packPaid > 0) && <div className="flex justify-between font-medium"><span>{m.payAfter}</span><span>{formatAmount(due)}</span></div>}

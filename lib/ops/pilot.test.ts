@@ -121,4 +121,17 @@ describe("the pilot gates", () => {
     // Without a ledger entry, the margin is the total less the pro's share (75% of PKR 4,000).
     expect(gate(run({ jobs, settings: settings({ months }) }), "contribution").value).toBe(4000 - 3000 - 230)
   })
+
+  it("counts the sales tax a visit really carried once, and models only the others", () => {
+    const months = { "2026-09": { marketing: 0, transport: 0, by: "f", at: "" }, "2026-10": { marketing: 0, transport: 3100, by: "f", at: "" } }
+    // 8% inside the price, charged for real: the ledger's margin is already after the PKR 296.
+    const taxed = Array.from({ length: 10 }, (_, i) => job(`0305000000${i}`, day(-i - 1), { tax: { amount: 296, rate: 0.08, inclusive: true, base: "total" } }))
+    const margins = new Map(taxed.map((j) => [j.id, 1000 - 296]))
+    const r = run({ jobs: taxed, margins, settings: settings({ months, taxRate: 0.15 }) }) // the pilot's 15% is ignored for them
+    expect(gate(r, "contribution").value).toBe(1000 - 296 - 230)
+    expect(r.perVisit).toMatchObject({ net: 1000, tax: 296 })
+    // Added on top, the customer paid it: the total carries it, Mjazo's margin doesn't.
+    const onTop = taxed.map((j) => ({ ...j, total: 4320, tax: { amount: 320, rate: 0.08, inclusive: false, base: "total" as const } }))
+    expect(gate(run({ jobs: onTop, settings: settings({ months }) }), "contribution").value).toBe(4000 - 3000 - 230)
+  })
 })

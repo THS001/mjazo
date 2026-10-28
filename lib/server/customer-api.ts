@@ -19,6 +19,7 @@ import { audit } from "./audit"
 import { OpsError, addJobEvent, getJob, getPros, rescheduleJob } from "./ops"
 import { packOffersIn } from "./pack-offers"
 import { proveNumber } from "./phone-sign-in"
+import { receiptLinks } from "./receipts"
 import { notifyOps } from "./store"
 
 // What the client account shows and does (/api/v1/customer, used by /account on the website and
@@ -37,7 +38,7 @@ export function changeDeadline(j: Pick<Job, "date" | "window">, freeChangeHours:
 const lastAt = (j: Job, type: string) => j.events.filter((e) => e.type === type).at(-1)?.at ?? null
 
 /** One booking as its customer sees it. */
-function bookingView(j: Job, cat: Cat, pros: Pro[], freeChangeHours: number, live?: LivePoint, now = new Date()) {
+function bookingView(j: Job, cat: Cat, pros: Pro[], freeChangeHours: number, live?: LivePoint, receipt?: { number: string; url: string | null }, now = new Date()) {
   const subtotal = j.items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
   const pro = pros.find((p) => p.id === j.proId)
   const asked = pros.find((p) => p.id === j.preferredProId)
@@ -56,12 +57,17 @@ function bookingView(j: Job, cat: Cat, pros: Pro[], freeChangeHours: number, liv
     landmark: j.landmark ?? null,
     items: j.items.map((i) => ({ name: i.name, category: i.category, service: i.service, options: i.options, addOns: i.addOns, qty: i.qty, unitPrice: i.unitPrice })),
     subtotal,
-    discount: Math.max(0, subtotal - j.total),
+    // Tax added on top is in the total, not a negative discount.
+    discount: Math.max(0, subtotal - j.total + (j.tax && !j.tax.inclusive ? j.tax.amount : 0)),
     total: j.total,
     credit: j.credit ?? 0,
     // A visit of their prepaid pack: the pack pays this much of the total.
     pack: j.pack ? { name: j.pack.name, paid: j.pack.paid } : null,
     due: j.total - (j.credit ?? 0) - (j.pack?.paid ?? 0),
+    // Sindh sales tax: inside the price, or added on top (then the total includes it).
+    tax: j.tax?.amount ? { amount: j.tax.amount, rate: j.tax.rate, inclusive: j.tax.inclusive } : null,
+    // The receipt of a finished visit, with its signed link (it opens without signing in).
+    receipt: receipt ?? null,
     payment: j.payment,
     pro: pro ? { firstName: firstName(pro.name) } : null,
     askedFor: asked ? { id: asked.id, firstName: firstName(asked.name) } : null,
@@ -90,7 +96,8 @@ export async function customerBookings(c: Customer) {
   const { cat, pros, hours } = await context()
   const jobs = await listCustomerJobs(db, c.id)
   const live = await livePoints(db, jobs.filter((j) => j.status === "en_route").map((j) => j.id))
-  const views = jobs.map((j) => bookingView(j, cat, pros, hours, live.get(j.id)))
+  const receipts = await receiptLinks(jobs, c.lang === "ur" ? "ur" : "en")
+  const views = jobs.map((j) => bookingView(j, cat, pros, hours, live.get(j.id), receipts.get(j.id)))
   const open = (v: CustomerBooking) => !["completed", "cancelled", "no_show"].includes(v.status)
   return {
     upcoming: views.filter(open).sort((a, b) => a.date.localeCompare(b.date)),
@@ -110,7 +117,8 @@ export async function customerBooking(c: Customer, id: string) {
   const j = await ownBooking(c, id)
   const { cat, pros, hours } = await context()
   const live = j.status === "en_route" ? (await livePoints(await requireCore(), [j.id])).get(j.id) : undefined
-  return bookingView(j, cat, pros, hours, live)
+  const receipt = (await receiptLinks([j], c.lang === "ur" ? "ur" : "en")).get(j.id)
+  return bookingView(j, cat, pros, hours, live, receipt)
 }
 
 /** Cancel or move a visit, online only until the policy's free-change time. */

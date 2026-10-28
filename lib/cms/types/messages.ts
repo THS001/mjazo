@@ -56,6 +56,10 @@ export const MESSAGES = {
     subject: "Time for your next {{pack}} visit",
     text: "Hi {{name}}, your next {{pack}} visit is due. You have {{left}} left; book it in two taps: {{link}} Reply STOP to stop these reminders.",
   },
+  receipt: {
+    subject: "Your Mjazo receipt {{no}}",
+    text: "Thank you, {{name}}! Your receipt {{no}} for {{amount}} is here: {{link}}",
+  },
 }
 
 export type MessageTexts = typeof MESSAGES
@@ -110,6 +114,10 @@ export const MESSAGES_UR: MessageTexts = {
     subject: "{{pack}} کے اگلے وزٹ کا وقت",
     text: "{{name}}، آپ کے {{pack}} پیک کا اگلا وزٹ آ گیا ہے۔ ابھی {{left}} وزٹس باقی ہیں؛ دو ٹیپ میں بک کریں: {{link}} یہ یاد دہانیاں بند کرنے کے لیے STOP لکھ کر بھیجیں۔",
   },
+  receipt: {
+    subject: "آپ کی مجازو رسید {{no}}",
+    text: "شکریہ {{name}}! {{amount}} کی آپ کی رسید {{no}} یہاں ہے: {{link}}",
+  },
 }
 
 const GROUPS: Record<MessageKey, string> = {
@@ -125,6 +133,7 @@ const GROUPS: Record<MessageKey, string> = {
   plusWelcome: "Welcome to Mjazo Plus",
   packWelcome: "Your pack is ready",
   packDue: "Time for your next pack visit",
+  receipt: "Your receipt (after each visit)",
 }
 
 register<MessageTexts, MessageTexts>({
@@ -133,7 +142,7 @@ register<MessageTexts, MessageTexts>({
   group: "Settings",
   kind: "singleton",
   icon: "MessageCircle",
-  description: "The messages Mjazo sends by itself: booking confirmed, the day-before reminder, \"your pro is on the way\", \"rate your visit\", the opt-in reminders and win-backs, visit offers to pros, referral credit, the Plus welcome and the pack messages. Each one can be switched on or off in mission control → Automations. Keep the {{tokens}}.",
+  description: "The messages Mjazo sends by itself: booking confirmed, the day-before reminder, \"your pro is on the way\", \"rate your visit\", the opt-in reminders and win-backs, visit offers to pros, referral credit, the Plus welcome, the pack messages and receipts. Each one can be switched on or off in mission control → Automations. Keep the {{tokens}}.",
   fields: stringFields(MESSAGES, GROUPS),
   defaults: () => MESSAGES,
   translations: { ur: () => MESSAGES_UR },

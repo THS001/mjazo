@@ -308,6 +308,10 @@ export const S = {
   packSaving: { en: "Pack price ({{name}})", ur: "پیک کی قیمت ({{name}})" },
   packPaid: { en: "From your pack", ur: "آپ کے پیک سے" },
   packProblem: { en: "Your pack can't be used for this booking. Check it in Account → Packs, or book without it.", ur: "یہ پیک اس بکنگ پر استعمال نہیں ہو سکتا۔ اکاؤنٹ → پیکس میں دیکھیں، یا اس کے بغیر بک کریں۔" },
+  // Receipts and sales tax
+  taxAdded: { en: "Sindh sales tax ({{rate}}%)", ur: "سندھ سیلز ٹیکس ({{rate}}%)" },
+  taxIncluded: { en: "Includes Sindh sales tax ({{rate}}%): {{amount}}", ur: "اس میں سندھ سیلز ٹیکس ({{rate}}%) شامل ہے: {{amount}}" },
+  receipt: { en: "Receipt {{no}}", ur: "رسید {{no}}" },
 } satisfies Table
 
 export type CustomerStrings = { [K in keyof typeof S]: string }

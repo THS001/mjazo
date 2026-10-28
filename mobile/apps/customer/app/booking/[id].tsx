@@ -1,4 +1,4 @@
-import { ApiError, Button, Card, Chip, color, errorText, Field, fill, formatAmount, formatDay, formatPKR, formatTime, formatWhen, Line, Loading, Notice, request, Row, Screen, Sheet, space, Txt, useLang, whatsappLink, windowLabel, type CustomerBooking, type Slots } from "@mjazo/shared"
+import { ApiError, Button, Card, Chip, color, errorText, Field, fill, formatAmount, formatDay, formatPKR, formatTime, formatWhen, Line, Loading, Notice, request, Row, Screen, Sheet, space, taxPct, Txt, useLang, whatsappLink, windowLabel, type CustomerBooking, type Slots } from "@mjazo/shared"
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router"
 import { Star } from "lucide-react-native"
 import { useCallback, useEffect, useState } from "react"
@@ -80,6 +80,7 @@ export default function BookingScreen() {
           <Line key={n} label={`${i.name}${i.qty > 1 ? ` ×${i.qty}` : ""}${[...i.options, ...i.addOns].length ? ` (${[...i.options, ...i.addOns].join(", ")})` : ""}`} value={i.unitPrice > 0 ? formatPKR(i.unitPrice * i.qty) : t.onRequest} />
         ))}
         {b.discount > 0 && <Line label={t.discount} value={`− ${formatPKR(b.discount)}`} />}
+        {b.tax && !b.tax.inclusive && <Line label={fill(t.taxAdded, { rate: taxPct(b.tax.rate) })} value={formatPKR(b.tax.amount)} />}
         {b.pack && <Line label={`${t.packPaid} (${b.pack.name})`} value={`− ${formatPKR(b.pack.paid)}`} />}
         {b.credit > 0 && <Line label={t.creditUsed} value={`− ${formatPKR(b.credit)}`} />}
         <Line label={t.payAfter} value={b.credit > 0 || b.pack ? formatAmount(b.due) : formatPKR(b.due)} strong />
@@ -99,6 +100,7 @@ export default function BookingScreen() {
       )}
 
       {b.status === "completed" && (b.rating ? <Txt v="muted">{fill(t.yourRating, { stars: b.rating.stars })}</Txt> : account.state === "in" && account.me.customer.phone ? <RateCard id={b.id} phone={account.me.customer.phone} onDone={load} /> : null)}
+      {b.receipt?.url && <Button title={fill(t.receipt, { no: b.receipt.number })} variant="light" onPress={() => void Linking.openURL(b.receipt!.url!)} />}
       {b.rebookWith && <Button title={fill(t.bookAgainWith, { name: b.rebookWith.firstName })} variant="brand" onPress={() => again(true)} />}
       {!b.rebookWith && ["completed", "cancelled"].includes(b.status) && <Button title={t.bookAgain} variant="light" onPress={() => again(false)} />}
 

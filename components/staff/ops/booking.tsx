@@ -5,6 +5,8 @@ import { motion } from "framer-motion"
 import { ArrowLeft, MapPin, MessageCircle, Phone, X } from "lucide-react"
 import { useCatalog } from "@/components/cms/provider"
 import { eligible, unavailableReason } from "@/lib/ops/logic"
+import { taxPct } from "@/lib/ops/policy"
+import { receiptPath } from "@/lib/receipts"
 import type { Job, Pro } from "@/lib/ops/types"
 import { WINDOW_LABELS } from "@/lib/time"
 import { cn } from "@/lib/utils"
@@ -26,6 +28,7 @@ type Detail = {
   requests: MoneyRequest[]
   customer: { id: string; owes: number; credit: number; visits: number } | null
   offer: OpsOffer | null
+  receipt?: { number: string; url: string | null } | null
   pros?: OpsPro[]
 }
 
@@ -34,7 +37,7 @@ const ACCOUNT = (a: string) => {
   const [scope, , what] = a.split(":")
   if (scope === "cust") return what === "ar" ? "Customer owes" : "Customer credit"
   if (scope === "pro") return what === "cash" ? "Cash with the pro" : "Owed to the pro"
-  return { "mjazo:bank": "Mjazo bank", "mjazo:commission": "Commission", "mjazo:discounts": "Discounts", "mjazo:goodwill": "Goodwill", "mjazo:refunds": "Refunds", "mjazo:packs": "Packs not yet used" }[a] ?? a
+  return { "mjazo:bank": "Mjazo bank", "mjazo:commission": "Commission", "mjazo:discounts": "Discounts", "mjazo:goodwill": "Goodwill", "mjazo:refunds": "Refunds", "mjazo:packs": "Packs not yet used", "mjazo:salestax": "Sales tax owed (SRB)" }[a] ?? a
 }
 const day = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
 const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Karachi" })
@@ -224,7 +227,9 @@ function Body({ d, pros, act, refresh }: { d: Detail; pros: OpsPro[]; act: Act; 
         <div className="mt-3 pt-3 border-t border-black/[0.06] text-sm space-y-1">
           <Row k="Subtotal" v={pkr(subtotal)} />
           {!!d.money?.discount && <Row k={`Discount${discountWhy ? ` (${discountWhy})` : ""}`} v={`− ${pkr(d.money.discount)}`} />}
+          {j.tax && !j.tax.inclusive && <Row k={`Sales tax added (${taxPct(j.tax.rate)}%)`} v={pkr(j.tax.amount)} />}
           <Row k="Total" v={pkr(j.total)} strong />
+          {j.tax?.inclusive && <Row k={`Sales tax inside the price (${taxPct(j.tax.rate)}%${j.tax.base === "commission" ? ", on Mjazo's share" : ""})`} v={pkr(j.tax.amount)} />}
           {!!j.credit && <Row k="From their Mjazo credit" v={`− ${pkr(j.credit)}`} />}
           {j.pack && <Row k={`From their pack (${j.pack.name})`} v={`− ${pkr(j.pack.paid)}`} />}
           {(!!j.credit || j.pack) && <Row k="The pro collects" v={pkr(j.total - (j.credit ?? 0) - (j.pack?.paid ?? 0))} />}
@@ -246,6 +251,18 @@ function Body({ d, pros, act, refresh }: { d: Detail; pros: OpsPro[]; act: Act; 
           <p className="text-sm mt-1 text-zinc-600">
             In the books: paid {pkr(d.money.paid)}
             {d.money.refunded > 0 && `, refunded ${pkr(d.money.refunded)}`}
+          </p>
+        )}
+        {d.receipt && (
+          <p className="text-sm mt-1">
+            Receipt{" "}
+            {d.receipt.url ? (
+              <a href={receiptPath(d.receipt.url)} target="_blank" rel="noopener" className="underline underline-offset-4">
+                {d.receipt.number}
+              </a>
+            ) : (
+              d.receipt.number
+            )}
           </p>
         )}
         {d.ledger.length > 0 && (

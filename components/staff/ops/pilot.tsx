@@ -206,7 +206,7 @@ function Inputs({ r, onSaved }: { r: Report; onSaved: () => void }) {
         )}
       </Section>
 
-      <Section title="Start date and sales tax" hint="Until the written tax opinion is in, try the cases: 8% for beauty services, 15% standard, inside the price or on top, on the whole booking or only Mjazo's share.">
+      <Section title="Start date and sales tax" hint="Until the written tax opinion is in, try the cases: 8% for beauty services, 15% standard, inside the price or on top, on the whole booking or only Mjazo's share. Once Money → Policies charges sales tax, the visits that carry it count what they really paid.">
         <div className="rounded-3xl bg-white border border-black/[0.06] p-5 space-y-3">
           <div className="grid sm:grid-cols-2 gap-3">
             <label className="text-xs text-zinc-500 space-y-1">

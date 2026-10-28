@@ -68,6 +68,10 @@ export type CustomerBooking = {
   /** A visit of their prepaid pack: the pack pays this much of the total. */
   pack: { name: string; paid: number } | null
   due: number
+  /** Sindh sales tax: inside the price, or added on top (then the total includes it). */
+  tax?: { amount: number; rate: number; inclusive: boolean } | null
+  /** A finished visit's receipt, with its link (it opens without signing in). */
+  receipt?: { number: string; url: string | null } | null
   payment: string
   pro: { firstName: string } | null
   askedFor: { id: string; firstName: string } | null

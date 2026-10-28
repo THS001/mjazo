@@ -18,8 +18,11 @@ import type { Db } from "./db"
 //   mjazo:plus          revenue    Mjazo Plus membership fees
 //   mjazo:giftcards     liability  gift cards sold and not yet turned into credit
 //   mjazo:referrals     expense    credit given to customers for a friend's first visit
+//   mjazo:packs         liability  packs paid for and not yet used
+//   mjazo:salestax      liability  Sindh sales tax charged and owed to the SRB
 //
-// Pros earn on the full price: a discount comes out of Mjazo's share, never hers.
+// Pros earn on the full price: a discount, or sales tax inside the price, comes out of Mjazo's
+// share, never hers.
 
 export const ACC = {
   custAr: (id: string) => `cust:${id}:ar`,
@@ -35,6 +38,7 @@ export const ACC = {
   giftCards: "mjazo:giftcards",
   referrals: "mjazo:referrals",
   packs: "mjazo:packs",
+  salesTax: "mjazo:salestax",
 } as const
 
 type Kind = "asset" | "liability" | "revenue" | "expense"
@@ -56,6 +60,7 @@ export function accountInfo(id: string): { kind: Kind; ownerType: "pro" | "custo
     giftcards: ["liability", "Gift cards not yet used"],
     referrals: ["expense", "Referral rewards"],
     packs: ["liability", "Packs not yet used"],
+    salestax: ["liability", "Sales tax owed (SRB)"],
   }
   if (scope === "mjazo" && mjazo[owner]) return { kind: mjazo[owner][0], ownerType: "mjazo", ownerId: null, name: mjazo[owner][1] }
   throw new LedgerError(`Unknown ledger account ${id}`)
@@ -111,9 +116,15 @@ export const balance = async (db: Db, account: string) =>
 /** The pro's share of a price, at her commission rate (Mjazo's share is the rest). */
 export const proShare = (gross: number, commissionRate: number) => Math.round(gross * (1 - commissionRate))
 
-/** A visit is done: the customer owes the total; the pro has earned her share of the full price. */
-export function visitCompleted(db: Db, v: { bookingId: string; customerId: string; proId: string; subtotal: number; discount: number; total: number; commissionRate: number; actor?: string }) {
-  if (v.total !== v.subtotal - v.discount) throw new LedgerError("Total must be the subtotal less the discount")
+/**
+ * A visit is done: the customer owes the total; the pro has earned her share of the full price.
+ * Sales tax (`tax`) is owed to the SRB: inside the price it comes out of Mjazo's share, on top the
+ * customer's total carries it.
+ */
+export function visitCompleted(db: Db, v: { bookingId: string; customerId: string; proId: string; subtotal: number; discount: number; total: number; commissionRate: number; tax?: { amount: number; inclusive: boolean }; memo?: string; actor?: string }) {
+  const tax = v.tax?.amount ?? 0
+  const onTop = v.tax && !v.tax.inclusive ? tax : 0
+  if (v.total !== v.subtotal - v.discount + onTop) throw new LedgerError(onTop ? "Total must be the subtotal less the discount, plus the sales tax" : "Total must be the subtotal less the discount")
   const share = proShare(v.subtotal, v.commissionRate)
   return post(db, {
     kind: "visit_completed",
@@ -122,11 +133,13 @@ export function visitCompleted(db: Db, v: { bookingId: string; customerId: strin
     customerId: v.customerId,
     proId: v.proId,
     actor: v.actor,
+    memo: v.memo,
     postings: [
       { account: ACC.custAr(v.customerId), amount: v.total },
       { account: ACC.discounts, amount: v.discount },
       { account: ACC.proPayable(v.proId), amount: -share },
-      { account: ACC.commission, amount: -(v.subtotal - share) },
+      { account: ACC.commission, amount: -(v.subtotal - share - (tax - onTop)) },
+      { account: ACC.salesTax, amount: -tax },
     ],
   })
 }

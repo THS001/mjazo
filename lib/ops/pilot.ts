@@ -61,10 +61,10 @@ export function spendIn(months: PilotSettings["months"], from: string, to: strin
   return { total: Math.round(total), missing }
 }
 
-/** Mjazo's margin on a visit without a ledger entry: the total less the pro's share of the full price. */
+/** Mjazo's margin on a visit without a ledger entry: the total (less tax added on top) less the pro's share of the full price. */
 const fallbackMargin = (j: Job, pros: Map<string, Pro>) => {
   const rate = (j.proId ? pros.get(j.proId)?.commissionRate : undefined) ?? 0.25
-  return j.total - Math.round(subtotalOf(j) * (1 - rate))
+  return j.total - (j.tax && !j.tax.inclusive ? j.tax.amount : 0) - Math.round(subtotalOf(j) * (1 - rate))
 }
 
 export type PilotInput = {
@@ -168,10 +168,14 @@ export function pilotGates({ jobs, pros, today, from, to, settings, margins, ope
   })
 
   // 7. Contribution per visit: Mjazo's net from the ledger, less sales tax (when it's inside the
-  //    price) and the month's transport spend shared over its visits.
+  //    price) and the month's transport spend shared over its visits. A visit that carried real
+  //    sales tax (Money → Policies) counts what it posted: the ledger already took tax inside the
+  //    price out of Mjazo's share, so it's added back to the net here and taken off once, below.
+  //    Other visits are modelled from the pilot's own tax inputs.
   const transport = spendIn(settings.months, from, to, "transport")
-  const net = done.map((j) => margins.get(j.id) ?? fallbackMargin(j, proById))
+  const net = done.map((j) => (margins.has(j.id) ? margins.get(j.id)! + (j.tax?.inclusive ? j.tax.amount : 0) : fallbackMargin(j, proById)))
   const tax = done.map((j, i) => {
+    if (j.tax) return j.tax.inclusive ? j.tax.amount : 0
     if (!settings.taxInclusive || !settings.taxRate) return 0
     const base = settings.taxBase === "total" ? j.total : Math.max(0, net[i])
     return Math.round((base * settings.taxRate) / (1 + settings.taxRate))

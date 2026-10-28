@@ -4,12 +4,15 @@ import type { Catalog } from "@/lib/catalog"
 import type { Job, JobEvent, JobItem, PaymentRecord, Pro, Rating } from "@/lib/ops/types"
 import { karachiNow } from "@/lib/time"
 import { emit } from "./events"
-import { applyCredit, customerBalances, packVisitUsed, settlePayment, visitCompleted, type PayMethod } from "./ledger"
+import { applyCredit, customerBalances, packVisitUsed, proShare, settlePayment, visitCompleted, type PayMethod } from "./ledger"
 import { creditFor } from "./customers"
 import { plusDiscount, referrerOf } from "./growth"
 import { clearLocation } from "./tracking"
 import { packForBooking } from "./packs"
 import { coreId, normalisePhone } from "./phone"
+import { bookingTaxTerms } from "./policy"
+import { ensureReceipt } from "./receipts"
+import { DEFAULT_COMMISSION, taxAmount, totalWithTax } from "@/lib/ops/policy"
 import { priceItems, type ClientItem } from "./pricing"
 import { checkPromo, PromoError } from "./promos"
 
@@ -48,6 +51,10 @@ type BookingRow = {
   credit_used: number | null
   pack_id?: string | null // migration 0013
   pack_paid?: number | null
+  tax?: number | null // migration 0014
+  tax_rate?: number | null
+  tax_inclusive?: boolean | null
+  tax_base?: "total" | "commission" | null
   created_at: string
 }
 type ItemRow = { booking_id: string; position: number; name: string; category: string; service: string; options: string[]; add_ons: string[]; qty: number; unit_price: number }
@@ -111,6 +118,7 @@ async function hydrate(db: Db, rows: BookingRow[]): Promise<Job[]> {
     if (b.lat != null && b.lng != null) Object.assign(job, { lat: b.lat, lng: b.lng })
     if (b.credit_used) job.credit = b.credit_used
     if (b.pack_id) job.pack = { id: b.pack_id, name: packNames.get(b.pack_id) ?? "", paid: b.pack_paid ?? 0 }
+    if (b.tax_rate != null) job.tax = { amount: b.tax ?? 0, rate: b.tax_rate, inclusive: b.tax_inclusive !== false, base: b.tax_base === "commission" ? "commission" : "total" }
     if (b.preferred_pro_id) job.preferredProId = b.preferred_pro_id
     const p = payBy.get(b.id)
     if (p) {
@@ -252,7 +260,10 @@ export async function createBooking(db: Db, b: NewBooking, cat: Catalog, rules: 
     const usePlus = !usePromo && plusOff > 0 && plusOff >= referralOff
     const offer = usePromo ? promo!.discount : usePlus ? plusOff : referralOff
     const discount = offer + (pack?.saving ?? 0)
-    const total = priced.subtotal - discount
+    // Sales tax, when it's on: frozen on the booking; on top of the price, the total carries it.
+    const terms = await bookingTaxTerms(t, rules.now)
+    const tax = terms ? taxAmount(terms, { subtotal: priced.subtotal, discount }) : 0
+    const total = totalWithTax(priced.subtotal, discount, terms, tax)
     const credit = b.useCredit && b.customerId ? Math.min((await creditFor(t, customerId)).available, total - (pack?.paid ?? 0)) : 0
     const preferred = b.preferredProId && (await t.one("select 1 from pros where id = $1 and status = 'active'", [b.preferredProId])) ? b.preferredProId : null
     const pin = b.lat !== undefined && b.lng !== undefined ? [b.lat, b.lng] : [null, null]
@@ -272,6 +283,7 @@ export async function createBooking(db: Db, b: NewBooking, cat: Catalog, rules: 
       await t.query("update customers set referred_by = $2 where id = $1 and referred_by is null", [customerId, referrer])
     }
     if (pack) await t.query("update bookings set pack_id = $2, pack_paid = $3 where id = $1", [b.id, pack.packId, pack.paid])
+    if (terms) await t.query("update bookings set tax = $2, tax_rate = $3, tax_inclusive = $4, tax_base = $5 where id = $1", [b.id, tax, terms.rate, terms.inclusive, terms.base])
     await insertItems(t, b.id, priced.items)
     if (priced.changed || (b.total !== undefined && b.total !== total - credit && b.total !== total)) console.warn(`[core] ${b.id}: browser total ${b.total} replaced by ${total}`)
     await emit(t, "booking.created", { bookingId: b.id, customerId, proId: preferred ?? undefined }, { total, discount, credit, promo: usePromo ? promo!.code : null, packId: pack?.packId ?? null, preferredProId: preferred, channel: b.channel ?? "web" })
@@ -323,6 +335,20 @@ export async function importJobs(db: Db, jobs: Job[]): Promise<number> {
     })
   }
   return added
+}
+
+/**
+ * A booking imported with the prices its customer saw (the catch-up, when its lines can't be
+ * priced any more) gets the sales tax of the day it was made, worked out from its total, so the
+ * ledger's sums hold when it's done. On top, the browser's total carried the tax.
+ */
+export async function taxImported(db: Db, id: string, now: Date) {
+  const terms = await bookingTaxTerms(db, now)
+  const b = terms && (await db.one<{ subtotal: number; total: number }>("select subtotal, total from bookings where id = $1 and tax_rate is null", [id]))
+  if (!terms || !b) return
+  const tax = terms.inclusive ? taxAmount(terms, { subtotal: b.subtotal, discount: Math.max(0, b.subtotal - b.total) }) : b.total - Math.round(b.total / (1 + terms.rate))
+  const discount = Math.max(0, b.subtotal - b.total + (terms.inclusive ? 0 : tax))
+  await db.query("update bookings set tax = $2, tax_rate = $3, tax_inclusive = $4, tax_base = $5, discount = $6 where id = $1", [id, tax, terms.rate, terms.inclusive, terms.base, discount])
 }
 
 // ---------------------------------------------------------------------------
@@ -406,10 +432,19 @@ export async function mutateJob(db: Db, id: string, fn: (job: Job) => void): Pro
     }
     const itemsChanged = !same(after.items, before.items)
     if (itemsChanged || after.total !== before.total) {
-      const subtotal = itemsChanged ? after.items.reduce((s, i) => s + i.unitPrice * i.qty, 0) : after.total + row.discount
-      const total = itemsChanged ? Math.max(0, subtotal - row.discount) : after.total
+      // Sales tax frozen on the booking follows its new price (on top, the total carries it).
+      const terms = before.tax ? { rate: before.tax.rate, inclusive: before.tax.inclusive, base: before.tax.base } : null
+      const onTop = terms && !terms.inclusive ? before.tax!.amount : 0
+      const subtotal = itemsChanged ? after.items.reduce((s, i) => s + i.unitPrice * i.qty, 0) : after.total + row.discount - onTop
+      const tax = terms ? (itemsChanged ? taxAmount(terms, { subtotal, discount: row.discount }) : before.tax!.amount) : 0
+      const total = itemsChanged ? totalWithTax(subtotal, row.discount, terms, tax) : after.total
       vals.push(subtotal, total)
       sets.push(`subtotal = $${vals.length - 1}`, `total = $${vals.length}`)
+      if (terms && tax !== before.tax!.amount) {
+        vals.push(tax)
+        sets.push(`tax = $${vals.length}`)
+        after.tax = { ...before.tax!, amount: tax }
+      }
       after.total = total
     }
     if (sets.length) await t.query(`update bookings set ${sets.join(", ")}, updated_at = now() where id = $1`, vals)
@@ -469,12 +504,24 @@ async function postLedger(db: Db, id: string, before: Job | null, after: Job) {
   }
   if (completedNow) {
     const pro = await db.one<{ commission_rate: number }>("select commission_rate from pros where id = $1", [after.proId])
-    await visitCompleted(db, { bookingId: id, customerId, proId: after.proId, subtotal: b!.subtotal, discount: b!.discount, total: b!.total, commissionRate: pro?.commission_rate ?? 0.25 })
+    const rate = pro?.commission_rate ?? DEFAULT_COMMISSION
+    // Sales tax on Mjazo's share only: now that her share is known, it's worked out on the real one.
+    let tax = after.tax
+    if (tax?.base === "commission") {
+      const amount = taxAmount(tax, { subtotal: b!.subtotal, discount: b!.discount, commission: b!.subtotal - proShare(b!.subtotal, rate) })
+      if (amount !== tax.amount) {
+        await db.query("update bookings set tax = $2 where id = $1", [id, amount])
+        tax = after.tax = { ...tax, amount }
+      }
+    }
+    await visitCompleted(db, { bookingId: id, customerId, proId: after.proId, subtotal: b!.subtotal, discount: b!.discount, total: b!.total, commissionRate: rate, tax })
     // Their pack pays its price a visit; the wallet credit set aside at booking pays part of the
     // rest (as much as is still there).
     if (after.pack?.paid) await packVisitUsed(db, { packId: after.pack.id, bookingId: id, customerId, amount: after.pack.paid })
     const use = Math.min(after.credit ?? 0, (await customerBalances(db, customerId)).credit)
     if (use > 0) await applyCredit(db, { customerId, bookingId: id, amount: use })
+    // The receipt: numbered and frozen with the visit (once migration 0014 has run).
+    await ensureReceipt(db, after, { commission: b!.subtotal - proShare(b!.subtotal, rate) })
   }
   if (payChanged) await settlePayment(db, { bookingId: id, customerId, proId: after.proId, amount: pay?.amount ?? 0, method: pay?.method ?? (after.paymentRecord?.method as PayMethod) ?? "cash" })
 }

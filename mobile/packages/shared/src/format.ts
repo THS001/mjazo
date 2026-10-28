@@ -4,6 +4,16 @@ export const formatPKR = (n: number) => (n <= 0 ? "On request" : `PKR ${Math.rou
 /** An amount of money (what's left to pay can be PKR 0, unlike a price). */
 export const formatAmount = (n: number) => `PKR ${Math.max(0, Math.round(n)).toLocaleString("en-US")}`
 
+/** The sales tax a booking made now carries (from /api/v1/config). */
+export type TaxTerms = { rate: number; inclusive: boolean; base: "total" | "commission" }
+/** The tax on a booking, worked out as the server does (the website's lib/ops/policy.ts). */
+export function salesTax(t: TaxTerms, subtotal: number, discount: number) {
+  const base = t.base === "commission" ? Math.max(0, Math.round(subtotal * 0.25) - discount) : Math.max(0, subtotal - discount)
+  return Math.round(t.inclusive ? (base * t.rate) / (1 + t.rate) : base * t.rate)
+}
+/** 0.08 → "8", 0.0725 → "7.25" */
+export const taxPct = (rate: number) => String(Math.round(rate * 10000) / 100)
+
 const TZ = "Asia/Karachi"
 
 /** Today in Karachi (YYYY-MM-DD) and the hour (with minutes as a fraction). */

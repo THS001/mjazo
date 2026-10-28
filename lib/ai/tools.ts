@@ -5,6 +5,9 @@ import { getCatalog, getSettings } from "@/lib/cms/read"
 import { karachiNow, nextDays, windowAvailable, WINDOW_LABELS } from "@/lib/time"
 import { PK_PHONE, ValidationError } from "@/lib/server/store"
 import { placeBooking } from "@/lib/server/bookings-core"
+import { core } from "@/lib/core/db"
+import { bookingTaxTerms } from "@/lib/core/policy"
+import { taxAmount, taxPct, totalWithTax } from "@/lib/ops/policy"
 
 // Tools the Concierge can call. Every price, slot and policy comes from here (the catalogue and
 // the rulebook), never from the model. Results go back to the model as JSON; `ui` carries things
@@ -131,6 +134,16 @@ function priceItems(items: ItemInput[], { getService }: Catalog) {
   return { priced, problems, total }
 }
 
+/** Sindh sales tax on a price, when Mjazo charges it (the booking works it out again with any discount). */
+async function salesTax(price: number) {
+  const db = await core().catch(() => null)
+  const terms = db ? await bookingTaxTerms(db).catch(() => null) : null
+  const tax = terms ? taxAmount(terms, { subtotal: price, discount: 0 }) : 0
+  // Like checkout, say so only when it's on the whole price (on Mjazo's share it's inside its fee).
+  const note = terms?.base === "total" && tax > 0 ? `${terms.inclusive ? "Includes" : "Plus"} Sindh sales tax ${taxPct(terms.rate)}% (${formatPKR(tax)})${terms.inclusive ? "" : ", already in the total"}` : null
+  return { total: totalWithTax(price, 0, terms, tax), note }
+}
+
 const card = (c: NonNullable<ReturnType<Catalog["getService"]>>): CardData => ({
   category: c.category.slug,
   service: c.service.slug,
@@ -211,7 +224,8 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
       const items = (input.items as ItemInput[]) ?? []
       const { priced, problems, total } = priceItems(items, cat)
       const lines = priced.map((p) => ({ name: p.service.name, options: p.options, addOns: p.addOns.map((a) => a.name), people: p.qty, each: formatPKR(p.unitPrice), subtotal: formatPKR(p.unitPrice * p.qty) }))
-      const result = { lines, total: formatPKR(total), meetsMinimum: total >= MIN_ORDER, minimum: formatPKR(MIN_ORDER), problems }
+      const tax = await salesTax(total)
+      const result = { lines, total: formatPKR(tax.total), ...(tax.note ? { salesTax: tax.note } : {}), meetsMinimum: total >= MIN_ORDER, minimum: formatPKR(MIN_ORDER), problems }
       // WhatsApp has no cart; the website and the app add the items to theirs.
       if (name === "quote" || ctx.channel === "whatsapp" || problems.length) return { result }
       return {
@@ -251,13 +265,16 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
         payment: String(input.payment) as "cash",
         notes: [input.notes ? String(input.notes) : "", "Booked via Mjazo Concierge (AI)"].filter(Boolean).join(" · "),
         items: priced.map((p) => ({ name: p.service.name, category: p.category.slug, service: p.service.slug, options: p.options, addOns: p.addOns.map((a) => a.name), qty: p.qty, unitPrice: p.unitPrice })),
-        total,
+        total: (await salesTax(total)).total,
         channel: ({ web: "concierge-web", whatsapp: "concierge-whatsapp", app: "concierge-app" } as const)[ctx.channel],
       }
       try {
-        const { id } = await placeBooking(data, ctx.attribution ?? {}, "concierge")
+        // The server prices the booking (discounts, sales tax): tell the customer what it charges.
+        const placed = await placeBooking(data, ctx.attribution ?? {}, "concierge")
+        const id = placed.id
+        data.total = placed.total ?? data.total
         return {
-          result: { booked: true, id, total: formatPKR(total), next: "Tell the customer the booking reference, that the team confirms on WhatsApp, and that they pay after the service." },
+          result: { booked: true, id, total: formatPKR(data.total), next: "Tell the customer the booking reference, that the team confirms on WhatsApp, and that they pay after the service." },
           ui: [{ type: "booking", booking: { id, ...data, areaName: area!.name, cartItems: priced.map((p) => ({ category: p.category.slug, categoryName: p.category.name, service: p.service.slug, name: p.service.name, options: p.options, addOns: p.addOns, unitPrice: p.unitPrice, duration: p.service.duration, qty: p.qty })) } }],
         }
       } catch (e) {

@@ -4,6 +4,7 @@ import { createClient, type Session, type SupabaseClient } from "@supabase/supab
 import * as Linking from "expo-linking"
 import { AppState, Platform } from "react-native"
 import { request } from "./api"
+import type { TaxTerms } from "./format"
 
 // Email sign-in (Supabase), the same accounts as the website (phone sign-in with a code needs none
 // of this: it's a token from /api/v1/customer/phone/session). The emailed link opens the app
@@ -14,7 +15,7 @@ import { request } from "./api"
 
 /** How sign-in codes can go to a phone number (null: phone sign-in is off on the server). */
 export type PhoneChannels = { whatsapp: boolean; sms: boolean; test: boolean } | null
-export type AppConfig = { emailSignIn: boolean; phoneSignIn?: PhoneChannels; supabase: { url: string; anonKey: string } | null; contact: { phone: string; whatsapp: string; email: string } | null }
+export type AppConfig = { emailSignIn: boolean; phoneSignIn?: PhoneChannels; supabase: { url: string; anonKey: string } | null; contact: { phone: string; whatsapp: string; email: string } | null; tax?: TaxTerms | null }
 
 let client: SupabaseClient | null = null
 let config: Promise<AppConfig> | null = null
