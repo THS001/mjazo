@@ -216,6 +216,18 @@ describe("a visit from offer to earnings", () => {
     expect(e.statement.map((l) => l.kind).sort()).toEqual(["payment", "visit_completed"])
     // A note for next time, saved on her visit.
     expect((await call(R.job.POST!, { token: t, id: mine, body: { action: "note", note: "Gate code 4411" } })).status).toBe(200)
+    // A finished visit shows what the ledger paid her, even after her rate changes; the ledger's
+    // staff memo stays off her statement.
+    const paid = e.balances.owed
+    await db.query("update pros set commission_rate = 0.1 where id = 'P-SANA'")
+    try {
+      const after = (await (await call(R.jobs.GET!, { token: t, query: "?days=7" })).json()) as { days: { visits: { id: string; earn: number; regular: unknown }[] }[] }
+      expect(after.days.flatMap((d) => d.visits).find((v) => v.id === mine)).toMatchObject({ earn: paid, regular: null })
+      const lines = ((await (await call(R.earnings.GET!, { token: t })).json()) as { statement: { kind: string; memo: string | null }[] }).statement
+      expect(lines.find((l) => l.kind === "visit_completed")?.memo).toBeNull()
+    } finally {
+      await db.query("update pros set commission_rate = 0.25 where id = 'P-SANA'")
+    }
   })
 
   it("shows her ratings without the customer's name", async () => {

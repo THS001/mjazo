@@ -2,18 +2,18 @@ import "server-only"
 import type { Db } from "./db"
 import { writeAudit } from "./audit"
 import { InputError } from "./errors"
-import { DEFAULT_TAX, taxProblems, taxTermsOn, type TaxPolicy, type TaxTerms } from "@/lib/ops/policy"
+import { DEFAULT_PAIR_RATE, DEFAULT_TAX, pairRateProblems, taxProblems, taxTermsOn, type PairRatePolicy, type TaxPolicy, type TaxTerms } from "@/lib/ops/policy"
 import { karachiNow } from "@/lib/time"
 
 // The money policies (lib/ops/policy.ts), one row each in core_meta ("policy:<key>"). Finance or an
 // Owner changes them in mission control → Money → Policies; every change is in the audit log.
 
-type Policies = { tax: TaxPolicy }
+type Policies = { tax: TaxPolicy; pair_rate: PairRatePolicy }
 export type PolicyKey = keyof Policies
 
-const DEFAULTS: { [K in PolicyKey]: Policies[K] } = { tax: DEFAULT_TAX }
-const PROBLEMS: { [K in PolicyKey]: (p: Partial<Policies[K]>) => string[] } = { tax: taxProblems }
-const LABELS: Record<PolicyKey, string> = { tax: "sales tax" }
+const DEFAULTS: { [K in PolicyKey]: Policies[K] } = { tax: DEFAULT_TAX, pair_rate: DEFAULT_PAIR_RATE }
+const PROBLEMS: { [K in PolicyKey]: (p: Partial<Policies[K]>) => string[] } = { tax: taxProblems, pair_rate: pairRateProblems }
+const LABELS: Record<PolicyKey, string> = { tax: "sales tax", pair_rate: "regular customer rate" }
 const metaKey = (k: PolicyKey) => `policy:${k}`
 
 export async function policy<K extends PolicyKey>(db: Db, key: K): Promise<Policies[K]> {

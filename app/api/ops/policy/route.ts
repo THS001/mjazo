@@ -12,7 +12,7 @@ import { requireStaff } from "@/lib/server/staff"
 
 async function overview() {
   const db = await requireCore()
-  return { ready: await receiptsReady(db), tax: await policy(db, "tax"), taxMonths: await taxMonths(db) }
+  return { ready: await receiptsReady(db), tax: await policy(db, "tax"), taxMonths: await taxMonths(db), pairRate: await policy(db, "pair_rate") }
 }
 
 /** A CSV cell. Text that a spreadsheet would run as a formula (a name starting with =, +, - or @) is kept as text. */
@@ -48,6 +48,13 @@ const body = z.discriminatedUnion("action", [
     base: z.enum(["total", "commission"]).optional(),
     registration: z.string().max(60).optional(),
   }),
+  z.object({
+    action: z.literal("pair_rate"),
+    on: z.boolean().optional(),
+    rate: z.number().min(0).max(0.5).optional(),
+    fromVisit: z.number().int().min(2).max(20).optional(),
+    days: z.number().int().min(30).max(730).optional(),
+  }),
 ])
 
 export async function POST(req: Request) {
@@ -55,8 +62,13 @@ export async function POST(req: Request) {
     const me = await requireStaff("ops.money")
     const b = body.parse(await readJson(req))
     const db = await requireCore()
-    const { action, ...patch } = b
-    if (action === "tax") await savePolicy(db, "tax", { ...patch, from: patch.from === "" ? null : patch.from, registration: patch.registration?.trim() }, me.email)
+    if (b.action === "tax") {
+      const { action: _, ...patch } = b
+      await savePolicy(db, "tax", { ...patch, from: patch.from === "" ? null : patch.from, registration: patch.registration?.trim() }, me.email)
+    } else {
+      const { action: _, ...patch } = b
+      await savePolicy(db, "pair_rate", patch, me.email)
+    }
     return overview()
   })
 }

@@ -131,6 +131,8 @@ export type Visit = {
   pack: { name: string; paid: number } | null
   due: number
   askedForYou: boolean
+  /** A regular customer of hers: Mjazo takes less, and this is what she keeps. */
+  regular?: { keepPct: number } | null
   earn: number
   payment: string
   notes: string | null
@@ -150,7 +152,7 @@ export type Offer = {
   expiresAt: string
   respondedAt: string | null
   reason: string | null
-  visit: { id: string; date: string; window: string; area: string; subArea: string | null; services: { name: string; options: string[]; addOns: string[]; qty: number }[]; minutes: number; earn: number; payment: string; hasBrief: boolean; askedForYou: boolean }
+  visit: { id: string; date: string; window: string; area: string; subArea: string | null; services: { name: string; options: string[]; addOns: string[]; qty: number }[]; minutes: number; earn: number; payment: string; hasBrief: boolean; askedForYou: boolean; regular?: { keepPct: number } | null }
 }
 export type StatementLine = { entryId: number; at: string; kind: string; bookingId: string | null; memo: string | null; cash: number; earned: number }
 export type Payout = { id: string; periodStart: string; periodEnd: string; earned: number; cashHeld: number; netted: number; amount: number; status: "draft" | "approved" | "paid" | "cancelled"; reference: string | null; paidAt: string | null }

@@ -11,6 +11,7 @@ import { clearLocation } from "./tracking"
 import { packForBooking } from "./packs"
 import { coreId, normalisePhone } from "./phone"
 import { bookingTaxTerms } from "./policy"
+import { pairRates } from "./pairs"
 import { ensureReceipt } from "./receipts"
 import { DEFAULT_COMMISSION, taxAmount, totalWithTax } from "@/lib/ops/policy"
 import { priceItems, type ClientItem } from "./pricing"
@@ -504,7 +505,9 @@ async function postLedger(db: Db, id: string, before: Job | null, after: Job) {
   }
   if (completedNow) {
     const pro = await db.one<{ commission_rate: number }>("select commission_rate from pros where id = $1", [after.proId])
-    const rate = pro?.commission_rate ?? DEFAULT_COMMISSION
+    // Her usual share, or the lower one for a regular customer of hers (policy "pair_rate").
+    const pair = (await pairRates(db, [{ bookingId: id, proId: after.proId, proRate: pro?.commission_rate ?? DEFAULT_COMMISSION }])).get(id)!
+    const rate = pair.rate
     // Sales tax on Mjazo's share only: now that her share is known, it's worked out on the real one.
     let tax = after.tax
     if (tax?.base === "commission") {
@@ -514,7 +517,8 @@ async function postLedger(db: Db, id: string, before: Job | null, after: Job) {
         tax = after.tax = { ...tax, amount }
       }
     }
-    await visitCompleted(db, { bookingId: id, customerId, proId: after.proId, subtotal: b!.subtotal, discount: b!.discount, total: b!.total, commissionRate: rate, tax })
+    const memo = pair.regular ? `Regular customer: Mjazo's share ${Math.round(rate * 10000) / 100}%` : undefined
+    await visitCompleted(db, { bookingId: id, customerId, proId: after.proId, subtotal: b!.subtotal, discount: b!.discount, total: b!.total, commissionRate: rate, tax, memo })
     // Their pack pays its price a visit; the wallet credit set aside at booking pays part of the
     // rest (as much as is still there).
     if (after.pack?.paid) await packVisitUsed(db, { packId: after.pack.id, bookingId: id, customerId, amount: after.pack.paid })

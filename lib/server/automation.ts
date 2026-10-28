@@ -10,6 +10,7 @@ import { InputError } from "@/lib/core/errors"
 import { rewardReferral } from "@/lib/core/growth"
 import { draftPayoutRun } from "@/lib/core/money"
 import { listOffers, offerJob } from "@/lib/core/offers"
+import { pairRates } from "@/lib/core/pairs"
 import { packsDue } from "@/lib/core/packs"
 import { ensureReceipt } from "@/lib/core/receipts"
 import { normalisePhone } from "@/lib/core/phone"
@@ -339,12 +340,14 @@ async function handleEvents(ctx: Ctx) {
         } else if (e.type === "offer.made" && j && e.proId && ctx.rules.proOffer.enabled && age < FRESH.proOffer) {
           const pro = ctx.pros.find((p) => p.id === e.proId)
           const until = typeof e.data.expiresAt === "string" ? new Date(e.data.expiresAt).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Karachi" }) : ""
+          // What she earns, at the regular-customer rate when it applies (as the pro app shows it).
+          const rate = pro && (await pairRates(ctx.db, [{ bookingId: j.id, proId: pro.id, proRate: pro.commissionRate }])).get(j.id)
           if (pro)
             await queue(ctx, {
               rule: "proOffer",
               key: "proOffer",
               lang: "en",
-              vars: { ...bookingVars(j, ctx, "en"), area: ctx.cat.getArea(j.area)?.name ?? j.area, earn: formatPKR(visitEarning(j, pro)), until, link: `${SITE_URL}/pro` },
+              vars: { ...bookingVars(j, ctx, "en"), area: ctx.cat.getArea(j.area)?.name ?? j.area, earn: formatPKR(visitEarning(j, pro, rate || undefined)), until, link: `${SITE_URL}/pro` },
               dedupeKey: `proOffer:${String(e.data.offerId ?? e.id)}`,
               phone: pro.phone,
               bookingId: j.id,

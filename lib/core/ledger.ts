@@ -443,6 +443,19 @@ export async function bookingEntries(db: Db, bookingId: string) {
 }
 
 /** What a pro earned from visits completed since an ISO time, and how many visits that was. */
+/** What a pro was paid for each of these finished visits of hers (her share in their visit_completed entries). */
+export async function visitsEarned(db: Db, proId: string, bookingIds: string[]): Promise<Map<string, number>> {
+  if (!bookingIds.length) return new Map()
+  const rows = await db.query<{ booking_id: string; earned: number }>(
+    `select e.booking_id, (-sum(p.amount))::int as earned
+     from journal_entries e join postings p on p.entry_id = e.id
+     where e.kind = 'visit_completed' and p.account_id = $1 and e.booking_id = any($2::text[])
+     group by e.booking_id`,
+    [ACC.proPayable(proId), bookingIds],
+  )
+  return new Map(rows.map((r) => [r.booking_id, r.earned]))
+}
+
 export async function earnedSince(db: Db, proId: string, since: string) {
   const r = await db.one<{ earned: number; visits: number }>(
     `select (-coalesce(sum(p.amount), 0))::int as earned, count(distinct e.id)::int as visits

@@ -92,6 +92,7 @@ export default function VisitScreen() {
           </Txt>
           {v.askedForYou && <Badge text={t.askedForYou} tone="violet" />}
         </Row>
+        {v.regular && <Badge text={fill(t.regularKeep, { pct: v.regular.keepPct })} tone="green" />}
         <Txt>{place}</Txt>
         <Row wrap>
           <Chip label={`📍 ${t.map}`} onPress={() => void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`)} />

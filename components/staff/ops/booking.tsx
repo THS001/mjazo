@@ -5,7 +5,7 @@ import { motion } from "framer-motion"
 import { ArrowLeft, MapPin, MessageCircle, Phone, X } from "lucide-react"
 import { useCatalog } from "@/components/cms/provider"
 import { eligible, unavailableReason } from "@/lib/ops/logic"
-import { taxPct } from "@/lib/ops/policy"
+import { keepPct, taxPct } from "@/lib/ops/policy"
 import { receiptPath } from "@/lib/receipts"
 import type { Job, Pro } from "@/lib/ops/types"
 import { WINDOW_LABELS } from "@/lib/time"
@@ -29,6 +29,7 @@ type Detail = {
   customer: { id: string; owes: number; credit: number; visits: number } | null
   offer: OpsOffer | null
   receipt?: { number: string; url: string | null } | null
+  pairRate?: { rate: number } | null // a regular customer of her pro: Mjazo's lower share
   pros?: OpsPro[]
 }
 
@@ -233,6 +234,7 @@ function Body({ d, pros, act, refresh }: { d: Detail; pros: OpsPro[]; act: Act; 
           {!!j.credit && <Row k="From their Mjazo credit" v={`− ${pkr(j.credit)}`} />}
           {j.pack && <Row k={`From their pack (${j.pack.name})`} v={`− ${pkr(j.pack.paid)}`} />}
           {(!!j.credit || j.pack) && <Row k="The pro collects" v={pkr(j.total - (j.credit ?? 0) - (j.pack?.paid ?? 0))} />}
+          {d.pairRate && <Row k="Regular customer of hers" v={`Mjazo takes ${taxPct(d.pairRate.rate)}%, she keeps ${keepPct(d.pairRate.rate)}%`} />}
           <Row k="Pays by" v={j.payment} />
         </div>
       </Card>

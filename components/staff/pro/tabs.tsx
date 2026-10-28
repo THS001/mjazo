@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { BadgeCheck, Check, Clock, LogOut, MapPin, Phone, Star, X } from "lucide-react"
 import { formatPKR } from "@/lib/catalog"
 import type { Lang } from "@/lib/content"
+import { fill } from "@/lib/cms/format"
 import { cn } from "@/lib/utils"
 import { api, Btn, mapsLink, usePoll } from "../kit"
 import { T } from "./strings"
@@ -138,6 +139,7 @@ export function OffersTab({ lang, onAnswered, toast }: { lang: Lang; onAnswered:
               {v.area}
             </p>
             {v.askedForYou && <p className={cn("mt-2 inline-flex rounded-full bg-black text-[var(--brand)] text-xs font-medium px-2.5 py-1", ur)}>{T.askedForYou[lang]}</p>}
+            {v.regular && <p className={cn("mt-2 ms-1 inline-flex rounded-full bg-emerald-100 text-emerald-900 text-xs font-medium px-2.5 py-1", ur)}>{fill(T.regularKeep[lang], { pct: String(v.regular.keepPct) })}</p>}
             <ul className="mt-3 space-y-0.5 text-[15px]">
               {v.services.map((s, k) => (
                 <li key={k}>

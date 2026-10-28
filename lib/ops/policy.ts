@@ -65,3 +65,34 @@ export const taxPct = (rate: number) => String(Math.round(rate * 10000) / 100)
 
 /** What the customer pays: the price after discounts, plus the tax when it's added on top. */
 export const totalWithTax = (subtotal: number, discount: number, t: TaxTerms | null, tax: number) => Math.max(0, subtotal - discount) + (t && !t.inclusive ? tax : 0)
+
+// ---------------------------------------------------------------------------
+// A lower rate on regular customer–pro pairs
+// ---------------------------------------------------------------------------
+
+/**
+ * From a customer's Nth visit with the same pro (counting the last `days`), Mjazo takes `rate`
+ * instead of her usual share, so she earns more by keeping her regulars on Mjazo than by going
+ * direct (the blueprint analysis, C6). Never more than her own rate.
+ */
+export type PairRatePolicy = { on: boolean; rate: number; fromVisit: number; days: number }
+export const DEFAULT_PAIR_RATE: PairRatePolicy = { on: true, rate: 0.15, fromVisit: 2, days: 180 }
+
+export function pairRateProblems(p: Partial<PairRatePolicy>): string[] {
+  const out: string[] = []
+  if (p.rate !== undefined && !(p.rate >= 0 && p.rate <= 0.5 && Math.abs(Math.round(p.rate * 10000) - p.rate * 10000) < 1e-6)) out.push("Mjazo's share on a regular's visit must be between 0% and 50%")
+  if (p.fromVisit !== undefined && !(Number.isInteger(p.fromVisit) && p.fromVisit >= 2 && p.fromVisit <= 20)) out.push("Start from a visit between the 2nd and the 20th")
+  if (p.days !== undefined && !(Number.isInteger(p.days) && p.days >= 30 && p.days <= 730)) out.push("Count the visits of the last 30 to 730 days")
+  return out
+}
+
+/** Mjazo's share of one visit, and whether the regular-pair rate made it. */
+export type VisitRate = { rate: number; regular: boolean }
+
+/** `prior`: the visits this customer has had with her before this one, within the policy's days. */
+export function visitRate(proRate: number, prior: number, p: PairRatePolicy): VisitRate {
+  return p.on && prior >= p.fromVisit - 1 && p.rate < proRate ? { rate: p.rate, regular: true } : { rate: proRate, regular: false }
+}
+
+/** What the pro keeps, as people say it: a 15% share → 85. */
+export const keepPct = (rate: number) => Math.round((1 - rate) * 10000) / 100

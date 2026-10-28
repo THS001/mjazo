@@ -5,11 +5,13 @@ import { formatPKR } from "@/lib/catalog"
 import { getCatalog } from "@/lib/cms/read"
 import { requireCore } from "@/lib/core/db"
 import { emit } from "@/lib/core/events"
-import { earnedSince, proBalances, proShare, proStatement } from "@/lib/core/ledger"
+import { earnedSince, proBalances, proShare, proStatement, visitsEarned } from "@/lib/core/ledger"
+import { pairRates } from "@/lib/core/pairs"
 import { proPayouts, proRatings } from "@/lib/core/pro-history"
 import { setProProfile, type ProProfilePatch } from "@/lib/core/pros"
 import { saveLocation } from "@/lib/core/tracking"
 import { jobMinutes, windowIndex } from "@/lib/ops/logic"
+import { DEFAULT_COMMISSION, keepPct, type VisitRate } from "@/lib/ops/policy"
 import { isVerified, type Job, type PaymentRecord, type Pro } from "@/lib/ops/types"
 import { karachiNow, WINDOW_LABELS } from "@/lib/time"
 import { audit } from "./audit"
@@ -28,8 +30,25 @@ const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00
 const byRoute = (a: Job, b: Job) => a.date.localeCompare(b.date) || (a.routeOrder ?? 99) - (b.routeOrder ?? 99) || windowIndex(a.window) - windowIndex(b.window)
 const areaName = (cat: Cat, slug: string) => cat.getArea(slug)?.name ?? slug
 
-/** What she earns for a visit: her share of the full price (Mjazo funds any discount). */
-export const visitEarning = (j: Job, pro: Pro) => proShare(j.items.reduce((s, i) => s + i.unitPrice * i.qty, 0), pro.commissionRate ?? 0.25)
+/** What she earns for a visit: her share of the full price (Mjazo funds any discount), at the regular-customer rate when it applies. */
+export const visitEarning = (j: Job, pro: Pro, rate?: VisitRate) => proShare(j.items.reduce((s, i) => s + i.unitPrice * i.qty, 0), rate?.rate ?? pro.commissionRate ?? DEFAULT_COMMISSION)
+
+/** The regular-customer badge: what she keeps of this visit (null: her usual share). */
+const regularOf = (rate?: VisitRate) => (rate?.regular ? { keepPct: keepPct(rate.rate) } : null)
+
+type Earning = { earn: number; regular: { keepPct: number } | null }
+
+/**
+ * What she earns on each of these visits of hers, with the regular-customer badge: for a visit
+ * that's done, what the ledger paid her; for the rest, her share at the rate it would be done at
+ * now (lib/core/pairs.ts).
+ */
+async function earningsFor(pro: Pro, jobs: Job[]): Promise<Map<string, Earning>> {
+  const db = await requireCore()
+  const paid = await visitsEarned(db, pro.id, jobs.filter((j) => j.status === "completed").map((j) => j.id))
+  const rates = await pairRates(db, jobs.filter((j) => !paid.has(j.id)).map((j) => ({ bookingId: j.id, proId: pro.id, proRate: pro.commissionRate })))
+  return new Map(jobs.map((j): [string, Earning] => [j.id, paid.has(j.id) ? { earn: paid.get(j.id)!, regular: null } : { earn: visitEarning(j, pro, rates.get(j.id)), regular: regularOf(rates.get(j.id)) }]))
+}
 
 const services = (j: Job) => j.items.map((i) => ({ name: i.name, options: i.options, addOns: i.addOns, qty: i.qty }))
 
@@ -38,7 +57,7 @@ const services = (j: Job) => j.items.map((i) => ({ name: i.name, options: i.opti
 // ---------------------------------------------------------------------------
 
 /** One of her visits, everything she needs on the day. */
-function visitView(j: Job & { safety: { level: string; message: string } }, pro: Pro, cat: Cat, history: Job[], photos: string[]) {
+function visitView(j: Job & { safety: { level: string; message: string } }, pro: Pro, cat: Cat, history: Job[], photos: string[], earning?: Earning) {
   return {
     id: j.id,
     date: j.date,
@@ -57,7 +76,9 @@ function visitView(j: Job & { safety: { level: string; message: string } }, pro:
     pack: j.pack ? { name: j.pack.name, paid: j.pack.paid } : null,
     due: j.total - (j.credit ?? 0) - (j.pack?.paid ?? 0),
     askedForYou: j.preferredProId === pro.id,
-    earn: visitEarning(j, pro),
+    // A regular customer of hers: Mjazo takes less, and she sees what she keeps.
+    regular: earning?.regular ?? null,
+    earn: earning?.earn ?? visitEarning(j, pro),
     payment: j.payment,
     notes: j.notes ?? null,
     minutes: jobMinutes(j, cat),
@@ -96,7 +117,8 @@ export async function proSchedule(pro: Pro, days = 7) {
         if (a) photos.set(j.id, a.photos)
       }),
   )
-  const views = swept.map((j) => visitView(j, pro, cat, jobs, photos.get(j.id) ?? []))
+  const earnings = await earningsFor(pro, swept)
+  const views = swept.map((j) => visitView(j, pro, cat, jobs, photos.get(j.id) ?? [], earnings.get(j.id)))
   const db = await requireCore()
   const weekAgo = addDays(today, -6)
   const [week, open] = await Promise.all([earnedSince(db, pro.id, `${weekAgo}T00:00:00+05:00`), listOffers({ proId: pro.id, status: "pending" })])
@@ -199,6 +221,7 @@ export async function proOffers(pro: Pro) {
   const cat = await getCatalog()
   const list = await listOffers({ proId: pro.id, since: new Date(Date.now() - 7 * 86400000).toISOString(), limit: 30 })
   const jobs = await Promise.all(list.map((o) => getJob(o.bookingId)))
+  const earnings = await earningsFor(pro, jobs.filter((j): j is Job => Boolean(j)))
   const offers = list
     .map((o, i) => {
       const j = jobs[i]
@@ -209,7 +232,7 @@ export async function proOffers(pro: Pro) {
         expiresAt: o.expiresAt,
         respondedAt: o.respondedAt,
         reason: o.reason,
-        visit: j && { id: j.id, date: j.date, window: j.window, area: areaName(cat, j.area), subArea: j.subArea ?? null, services: services(j), minutes: jobMinutes(j, cat), earn: visitEarning(j, pro), payment: j.payment, hasBrief: Boolean(j.brief), askedForYou: j.preferredProId === pro.id },
+        visit: j && { id: j.id, date: j.date, window: j.window, area: areaName(cat, j.area), subArea: j.subArea ?? null, services: services(j), minutes: jobMinutes(j, cat), earn: earnings.get(j.id)!.earn, regular: earnings.get(j.id)!.regular, payment: j.payment, hasBrief: Boolean(j.brief), askedForYou: j.preferredProId === pro.id },
       }
     })
     .filter((o) => o.visit)
@@ -239,8 +262,10 @@ export async function proEarnings(pro: Pro) {
     proStatement(db, pro.id, 60),
     proPayouts(db, pro.id),
   ])
-  // owed > cash: Mjazo pays her the difference; cash > owed: she hands the difference in.
-  return { balances: { owed: bal.payable, cashHeld: bal.cashHeld, net: bal.payable - bal.cashHeld }, week, month, statement, payouts }
+  // owed > cash: Mjazo pays her the difference; cash > owed: she hands the difference in. A
+  // finished visit's memo ("Regular customer: …") is for staff, in English: her statement leaves it out.
+  const lines = statement.map((l) => (l.kind === "visit_completed" ? { ...l, memo: null } : l))
+  return { balances: { owed: bal.payable, cashHeld: bal.cashHeld, net: bal.payable - bal.cashHeld }, week, month, statement: lines, payouts }
 }
 
 export async function proRatingSummary(pro: Pro) {

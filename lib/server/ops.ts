@@ -15,6 +15,7 @@ import * as cpros from "@/lib/core/pros"
 import * as creq from "@/lib/core/requests"
 import { listAudit, type AuditFilter } from "@/lib/core/audit"
 import { ensureReceipt } from "@/lib/core/receipts"
+import { pairRates } from "@/lib/core/pairs"
 import { receiptUrl } from "./receipts"
 import { windowOpen } from "@/lib/core/capacity"
 import { computeKpis } from "@/lib/ops/kpi"
@@ -385,7 +386,11 @@ export async function bookingDetail(id: string) {
   const offer = open ? { id: open.id, jobId: id, proId: open.proId, expiresAt: open.expiresAt } : null
   const r = job.status === "completed" ? await ensureReceipt(db, job) : null
   const receipt = r ? { number: r.number, url: receiptUrl(r) } : null
-  return { job, money: { subtotal: row?.subtotal ?? job.total, discount: row?.discount ?? 0, promo: row?.promo_code ?? null, ...paid }, ledger, requests, customer, offer, receipt }
+  // A regular customer of her pro: Mjazo's lower share (once it's done, the ledger's memo says it).
+  const proRate = job.proId && job.status !== "completed" ? await db.one<{ commission_rate: number }>("select commission_rate from pros where id = $1", [job.proId]) : null
+  const rate = proRate && job.proId ? (await pairRates(db, [{ bookingId: id, proId: job.proId, proRate: proRate.commission_rate }])).get(id) : undefined
+  const pairRate = rate?.regular ? { rate: rate.rate } : null
+  return { job, money: { subtotal: row?.subtotal ?? job.total, discount: row?.discount ?? 0, promo: row?.promo_code ?? null, ...paid }, ledger, requests, customer, offer, receipt, pairRate }
 }
 
 export const addBookingNote = (id: string, note: string, actor: string) => addJobEvent(id, "note", "ops", { note, actor })

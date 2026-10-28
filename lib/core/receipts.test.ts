@@ -45,6 +45,8 @@ beforeAll(async () => {
   await savePro(db, { id: "P-TX", name: "Hina Baloch", phone: "03117770001", area: "dha", skills: ["womens-salon"], women: true, status: "active", createdAt: new Date().toISOString(), commissionRate: 0.25 })
   await savePro(db, { id: "P-TX2", name: "Rabia", phone: "03117770002", area: "dha", skills: ["womens-salon"], women: true, status: "active", createdAt: new Date().toISOString() })
   await db.query("update pros set commission_rate = 0.2 where id = 'P-TX2'") // savePro leaves the rate to mission control
+  // Every visit here is the same customer with the same pro: keep her usual share (lib/core/pairs.test.ts covers the regular rate).
+  await savePolicy(db, "pair_rate", { on: false }, "finance@mjazo.test")
   price = (await book()).total
 }, 60_000)
 afterAll(() => db?.close())

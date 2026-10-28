@@ -116,6 +116,7 @@ function OfferBody({ o, lang }: { o: Offer; lang: string }) {
       <Txt>{fill(t.offerTime, { date: formatDay(o.visit.date, lang), window: windowLabel(o.visit.window, lang), min: o.visit.minutes })}</Txt>
       <Txt v="muted">{o.visit.services.map((s) => `${s.name}${s.qty > 1 ? ` ×${s.qty}` : ""}`).join(", ")}</Txt>
       {o.visit.askedForYou && <Badge text={t.askedForYou} tone="violet" />}
+      {o.visit.regular && <Badge text={fill(t.regularKeep, { pct: o.visit.regular.keepPct })} tone="green" />}
     </>
   )
 }

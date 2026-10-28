@@ -9,6 +9,7 @@ import type { JobBrief } from "@/lib/ops/types"
 import type { proAvailability, proEarnings, proOffers, proProfile, proRatingSummary, proSchedule } from "@/lib/server/pro-api"
 import { locate, shrink } from "@/lib/client/media"
 import { to12h } from "@/lib/shaadi"
+import { fill } from "@/lib/cms/format"
 import { cn } from "@/lib/utils"
 import { api, Btn, mapsLink, useNow } from "../kit"
 import { T } from "./strings"
@@ -51,6 +52,7 @@ export function VisitCard({ visit: j, n, lang, focus, busy, onAct, onPay }: { vi
           </p>
           <p className="text-sm opacity-70 mt-0.5 leading-snug">{place}</p>
           {j.askedForYou && !done && <p className={cn("mt-1.5 inline-flex rounded-full bg-[var(--brand)] text-black text-xs font-medium px-2.5 py-1", ur)}>{T.askedForYou[lang]}</p>}
+          {j.regular && !done && <p className={cn("mt-1.5 ms-1 inline-flex rounded-full bg-emerald-100 text-emerald-900 text-xs font-medium px-2.5 py-1", ur)}>{fill(T.regularKeep[lang], { pct: String(j.regular.keepPct) })}</p>}
         </div>
       </div>
 

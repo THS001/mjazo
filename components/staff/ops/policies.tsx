@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Download } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { taxPct, type TaxPolicy } from "@/lib/ops/policy"
+import { keepPct, taxPct, type PairRatePolicy, type TaxPolicy } from "@/lib/ops/policy"
 import { api, Btn, Empty, pkr } from "../kit"
 import { inputCls } from "./context"
 import { Section } from "./money"
@@ -12,7 +12,7 @@ import { Section } from "./money"
 // sales tax on receipts by month for the SRB return. Every change is in the audit log.
 
 type TaxMonth = { month: string; receipts: number; total: number; taxable: number; tax: number }
-type Overview = { ready: boolean; tax: TaxPolicy; taxMonths: TaxMonth[] }
+type Overview = { ready: boolean; tax: TaxPolicy; taxMonths: TaxMonth[]; pairRate: PairRatePolicy }
 
 const Choice = <T extends string | boolean>({ value, set, options }: { value: T; set: (v: T) => void; options: readonly (readonly [T, string])[] }) => (
   <div className="flex flex-wrap gap-1.5">
@@ -37,6 +37,7 @@ export function Policies() {
       </div>
       {!d.ready && <p className="rounded-2xl bg-amber-50 text-amber-900 px-4 py-3 text-sm">Run the database update (migration 0014) to switch on receipts and sales tax.</p>}
       <TaxCard d={d} onSaved={setD} />
+      <PairRateCard d={d} onSaved={setD} />
     </div>
   )
 }
@@ -136,5 +137,60 @@ function TaxCard({ d, onSaved }: { d: Overview; onSaved: (o: Overview) => void }
         )}
       </Section>
     </div>
+  )
+}
+
+function PairRateCard({ d, onSaved }: { d: Overview; onSaved: (o: Overview) => void }) {
+  const p = d.pairRate
+  const [on, setOn] = useState(p.on)
+  const [rate, setRate] = useState(taxPct(p.rate))
+  const [fromVisit, setFromVisit] = useState(String(p.fromVisit))
+  const [days, setDays] = useState(String(p.days))
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const save = async () => {
+    const pct = Number(rate.replace("%", "").trim())
+    if (!rate.trim() || !Number.isFinite(pct) || pct < 0 || pct > 50) return setMsg({ text: "Enter Mjazo's share from 0 to 50 (%)", ok: false })
+    setBusy(true)
+    setMsg(null)
+    try {
+      onSaved(await api<Overview>("/api/ops/policy", { action: "pair_rate", on, rate: pct / 100, fromVisit: Number(fromVisit), days: Number(days) }))
+      setMsg({ text: "Saved", ok: true })
+    } catch (e) {
+      setMsg({ text: (e as Error).message, ok: false })
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Section title="Regular customers" hint="A lower share for Mjazo when a customer books the same pro again, so she earns more by keeping her regulars on Mjazo than by going direct. Never more than her own rate. Pros see it on the offer and the visit; the ledger posts it when the visit is done.">
+      <div className="rounded-3xl bg-white border border-black/[0.06] p-5 space-y-3 max-w-xl">
+        <p className={cn("text-sm rounded-2xl px-3 py-2", p.on ? "bg-emerald-50 text-emerald-800" : "bg-zinc-50 text-zinc-600")}>
+          {p.on ? `On: from a customer's visit number ${p.fromVisit} with the same pro in ${p.days} days, Mjazo takes ${taxPct(p.rate)}% and she keeps ${keepPct(p.rate)}%.` : "Off: every visit is at the pro's own rate."}
+        </p>
+        <Choice value={on} set={setOn} options={[[true, "On"], [false, "Off"]] as const} />
+        <div className="grid sm:grid-cols-3 gap-3">
+          <label className="text-xs text-zinc-500 space-y-1">
+            <span>Mjazo's share (%)</span>
+            <input inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} className={inputCls} />
+          </label>
+          <label className="text-xs text-zinc-500 space-y-1">
+            <span>From visit number</span>
+            <input inputMode="numeric" value={fromVisit} onChange={(e) => setFromVisit(e.target.value)} className={inputCls} />
+          </label>
+          <label className="text-xs text-zinc-500 space-y-1">
+            <span>Counting the last (days)</span>
+            <input inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} className={inputCls} />
+          </label>
+        </div>
+        <div className="flex items-center gap-3">
+          <Btn busy={busy} onClick={() => void save()}>
+            Save
+          </Btn>
+          {msg && <span className={cn("text-sm", msg.ok ? "text-emerald-700" : "text-red-600")}>{msg.text}</span>}
+        </div>
+        <p className="text-xs text-zinc-400">Applies to visits finished from now on, and to what pros see on their offers and visits.</p>
+      </div>
+    </Section>
   )
 }

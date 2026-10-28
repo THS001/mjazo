@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 29 October 2026 (receipts and sales tax)._
+_Last updated 29 October 2026 (the regular customer rate)._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -43,6 +43,7 @@ accounts, and what's left.
 | **Pilot gates** (mission control → KPIs: the validation sprint's numbers, measured from real visits) | **Live 24 Oct 2026** (section 3i). Next: Finance enters each month's ad and transport spend |
 | **Packs** (prepaid visits: the maintenance plan; website, both apps, mission control, messages) | **Built 24 Oct 2026** (section 3j). To go live: run `--migrate` (0013), then deploy; confirm the placeholder prices (section 8) |
 | **Receipts and sales tax** (a numbered receipt for every visit; Sindh sales tax set in mission control → Money → Policies) | **Built 29 Oct 2026** (section 3k). To go live: run `--migrate` (0013, 0014), then deploy. Sales tax stays off until Finance sets it, once the written tax opinion is in |
+| **The regular customer rate** (Mjazo takes less from a customer's 2nd visit with the same pro) | **Built 29 Oct 2026** (section 3l). No migration: it's live with the next deploy, **on at 15%** (a placeholder, section 8) |
 | **Platform stage 6: the phone apps** (Mjazo and Mjazo Pro, Expo, in `mobile/`) | **Built 21 Oct 2026** (section 3g); its API is **live** (deployed the same day and checked). Next: try both apps on a phone with Expo Go, then store builds with your Expo account |
 
 ---
@@ -64,6 +65,7 @@ accounts, and what's left.
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 | 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
+| 29 Oct 2026 | **The regular customer rate built:** from a customer's 2nd visit with the same pro within 180 days, Mjazo takes 15% instead of her usual share (placeholders, set in Money → Policies), so a pro earns more by keeping her regulars on Mjazo. She sees "Regular customer · you keep 85%" on the offer and the visit (web and Mjazo Pro), and the ledger posts it |
 | 29 Oct 2026 | **Receipts and sales tax built:** every finished visit gets a numbered receipt (MJR-000001…) with what was charged, in the account, the app, mission control and a "Your receipt" message, and its link opens without signing in. Finance sets Sindh sales tax in mission control → Money → Policies (from a day, inside the price or on top, on the whole booking or only Mjazo's share); the ledger owes it to the SRB, and Money shows each month's tax with a CSV for the return |
 | 24 Oct 2026 | **Pilot gates deployed. Packs built:** a few visits of one service or bundle paid upfront for less a visit (the analysis's maintenance plan). Customers ask in their account or the app, Finance activates once paid, "Book your next visit" uses one at checkout, the ledger holds the money until each visit, and a message says when the next visit is due |
 | 23 Oct 2026 | **Pilot gates built:** mission control → KPIs measures the validation sprint's gates from the blueprint analysis (cost per paying customer, second booking within 90 days, visits per pro-day, pros active at day 90, basket, leakage, contribution after transport and sales tax) |
@@ -473,6 +475,34 @@ The blueprint analysis (C7) says to sort out Sindh sales tax before scaling, and
   - The link opened signed out; a wrong key, no key and another receipt's key gave 404. `/ur/receipt/…` read right to left. The CSV downloaded.
   - Switched to on top: the website and app checkouts both showed "Sindh sales tax (8%) PKR 324" and PKR 4,374, the server stored the same, and the app's booking screen read −450, +324, 4,374.
 
+## 3l. The regular customer rate (29 Oct 2026)
+
+The blueprint analysis (C6) names customers and pros going direct as a main risk for a home-services marketplace, and suggests a lower take on repeat pairs so staying on Mjazo pays the pro more. No migration. Code: `lib/ops/policy.ts` (the rule, pure: `visitRate`), `lib/core/pairs.ts` (a pair's earlier visits and each visit's rate), `lib/core/jobs.ts` (completion), `lib/server/pro-api.ts`, mission control → Money → Policies → **Regular customers**.
+
+- **The rule:** from a customer's visit number 2 with the same pro, counting their **finished** visits together in the last 180 days, Mjazo takes **15%** instead of her usual share. It never raises a pro's own lower rate. All three numbers are **placeholders** (section 8), changed in Money → Policies by Finance or an Owner (audited); it can be switched off.
+- **The pro sees it before she accepts:** "Regular customer · you keep 85%" on the offer and the visit, and her "You earn" at that rate, on the web `/pro` and in Mjazo Pro (English, Urdu, Roman Urdu), and in the offer message. Nothing else about the customer shows before she accepts.
+- **The ledger** posts the visit at that rate when it's done, with the memo "Regular customer: Mjazo's share 15%", which mission control's booking page shows; before it's done, the booking page shows "Regular customer of hers: Mjazo takes 15%, she keeps 85%". Sales tax on Mjazo's share and the receipt use the same rate. The pilot gates' margins come from the ledger, so they include it.
+- **Reviewed** by a small review workflow (29 Oct 2026). It found and I fixed:
+  - finished visits in the pro apps being recalculated at today's rate (they now show what the ledger paid her)
+  - a booking offered to her twice counting its earlier visits twice
+  - the ledger's English memo showing on her Urdu statement (it stays for staff only)
+- **Tests:** 483 in total. New:
+  - the rule (pure)
+  - on a real database:
+    - the first visit at her usual 25%, the second at 15%, with the memo
+    - what the pro app promised her equal to what the ledger paid her
+    - another pro or another customer not counting
+    - the 180 days
+    - a pro whose own rate is lower
+    - switching it off, and the audit entry
+  - the permission row
+- **Checked locally (29 Oct 2026):**
+  - Stage5 Check already had a finished visit with Hina. Ops offered Hina Stage5's next booking.
+  - Hina's offer on the web `/pro` and in Mjazo Pro showed "Regular customer · you keep 85%" and PKR 3,825 (85% of 4,500), with no customer details.
+  - After she accepted, mission control's booking page showed Mjazo's 15%.
+  - She finished the visit. The ledger posted her PKR 3,825, Mjazo PKR 675 and the sales tax PKR 324, with the memo.
+  - Money → Policies saved 12% and back to 15%, and refused "abc".
+
 ## 4. Brand kit
 
 Saved in `F:\mjazo\brand\`, outside this repo. A copy of the PDF is in the user's Downloads folder.
@@ -714,6 +744,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
 - **Plus:** PKR 2,500 a year for 10% off.
 - **Packs:** the three packs and their prices a visit (PKR 2,250 for the Quick Refresh, 2,150 for arms and legs wax, 2,150 for an AC service; about 14% off), and that Mjazo, not the pro, funds the saving.
 - **Sales tax** (mission control → Money → Policies): off. It needs the written tax opinion: the rate (8% for beauty services or 15% standard), inside the price or on top, on the whole booking or only Mjazo's share, the start day, and Mjazo's SRB registration number.
+- **The regular customer rate** (mission control → Money → Policies): **on**, Mjazo takes 15% (instead of the pro's usual 25%) from a customer's 2nd visit with the same pro within 180 days.
 - **Referral rewards:** PKR 500 for the friend, PKR 500 for the referrer.
 - **Legal text:** needs a lawyer's review.
 - **Ops:** the pro share (75%) and the protocol manual.
@@ -734,7 +765,8 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
    7. ~~After the platform~~ (Plus, gift cards and referrals; live tracking; phone-number sign-in; the AI tools in the apps): built 21 to 23 October and **deployed 23 October** (migrations 0010–0012 run; section 3h). Still to do: a new Anthropic key (section 7, item 14), then a WhatsApp authentication template or Twilio Verify for phone sign-in (item 13).
    8. **Packs** (section 3j): built 24 October. To do: `--migrate` (0013), deploy, then confirm the prices (section 8 and section 7, item 15).
    9. **Receipts and sales tax** (section 3k): built 29 October. To do: `--migrate` (0014), deploy; set sales tax once the tax opinion is in (section 7, item 16).
-   10. **Still to build** (the plan of 27 October): a lower rate on repeat customer–pro pairs, the favourite-pro guarantee, and pros' weekly minimum.
+   10. **The regular customer rate** (section 3l): built 29 October. No migration; on at 15% with the next deploy: confirm the numbers (section 8).
+   11. **Still to build** (the plan of 27 October): the favourite-pro guarantee and pros' weekly minimum.
 3. **Owner setup:** section 7 (rotate secrets, SMTP, `CRON_SECRET` and pingers, `SESSION_SECRET` for the pro app, staff roles).
 4. **Re-test the live flows** that need Supabase: booking → ops console, apply → interview, complaint → Trust Desk.
 5. **Urdu content:** the AI translation pass, a human review (including the new interface Urdu), then switching on the Urdu site.
@@ -797,5 +829,5 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - Wallet credit is set aside on the booking (`credit_used`) and posted with `applyCredit` when the visit completes (`postLedger` in `lib/core/jobs.ts`). What the pro collects is total − credit.
   - Locally, `/login` offers the test sign-in (`/api/v1/customer/dev-login`); the browser keeps its token in localStorage.
 - **Staff tools locally:** start the `mjazo-web-staff` preview configuration (`.claude/launch.json`). Without Supabase, `/ops` offers "Continue as local …" for any role (`/api/ops/dev-login`, refused in production); pros get PINs from ops.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (476 tests), then `npx next build` (870 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (483 tests), then `npx next build` (870 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
 - **New API routes on the dev server:** a route added while an older `.next/dev` cache exists can answer 404 (the request falls through to the page catch-all). Touch the new `route.ts` and it's picked up.

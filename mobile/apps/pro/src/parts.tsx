@@ -1,4 +1,4 @@
-import { Badge, Button, Card, Chip, color, confirm, currentLocation, errorText, formatPKR, Notice, Row, space, tell, Txt, useLang, windowLabel, type BookingStatus, type Visit } from "@mjazo/shared"
+import { Badge, Button, Card, Chip, color, confirm, currentLocation, errorText, fill, formatPKR, Notice, Row, space, tell, Txt, useLang, windowLabel, type BookingStatus, type Visit } from "@mjazo/shared"
 import { router } from "expo-router"
 import { ShieldAlert } from "lucide-react-native"
 import { useState } from "react"
@@ -45,6 +45,7 @@ export function VisitCard({ v }: { v: Visit }) {
         </Txt>
         {v.askedForYou && <Badge text={t.askedForYou} tone="violet" />}
       </Row>
+      {v.regular && <Badge text={fill(t.regularKeep, { pct: v.regular.keepPct })} tone="green" />}
       {alert && <Notice tone="red" text={v.safety.message || t.safeBody} />}
     </Card>
   )

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { DEFAULT_TAX, taxAmount, taxPct, taxProblems, taxTermsOn, totalWithTax } from "./policy"
+import { DEFAULT_PAIR_RATE, DEFAULT_TAX, keepPct, pairRateProblems, taxAmount, taxPct, taxProblems, taxTermsOn, totalWithTax, visitRate } from "./policy"
 
 // The money policies' pure rules: sales tax terms by day, and the tax inside or on top of the
 // price, on the whole booking or on Mjazo's share.
@@ -43,5 +43,28 @@ describe("sales tax", () => {
     expect(taxPct(0.08)).toBe("8")
     expect(taxPct(0.075)).toBe("7.5")
     expect(taxPct(0.0725)).toBe("7.25")
+  })
+})
+
+describe("the regular customer rate", () => {
+  it("lowers Mjazo's share from the customer's 2nd visit with the same pro, never above her own rate", () => {
+    expect(visitRate(0.25, 0, DEFAULT_PAIR_RATE)).toEqual({ rate: 0.25, regular: false })
+    expect(visitRate(0.25, 1, DEFAULT_PAIR_RATE)).toEqual({ rate: 0.15, regular: true })
+    expect(visitRate(0.25, 7, DEFAULT_PAIR_RATE)).toEqual({ rate: 0.15, regular: true })
+    // Her own rate is already lower: it stays, and it isn't a "regular customer" rate.
+    expect(visitRate(0.1, 3, DEFAULT_PAIR_RATE)).toEqual({ rate: 0.1, regular: false })
+    expect(visitRate(0.25, 3, { ...DEFAULT_PAIR_RATE, on: false })).toEqual({ rate: 0.25, regular: false })
+    expect(visitRate(0.25, 1, { ...DEFAULT_PAIR_RATE, fromVisit: 3 }).regular).toBe(false)
+    expect(visitRate(0.25, 2, { ...DEFAULT_PAIR_RATE, fromVisit: 3 }).regular).toBe(true)
+    expect(keepPct(0.15)).toBe(85)
+    expect(keepPct(0.125)).toBe(87.5)
+  })
+
+  it("refuses values out of range", () => {
+    expect(pairRateProblems(DEFAULT_PAIR_RATE)).toEqual([])
+    expect(pairRateProblems({ rate: 0.6 })).toHaveLength(1)
+    expect(pairRateProblems({ fromVisit: 1 })).toHaveLength(1)
+    expect(pairRateProblems({ fromVisit: 2.5 })).toHaveLength(1)
+    expect(pairRateProblems({ days: 10 })).toHaveLength(1)
   })
 })

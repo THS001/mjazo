@@ -71,6 +71,7 @@ export const T = {
   creditUsed: { en: "paid from their Mjazo credit", ur: "ان کے مجازو کریڈٹ سے ادا", ro: "unke Mjazo credit se ada" },
   packUsed: { en: "paid from their Mjazo pack", ur: "ان کے مجازو پیک سے ادا", ro: "unke Mjazo pack se ada" },
   askedForYou: { en: "The customer asked for you", ur: "کسٹمر نے آپ کو مانگا ہے", ro: "Customer ne aapko manga hai" },
+  regularKeep: { en: "Regular customer · you keep {{pct}}%", ur: "مستقل کسٹمر · آپ کو {{pct}}% ملے گا", ro: "Regular customer · aap ko {{pct}}% milega" },
 
   // Offers
   noOffers: { en: "No offers right now. Visits ops offer you appear here.", ur: "ابھی کوئی آفر نہیں۔ آپریشنز کی بھیجی گئی آفرز یہاں آئیں گی۔", ro: "Abhi koi offer nahi. Ops ki bheji offers yahan aayengi." },
