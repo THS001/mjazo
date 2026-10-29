@@ -1,4 +1,4 @@
-import { Badge, Card, Empty, errorText, fill, formatDay, Line, Loading, Notice, Row, Screen, Txt, useLang, karachiNow, type Earnings as E } from "@mjazo/shared"
+import { Badge, Card, Empty, errorText, fill, formatDay, Line, Loading, Notice, Row, Screen, Txt, useLang, karachiNow, type Earnings as E, type MinimumWeek } from "@mjazo/shared"
 import { useFocusEffect } from "expo-router"
 import { useCallback, useState } from "react"
 import { View } from "react-native"
@@ -56,6 +56,7 @@ export default function Earnings() {
           <Txt v="muted">{fill(t.visitsN, { n: e.month.visits })}</Txt>
         </Card>
       </Row>
+      {e.minimum && <MinimumCard m={e.minimum} />}
 
       <Txt v="h2">{t.payouts}</Txt>
       {!e.payouts.length && <Txt v="muted">{t.noPayouts}</Txt>}
@@ -66,7 +67,7 @@ export default function Earnings() {
             <Badge text={p.status === "paid" ? t.paid : p.status === "approved" ? t.approved : p.status === "draft" ? t.draft : p.status} tone={p.status === "paid" ? "green" : p.status === "approved" ? "sky" : "neutral"} />
           </Row>
           <Line label={p.amount >= 0 ? (p.status === "paid" ? t.paidYou : t.payYou) : p.status === "paid" ? t.handedIn : t.handIn} value={money(p.amount)} strong />
-          <Txt v="muted">{`${t.earnedCol} ${money(p.earned)} · ${t.cashCol} ${money(p.cashHeld)}`}</Txt>
+          <Txt v="muted">{`${t.earnedCol} ${money(p.earned)}${p.topUp ? ` · ${t.minTopUpKind} +${money(p.topUp)}` : ""} · ${t.cashCol} ${money(p.cashHeld)}`}</Txt>
         </Card>
       ))}
 
@@ -78,7 +79,7 @@ export default function Earnings() {
             <View key={s.entryId} style={{ paddingVertical: 4 }}>
               <Row style={{ justifyContent: "space-between" }}>
                 <Txt v="small" style={{ flex: 1 }}>
-                  {`${day(s.at)} · ${s.bookingId ?? s.kind}`}
+                  {`${day(s.at)} · ${s.bookingId ?? (s.kind === "minimum_topup" ? t.minTopUpKind : s.kind)}`}
                 </Txt>
                 <Txt v="small" style={{ fontWeight: "600" }}>
                   {s.earned ? `${s.earned > 0 ? "+" : "−"}${money(s.earned)}` : ""}
@@ -91,5 +92,29 @@ export default function Earnings() {
         </Card>
       )}
     </Screen>
+  )
+}
+
+/** Her week so far against the weekly minimum: each condition, and what Mjazo would add. */
+function MinimumCard({ m }: { m: MinimumWeek }) {
+  const t = useT()
+  const checks = [
+    { ok: m.checks.verified, text: t.minVerified },
+    // Shown only in the week she joined: it counts from her first full week.
+    ...(m.checks.fullWeek === false ? [{ ok: false, text: t.minFullWeek }] : []),
+    ...(m.weeks ? [{ ok: m.checks.firstWeeks, text: fill(t.minFirstWeeks, { weeks: m.weeks }) }] : []),
+    { ok: m.checks.windows, text: fill(t.minWindows, { n: m.windows, min: m.minWindows }) },
+    ...(m.offers.made ? [{ ok: m.checks.offers, text: fill(t.minOffers, { n: m.offers.accepted, made: m.offers.made }) }] : []),
+  ]
+  return (
+    <Card>
+      <Txt v="h3">{t.minTitle}</Txt>
+      <Txt v="muted">{fill(t.minBody, { amount: money(m.amount), windows: m.minWindows, pct: Math.round(m.minAcceptance * 100) })}</Txt>
+      <Txt>{fill(t.minEarned, { amount: money(m.earned) })}</Txt>
+      {checks.map((c) => (
+        <Txt key={c.text} v="small">{`${c.ok ? "✓" : "•"} ${c.text}`}</Txt>
+      ))}
+      {m.eligible && <Notice tone={m.topUp > 0 ? "brand" : "green"} text={m.topUp > 0 ? fill(t.minTopUp, { amount: money(m.topUp) }) : t.minReached} />}
+    </Card>
   )
 }

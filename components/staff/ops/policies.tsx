@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { keepPct, taxPct, type GuaranteePolicy, type PairRatePolicy, type TaxPolicy } from "@/lib/ops/policy"
+import type { MinimumPolicy } from "@/lib/ops/minimum"
 import { api, Btn, Empty, pkr } from "../kit"
 import { inputCls } from "./context"
 import { Section } from "./money"
@@ -12,7 +13,7 @@ import { Section } from "./money"
 // sales tax on receipts by month for the SRB return. Every change is in the audit log.
 
 type TaxMonth = { month: string; receipts: number; total: number; taxable: number; tax: number }
-type Overview = { ready: boolean; tax: TaxPolicy; taxMonths: TaxMonth[]; pairRate: PairRatePolicy; guarantee: GuaranteePolicy }
+type Overview = { ready: boolean; tax: TaxPolicy; taxMonths: TaxMonth[]; pairRate: PairRatePolicy; guarantee: GuaranteePolicy; minimum: MinimumPolicy; minimumReady: boolean }
 
 const Choice = <T extends string | boolean>({ value, set, options }: { value: T; set: (v: T) => void; options: readonly (readonly [T, string])[] }) => (
   <div className="flex flex-wrap gap-1.5">
@@ -39,6 +40,7 @@ export function Policies() {
       <TaxCard d={d} onSaved={setD} />
       <PairRateCard d={d} onSaved={setD} />
       <GuaranteeCard d={d} onSaved={setD} />
+      <MinimumCard d={d} onSaved={setD} />
     </div>
   )
 }
@@ -220,7 +222,7 @@ function GuaranteeCard({ d, onSaved }: { d: Overview; onSaved: (o: Overview) => 
     }
   }
   return (
-    <Section title="Favourite-pro guarantee" hint="When a customer books a pro again, checkout marks the windows she's free. If she can't come after all, auto-assign and the board's suggestion put pros rated well enough first, and the customer is told who's coming. When nobody could come (ops or the system cancel a visit no pro took, or its window started half an hour ago without one), the customer can get credit once. Never for a customer's own cancellation.">
+    <Section title="Favourite-pro guarantee" hint={`When a customer books a pro again, checkout marks the windows she's free. If she can't come after all, auto-assign and the board's suggestion put pros rated well enough first, and the customer is told who's coming. When nobody could come (ops cancel a visit no pro took and tick "Nobody could come" on its booking page, or its window started half an hour ago without one), the customer can get credit once. Never for any other cancellation.`}>
       <div className="rounded-3xl bg-white border border-black/[0.06] p-5 space-y-3 max-w-xl">
         <p className={cn("text-sm rounded-2xl px-3 py-2", p.on ? "bg-emerald-50 text-emerald-800" : "bg-zinc-50 text-zinc-600")}>
           {p.on ? "On: stand-ins rated " + p.minStars + "★ or more on " + p.minRatings + "+ rated visits. " + (p.creditOn ? pkr(p.credit) + " credit when nobody could come." : "No credit when nobody could come (off).") : "Off: booking a pro again shows her free windows only."}
@@ -249,6 +251,69 @@ function GuaranteeCard({ d, onSaved }: { d: Overview; onSaved: (o: Overview) => 
           {msg && <span className={cn("text-sm", msg.ok ? "text-emerald-700" : "text-red-600")}>{msg.text}</span>}
         </div>
         <p className="text-xs text-zinc-400">Switch the credit on only once every visit gets its pro in mission control: a visit given to a pro outside it looks like nobody came.</p>
+      </div>
+    </Section>
+  )
+}
+
+function MinimumCard({ d, onSaved }: { d: Overview; onSaved: (o: Overview) => void }) {
+  const p = d.minimum
+  const [on, setOn] = useState(p.on)
+  const [amount, setAmount] = useState(String(p.amount))
+  const [weeks, setWeeks] = useState(String(p.weeks))
+  const [minWindows, setMinWindows] = useState(String(p.minWindows))
+  const [acceptance, setAcceptance] = useState(String(Math.round(p.minAcceptance * 100)))
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const whole = (s: string) => (/^\d+$/.test(s.replace(/,/g, "").trim()) ? Number(s.replace(/,/g, "").trim()) : NaN)
+  const save = async () => {
+    const pct = Number(acceptance.replace("%", "").trim())
+    if (!acceptance.trim() || !(pct >= 0 && pct <= 100)) return setMsg({ text: "Enter offers accepted from 0 to 100 (%)", ok: false })
+    if ([amount, weeks, minWindows].some((s) => Number.isNaN(whole(s)))) return setMsg({ text: "Enter whole numbers", ok: false })
+    setBusy(true)
+    setMsg(null)
+    try {
+      onSaved(await api<Overview>("/api/ops/policy", { action: "minimum", on, amount: whole(amount), weeks: whole(weeks), minWindows: whole(minWindows), minAcceptance: pct / 100 }))
+      setMsg({ text: "Saved", ok: true })
+    } catch (e) {
+      setMsg({ text: (e as Error).message, ok: false })
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Section title="Pros' weekly minimum" hint="A benefit only Mjazo gives: a pro who keeps herself available and takes her offers earns at least this much a week. Monday's payout run tops up the rest once a whole Monday-to-Sunday week is over; it's paid with her payout, once a person approves the run. Each day counts the fewest windows she had open that day, and a day off she takes back once the day has begun still counts as off.">
+      <div className="rounded-3xl bg-white border border-black/[0.06] p-5 space-y-3 max-w-xl">
+        {!d.minimumReady && <p className="rounded-2xl bg-amber-50 text-amber-900 px-3 py-2 text-sm">Run the database update (migration 0015) to switch it on.</p>}
+        <p className={cn("text-sm rounded-2xl px-3 py-2", p.on ? "bg-emerald-50 text-emerald-800" : "bg-zinc-50 text-zinc-600")}>
+          {p.on ? `On: ${pkr(p.amount)} a week${p.weeks ? ` in a pro's first ${p.weeks} weeks` : ""}, for a verified pro open ${p.minWindows}+ windows who accepted ${Math.round(p.minAcceptance * 100)}%+ of her offers.` : "Off: pros are paid what they earn."}
+        </p>
+        <Choice value={on} set={setOn} options={[[false, "Off"], [true, "On"]] as const} />
+        <div className="grid sm:grid-cols-2 gap-3">
+          <label className="text-xs text-zinc-500 space-y-1">
+            <span>At least (PKR a week)</span>
+            <input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls} />
+          </label>
+          <label className="text-xs text-zinc-500 space-y-1">
+            <span>In her first (weeks; 0 = always)</span>
+            <input inputMode="numeric" value={weeks} onChange={(e) => setWeeks(e.target.value)} className={inputCls} />
+          </label>
+          <label className="text-xs text-zinc-500 space-y-1">
+            <span>Open at least (windows a week)</span>
+            <input inputMode="numeric" value={minWindows} onChange={(e) => setMinWindows(e.target.value)} className={inputCls} />
+          </label>
+          <label className="text-xs text-zinc-500 space-y-1">
+            <span>Offers accepted at least (%)</span>
+            <input inputMode="decimal" value={acceptance} onChange={(e) => setAcceptance(e.target.value)} className={inputCls} />
+          </label>
+        </div>
+        <div className="flex items-center gap-3">
+          <Btn busy={busy} onClick={() => void save()}>
+            Save
+          </Btn>
+          {msg && <span className={cn("text-sm", msg.ok ? "text-emerald-700" : "text-red-600")}>{msg.text}</span>}
+        </div>
+        <p className="text-xs text-zinc-400">Pros see their week's progress in the pro app. A run that isn't one whole, finished week gets no top-ups.</p>
       </div>
     </Section>
   )

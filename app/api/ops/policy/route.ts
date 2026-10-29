@@ -1,5 +1,7 @@
 import { z } from "zod"
 import { requireCore } from "@/lib/core/db"
+import { InputError } from "@/lib/core/errors"
+import { minimumReady } from "@/lib/core/minimum"
 import { policy, receiptsReady, savePolicy } from "@/lib/core/policy"
 import { receiptsInMonth, taxMonths } from "@/lib/core/receipts"
 import { taxPct } from "@/lib/ops/policy"
@@ -12,7 +14,7 @@ import { requireStaff } from "@/lib/server/staff"
 
 async function overview() {
   const db = await requireCore()
-  return { ready: await receiptsReady(db), tax: await policy(db, "tax"), taxMonths: await taxMonths(db), pairRate: await policy(db, "pair_rate"), guarantee: await policy(db, "guarantee") }
+  return { ready: await receiptsReady(db), tax: await policy(db, "tax"), taxMonths: await taxMonths(db), pairRate: await policy(db, "pair_rate"), guarantee: await policy(db, "guarantee"), minimum: await policy(db, "pro_minimum"), minimumReady: await minimumReady(db) }
 }
 
 /** A CSV cell. Text that a spreadsheet would run as a formula (a name starting with =, +, - or @) is kept as text. */
@@ -63,6 +65,14 @@ const body = z.discriminatedUnion("action", [
     creditOn: z.boolean().optional(),
     credit: z.number().int().min(0).max(2000).optional(),
   }),
+  z.object({
+    action: z.literal("minimum"),
+    on: z.boolean().optional(),
+    amount: z.number().int().min(0).max(100_000).optional(),
+    weeks: z.number().int().min(0).max(104).optional(),
+    minWindows: z.number().int().min(0).max(42).optional(),
+    minAcceptance: z.number().min(0).max(1).optional(),
+  }),
 ])
 
 export async function POST(req: Request) {
@@ -76,9 +86,13 @@ export async function POST(req: Request) {
     } else if (b.action === "pair_rate") {
       const { action: _, ...patch } = b
       await savePolicy(db, "pair_rate", patch, me.email)
-    } else {
+    } else if (b.action === "guarantee") {
       const { action: _, ...patch } = b
       await savePolicy(db, "guarantee", patch, me.email)
+    } else {
+      const { action: _, ...patch } = b
+      if (patch.on && !(await minimumReady(db))) throw new InputError("Run the database update (migration 0015) first")
+      await savePolicy(db, "pro_minimum", patch, me.email)
     }
     return overview()
   })

@@ -41,13 +41,14 @@ export async function proRatings(db: Db, proId: string, limit = 30) {
   }
 }
 
-export type ProPayout = { id: string; periodStart: string; periodEnd: string; earned: number; cashHeld: number; netted: number; amount: number; status: "draft" | "approved" | "paid" | "cancelled"; reference: string | null; paidAt: string | null }
+/** `topUp`: her weekly minimum's top-up in this payout (migration 0015). */
+export type ProPayout = { id: string; periodStart: string; periodEnd: string; earned: number; topUp: number; cashHeld: number; netted: number; amount: number; status: "draft" | "approved" | "paid" | "cancelled"; reference: string | null; paidAt: string | null }
 
 /** Her payouts, newest first. Drafts nobody has approved yet aren't shown; cancelled ones aren't either. */
 export async function proPayouts(db: Db, proId: string, limit = 26): Promise<ProPayout[]> {
-  const rows = await db.query<{ id: string; period_start: string; period_end: string; earned: number; cash_held: number; netted: number; amount: number; status: ProPayout["status"]; reference: string | null; paid_at: string | null }>(
-    "select id, period_start, period_end, earned, cash_held, netted, amount, status, reference, paid_at from payouts where pro_id = $1 and status in ('approved', 'paid') order by period_end desc, id desc limit $2",
+  const rows = await db.query<{ id: string; period_start: string; period_end: string; earned: number; top_up?: number; cash_held: number; netted: number; amount: number; status: ProPayout["status"]; reference: string | null; paid_at: string | null }>(
+    "select * from payouts where pro_id = $1 and status in ('approved', 'paid') order by period_end desc, id desc limit $2",
     [proId, limit],
   )
-  return rows.map((r) => ({ id: r.id, periodStart: r.period_start, periodEnd: r.period_end, earned: r.earned, cashHeld: r.cash_held, netted: r.netted, amount: r.amount, status: r.status, reference: r.reference, paidAt: r.paid_at }))
+  return rows.map((r) => ({ id: r.id, periodStart: r.period_start, periodEnd: r.period_end, earned: r.earned, topUp: r.top_up ?? 0, cashHeld: r.cash_held, netted: r.netted, amount: r.amount, status: r.status, reference: r.reference, paidAt: r.paid_at }))
 }

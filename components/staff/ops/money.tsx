@@ -11,7 +11,7 @@ import { Policies } from "./policies"
 // waiting for approval, payments to reconcile, cash handed in, and payout runs.
 
 type Req = { id: string; kind: "refund" | "credit"; bookingId: string | null; amount: number; reason: string; status: string; requestedBy: string; requestedAt: string; decidedBy: string | null; reference: string | null }
-type Payout = { id: string; proId: string; proName: string; earned: number; cashHeld: number; netted: number; amount: number; status: string; reference: string | null; paidAt: string | null; paidBy: string | null }
+type Payout = { id: string; proId: string; proName: string; earned: number; topUp: number; cashHeld: number; netted: number; amount: number; status: string; reference: string | null; paidAt: string | null; paidBy: string | null }
 type Run = { id: string; periodStart: string; periodEnd: string; cutOff: string; status: "draft" | "approved" | "paid" | "cancelled"; createdBy: string; createdAt: string; approvedBy: string | null; payouts: Payout[]; totals: { pay: number; collect: number; netted: number } }
 type Overview = {
   perPro: { proId: string; name: string; phone: string; status: string; cashHeld: number; payable: number }[]
@@ -260,6 +260,8 @@ export function MoneyTab() {
 
 function RunCard({ r, busy, form, set, mine, act }: { r: Run; busy: string; form: Record<string, string>; set: (k: string, v: string) => void; mine: boolean; act: (key: string, body: Record<string, unknown>) => Promise<void> }) {
   const cls = { draft: "bg-amber-100 text-amber-900", approved: "bg-sky-100 text-sky-800", paid: "bg-emerald-100 text-emerald-800", cancelled: "bg-zinc-100 text-zinc-400" }[r.status]
+  // Pros' weekly minimum (Money → Policies): shown only when a payout in the run has a top-up.
+  const topUps = r.payouts.some((p) => p.topUp > 0)
   return (
     <article className={cn("rounded-3xl bg-white border p-4 sm:p-5", r.status === "cancelled" ? "border-black/[0.04] opacity-60" : "border-black/[0.06]")}>
       <div className="flex flex-wrap items-center gap-2">
@@ -293,6 +295,7 @@ function RunCard({ r, busy, form, set, mine, act }: { r: Run; busy: string; form
             <tr>
               <th className="py-2 pr-3 font-medium">Pro</th>
               <th className="py-2 pr-3 font-medium text-right">Owed</th>
+              {topUps && <th className="py-2 pr-3 font-medium text-right">Weekly minimum top-up</th>}
               <th className="py-2 pr-3 font-medium text-right">Cash held</th>
               <th className="py-2 pr-3 font-medium text-right">Result</th>
               <th className="py-2 font-medium">Paid</th>
@@ -303,6 +306,7 @@ function RunCard({ r, busy, form, set, mine, act }: { r: Run; busy: string; form
               <tr key={p.id}>
                 <td className="py-2 pr-3">{p.proName}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{pkr(p.earned)}</td>
+                {topUps && <td className="py-2 pr-3 text-right tabular-nums">{p.topUp > 0 ? `+ ${pkr(p.topUp)}` : "–"}</td>}
                 <td className="py-2 pr-3 text-right tabular-nums">{pkr(p.cashHeld)}</td>
                 <td className="py-2 pr-3 text-right tabular-nums font-medium">{p.amount >= 0 ? `pay ${pkr(p.amount)}` : `collect ${pkr(-p.amount)}`}</td>
                 <td className="py-2">

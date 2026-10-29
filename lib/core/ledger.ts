@@ -20,6 +20,7 @@ import type { Db } from "./db"
 //   mjazo:referrals     expense    credit given to customers for a friend's first visit
 //   mjazo:packs         liability  packs paid for and not yet used
 //   mjazo:salestax      liability  Sindh sales tax charged and owed to the SRB
+//   mjazo:minimums      expense    pros' weekly minimum: what Mjazo topped up
 //
 // Pros earn on the full price: a discount, or sales tax inside the price, comes out of Mjazo's
 // share, never hers.
@@ -39,6 +40,7 @@ export const ACC = {
   referrals: "mjazo:referrals",
   packs: "mjazo:packs",
   salesTax: "mjazo:salestax",
+  minimums: "mjazo:minimums",
 } as const
 
 type Kind = "asset" | "liability" | "revenue" | "expense"
@@ -61,6 +63,7 @@ export function accountInfo(id: string): { kind: Kind; ownerType: "pro" | "custo
     referrals: ["expense", "Referral rewards"],
     packs: ["liability", "Packs not yet used"],
     salestax: ["liability", "Sales tax owed (SRB)"],
+    minimums: ["expense", "Pro weekly minimum top-ups"],
   }
   if (scope === "mjazo" && mjazo[owner]) return { kind: mjazo[owner][0], ownerType: "mjazo", ownerId: null, name: mjazo[owner][1] }
   throw new LedgerError(`Unknown ledger account ${id}`)
@@ -323,6 +326,25 @@ export function packRefunded(db: Db, p: { packId: string; customerId: string; am
   })
 }
 
+/**
+ * Pros' weekly minimum: what Mjazo adds to her week's earnings, posted when her payout is paid.
+ * Once per pro and week (the key), so the same week is never topped up twice.
+ */
+export function minimumTopUp(db: Db, m: { proId: string; weekStart: string; amount: number; actor?: string }) {
+  if (!Number.isInteger(m.amount) || m.amount <= 0) throw new LedgerError("A top-up must be whole rupees, more than zero")
+  return post(db, {
+    kind: "minimum_topup",
+    key: `minimum:${m.proId}:${m.weekStart}`,
+    proId: m.proId,
+    actor: m.actor,
+    memo: `Weekly minimum, week of ${m.weekStart}`,
+    postings: [
+      { account: ACC.minimums, amount: m.amount },
+      { account: ACC.proPayable(m.proId), amount: -m.amount },
+    ],
+  })
+}
+
 /** Credit for the customer whose friend's first visit is done. */
 export function referralRewarded(db: Db, r: { referrerId: string; friendId: string; bookingId: string; amount: number }) {
   return post(db, {
@@ -402,7 +424,8 @@ export async function allProBalances(db: Db) {
 /**
  * Cash held and payable for every pro as they stood at `cutOff` (an ISO time), for a payout run.
  * Payout settlements always count, whenever they were posted, so a payout already made is never
- * paid again by a run with an earlier cut-off.
+ * paid again by a run with an earlier cut-off; so do weekly minimum top-ups, which are posted with
+ * the payout that pays them.
  */
 export async function allProBalancesAt(db: Db, cutOff: string) {
   const rows = await db.query<{ owner_id: string; cash: number; payable: number }>(
@@ -410,7 +433,7 @@ export async function allProBalancesAt(db: Db, cutOff: string) {
        coalesce(sum(p.amount) filter (where a.id like '%:cash'), 0)::int as cash,
        (-coalesce(sum(p.amount) filter (where a.id like '%:payable'), 0))::int as payable
      from ledger_accounts a join postings p on p.account_id = a.id join journal_entries e on e.id = p.entry_id
-     where a.owner_type = 'pro' and (e.at <= $1 or e.kind = 'payout') group by a.owner_id`,
+     where a.owner_type = 'pro' and (e.at <= $1 or e.kind in ('payout', 'minimum_topup')) group by a.owner_id`,
     [cutOff],
   )
   return new Map(rows.map((r) => [r.owner_id, { cashHeld: r.cash, payable: r.payable }]))

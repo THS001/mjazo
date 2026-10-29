@@ -149,6 +149,7 @@ const CASES: Case[] = [
   { name: "change the pilot settings", roles: ["owner", "finance"], run: () => post(R.pilot, { action: "settings", taxRate: 0.08 }) },
   { name: "see the money policies", roles: ["owner", "finance"], run: () => get(R.policy) },
   { name: "download a month's receipts", roles: ["owner", "finance"], run: () => get(R.policy, "?csv=2026-10") },
+  { name: "change pros' weekly minimum", roles: ["owner", "finance"], run: () => post(R.policy, { action: "minimum", amount: 10000 }) },
   { name: "change the sales tax", roles: ["owner", "finance"], run: () => post(R.policy, { action: "tax", registration: "S-TEST" }) },
   { name: "change the regular customer rate", roles: ["owner", "finance"], run: () => post(R.policy, { action: "pair_rate", rate: 0.15 }) },
   { name: "change the favourite-pro guarantee", roles: ["owner", "finance"], run: () => post(R.policy, { action: "guarantee", minStars: 4.5 }) },

@@ -156,7 +156,21 @@ export type Offer = {
   visit: { id: string; date: string; window: string; area: string; subArea: string | null; services: { name: string; options: string[]; addOns: string[]; qty: number }[]; minutes: number; earn: number; payment: string; hasBrief: boolean; askedForYou: boolean; regular?: { keepPct: number } | null }
 }
 export type StatementLine = { entryId: number; at: string; kind: string; bookingId: string | null; memo: string | null; cash: number; earned: number }
-export type Payout = { id: string; periodStart: string; periodEnd: string; earned: number; cashHeld: number; netted: number; amount: number; status: "draft" | "approved" | "paid" | "cancelled"; reference: string | null; paidAt: string | null }
-export type Earnings = { balances: { owed: number; cashHeld: number; net: number }; week: { earned: number; visits: number }; month: { earned: number; visits: number }; statement: StatementLine[]; payouts: Payout[] }
+export type Payout = { id: string; periodStart: string; periodEnd: string; earned: number; topUp?: number; cashHeld: number; netted: number; amount: number; status: "draft" | "approved" | "paid" | "cancelled"; reference: string | null; paidAt: string | null }
+/** Her week so far against pros' weekly minimum (null when it's off). `topUp`: what Mjazo would add if the week ended now. */
+export type MinimumWeek = {
+  amount: number
+  earned: number
+  windows: number
+  offers: { made: number; accepted: number }
+  /** `fullWeek`: with Mjazo since the week's Monday (absent from an older server). */
+  checks: { verified: boolean; fullWeek?: boolean; firstWeeks: boolean; windows: boolean; offers: boolean }
+  eligible: boolean
+  topUp: number
+  minWindows: number
+  minAcceptance: number
+  weeks: number
+}
+export type Earnings = { balances: { owed: number; cashHeld: number; net: number }; week: { earned: number; visits: number }; month: { earned: number; visits: number }; statement: StatementLine[]; payouts: Payout[]; minimum?: MinimumWeek | null }
 export type Ratings = { count: number; average: number | null; stars: Record<"1" | "2" | "3" | "4" | "5", number>; recent: { bookingId: string; day: string; services: string[]; stars: number; tags: string[]; comment: string | null; at: string }[] }
 export type Availability = { availability: Record<string, string[]> | null; timeOff: string[]; windows: string[]; busyDays: string[]; dailyCap: number }

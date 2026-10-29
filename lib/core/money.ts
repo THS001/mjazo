@@ -2,17 +2,21 @@ import "server-only"
 import type { Db } from "./db"
 import { writeAudit } from "./audit"
 import { InputError } from "./errors"
-import { allProBalancesAt, bookingPaid, cashHandedIn, issueCredit, payoutSettled, proBalances, refundPaid } from "./ledger"
+import { allProBalancesAt, bookingPaid, cashHandedIn, issueCredit, minimumTopUp, payoutSettled, proBalances, refundPaid } from "./ledger"
+import { minimumReady, minimumTopUps } from "./minimum"
 import { coreId } from "./phone"
+import { policy } from "./policy"
 import { secondPersonProblem } from "@/lib/ops/access"
+import { isWholeWeek } from "@/lib/ops/minimum"
 import type { Role } from "@/lib/cms/roles"
 
 // Money actions in mission control. Nothing here writes a posting itself: every money move goes
 // through lib/core/ledger.ts, inside the same transaction as its approval record and audit entry.
 // A person approves every one:
 // - refunds and credits: someone asks (Support), someone with the money permission approves;
-// - payout runs: drafted from the ledger, approved by a second person, then each payout is marked
-//   paid with its transfer reference, which settles it in the ledger (payoutSettled);
+// - payout runs: drafted from the ledger (with pros' weekly minimum top-ups), approved by a second
+//   person, then each payout is marked paid with its transfer reference, which settles it in the
+//   ledger (minimumTopUp, then payoutSettled);
 // - cash a pro hands in is recorded by the person who received it.
 
 export type Actor = { email: string; role: Role }
@@ -139,7 +143,8 @@ export async function recordCashIn(db: Db, c: { proId: string; amount: number; r
 // Payout runs
 // ---------------------------------------------------------------------------
 
-export type Payout = { id: string; runId: string; proId: string; proName: string; earned: number; cashHeld: number; netted: number; amount: number; status: "draft" | "approved" | "paid" | "cancelled"; reference: string | null; paidAt: string | null; paidBy: string | null }
+/** `topUp`: pros' weekly minimum, added to what she's owed (posted to the ledger when the payout is paid). */
+export type Payout = { id: string; runId: string; proId: string; proName: string; earned: number; topUp: number; cashHeld: number; netted: number; amount: number; status: "draft" | "approved" | "paid" | "cancelled"; reference: string | null; paidAt: string | null; paidBy: string | null }
 export type PayoutRun = { id: string; periodStart: string; periodEnd: string; cutOff: string; status: "draft" | "approved" | "paid" | "cancelled"; createdBy: string; createdAt: string; approvedBy: string | null; approvedAt: string | null; payouts: Payout[]; totals: { pay: number; collect: number; netted: number } }
 
 /** One pro's settlement: cash she holds is netted against what she's owed; the rest is paid (or handed in). */
@@ -171,18 +176,28 @@ export async function draftPayoutRun(db: Db, p: { periodStart: string; periodEnd
     if (last && Date.parse(cutOff) < Date.parse(last.cut_off)) throw new InputError(`A run up to ${last.period_end} was already made: pick a later period`)
     const balances = await allProBalancesAt(t, cutOff)
     const pros = new Map((await t.query<{ id: string }>("select id from pros")).map((r) => [r.id, r]))
+    // Pros' weekly minimum, for a whole Monday-to-Sunday week that is over (a week still running
+    // would be topped up on part of its earnings, then closed). A pro owed one is paid even with
+    // nothing else owed.
+    const weekOver = isWholeWeek(p.periodStart, p.periodEnd) && now.getTime() >= endOfPeriod.getTime()
+    const topUps = weekOver ? await minimumTopUps(t, await policy(t, "pro_minimum"), p.periodStart) : new Map<string, number>()
+    const withTopUp = await minimumReady(t)
     const id = coreId("PR")
     await t.query("insert into payout_runs (id, period_start, period_end, cut_off, created_by) values ($1, $2, $3, $4, $5)", [id, p.periodStart, p.periodEnd, cutOff, p.by])
     let n = 0
-    for (const [proId, b] of balances) {
+    for (const proId of new Set([...balances.keys(), ...topUps.keys()])) {
+      const b = balances.get(proId) ?? { payable: 0, cashHeld: 0 }
       // Never below zero (that would mean a later settlement already covered it).
       const payable = Math.max(0, b.payable)
       const cashHeld = Math.max(0, b.cashHeld)
-      if (!pros.has(proId) || (payable === 0 && cashHeld === 0)) continue
-      const s = settlement(payable, cashHeld)
+      const topUp = topUps.get(proId) ?? 0
+      if (!pros.has(proId) || (payable === 0 && cashHeld === 0 && topUp === 0)) continue
+      const s = settlement(payable + topUp, cashHeld)
       await t.query(
-        "insert into payouts (id, run_id, pro_id, period_start, period_end, earned, cash_held, netted, amount, status) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'draft')",
-        [coreId("PO"), id, proId, p.periodStart, p.periodEnd, payable, cashHeld, s.netted, s.amount],
+        withTopUp
+          ? "insert into payouts (id, run_id, pro_id, period_start, period_end, earned, cash_held, netted, amount, status, top_up) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'draft', $10)"
+          : "insert into payouts (id, run_id, pro_id, period_start, period_end, earned, cash_held, netted, amount, status) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'draft')",
+        [coreId("PO"), id, proId, p.periodStart, p.periodEnd, payable, cashHeld, s.netted, s.amount, ...(withTopUp ? [topUp] : [])],
       )
       n++
     }
@@ -215,13 +230,16 @@ export async function approvePayoutRun(db: Db, runId: string, by: Actor) {
  */
 export async function payPayout(db: Db, payoutId: string, p: { reference: string; by: string }) {
   const runId = await db.tx(async (t) => {
-    const po = await t.one<{ run_id: string; pro_id: string; netted: number; amount: number; status: string }>("select run_id, pro_id, netted, amount, status from payouts where id = $1 for update", [payoutId])
+    const po = await t.one<{ run_id: string; pro_id: string; period_start: string; netted: number; amount: number; status: string; top_up?: number }>("select * from payouts where id = $1 for update", [payoutId])
     if (!po) throw new InputError("Payout not found")
     const run = await t.one<{ status: string }>("select status from payout_runs where id = $1 for update", [po.run_id])
     if (run?.status !== "approved") throw new InputError("The run has to be approved first")
     if (po.status !== "approved") throw new InputError(`This payout is ${po.status}`)
     const reference = p.reference.trim()
     if (po.amount !== 0 && !reference) throw new InputError(po.amount > 0 ? "Enter the transfer reference" : "Enter the receipt number for the cash handed in")
+    // Her weekly minimum's top-up goes into what she's owed first (once per week: a week already
+    // topped up posts nothing, and the check below then refuses the payout).
+    if (po.top_up) await minimumTopUp(t, { proId: po.pro_id, weekStart: po.period_start, amount: po.top_up, actor: p.by })
     const now = await proBalances(t, po.pro_id)
     const needPayable = po.netted + Math.max(0, po.amount)
     const needCash = po.netted + Math.max(0, -po.amount)
@@ -230,7 +248,7 @@ export async function payPayout(db: Db, payoutId: string, p: { reference: string
     await t.query("update payouts set status = 'paid', reference = $2, paid_at = now(), paid_by = $3, entry_id = $4 where id = $1", [payoutId, reference.slice(0, 120) || null, p.by, entryId])
     const left = await t.one("select 1 from payouts where run_id = $1 and status = 'approved' limit 1", [po.run_id])
     if (!left) await t.query("update payout_runs set status = 'paid' where id = $1", [po.run_id])
-    await writeAudit(t, { actor: p.by, action: po.amount >= 0 ? "paid a payout" : "collected cash for a payout", target: po.pro_id, detail: `${payoutId}: PKR ${Math.abs(po.amount)} (netted ${po.netted})${reference ? `, ref ${reference}` : ""}` })
+    await writeAudit(t, { actor: p.by, action: po.amount >= 0 ? "paid a payout" : "collected cash for a payout", target: po.pro_id, detail: `${payoutId}: PKR ${Math.abs(po.amount)} (netted ${po.netted}${po.top_up ? `, weekly minimum top-up ${po.top_up}` : ""})${reference ? `, ref ${reference}` : ""}` })
     return po.run_id
   })
   return (await getPayoutRun(db, runId))!
@@ -250,13 +268,13 @@ export async function cancelPayoutRun(db: Db, runId: string, by: string) {
 }
 
 type RunRow = { id: string; period_start: string; period_end: string; cut_off: string; status: PayoutRun["status"]; created_by: string; created_at: string; approved_by: string | null; approved_at: string | null }
-type PayoutRow = { id: string; run_id: string; pro_id: string; name: string | null; earned: number; cash_held: number; netted: number; amount: number; status: Payout["status"]; reference: string | null; paid_at: string | null; paid_by: string | null }
+type PayoutRow = { id: string; run_id: string; pro_id: string; name: string | null; earned: number; top_up?: number; cash_held: number; netted: number; amount: number; status: Payout["status"]; reference: string | null; paid_at: string | null; paid_by: string | null }
 
 async function withPayouts(db: Db, runs: RunRow[]): Promise<PayoutRun[]> {
   if (!runs.length) return []
   const rows = await db.query<PayoutRow>("select po.*, p.name from payouts po left join pros p on p.id = po.pro_id where po.run_id = any($1::text[]) order by p.name, po.id", [runs.map((r) => r.id)])
   return runs.map((r) => {
-    const payouts = rows.filter((x) => x.run_id === r.id).map((x): Payout => ({ id: x.id, runId: x.run_id, proId: x.pro_id, proName: x.name ?? x.pro_id, earned: x.earned, cashHeld: x.cash_held, netted: x.netted, amount: x.amount, status: x.status, reference: x.reference, paidAt: x.paid_at, paidBy: x.paid_by }))
+    const payouts = rows.filter((x) => x.run_id === r.id).map((x): Payout => ({ id: x.id, runId: x.run_id, proId: x.pro_id, proName: x.name ?? x.pro_id, earned: x.earned, topUp: x.top_up ?? 0, cashHeld: x.cash_held, netted: x.netted, amount: x.amount, status: x.status, reference: x.reference, paidAt: x.paid_at, paidBy: x.paid_by }))
     const totals = { pay: payouts.reduce((s, x) => s + Math.max(0, x.amount), 0), collect: payouts.reduce((s, x) => s + Math.max(0, -x.amount), 0), netted: payouts.reduce((s, x) => s + x.netted, 0) }
     return { id: r.id, periodStart: r.period_start, periodEnd: r.period_end, cutOff: r.cut_off, status: r.status, createdBy: r.created_by, createdAt: r.created_at, approvedBy: r.approved_by, approvedAt: r.approved_at, payouts, totals }
   })

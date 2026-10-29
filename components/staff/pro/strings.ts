@@ -108,6 +108,18 @@ export const T = {
   approved: { en: "Approved, paying soon", ur: "منظور، جلد ادائیگی", ro: "Manzoor, jald payout" },
   earnedCol: { en: "Earned", ur: "کمائی", ro: "Kamai" },
   cashCol: { en: "Cash", ur: "نقد", ro: "Cash" },
+  // Pros' weekly minimum
+  minTitle: { en: "Your weekly minimum", ur: "آپ کی ہفتہ وار کم از کم کمائی", ro: "Aapki haftawar kam az kam kamai" },
+  minBody: { en: "Mjazo pays you at least {{amount}} a week when you're open {{windows}}+ windows and accept {{pct}}% of your offers.", ur: "جب آپ ہفتے میں {{windows}} یا زیادہ اوقات کھلے رکھیں اور اپنی {{pct}}% آفرز قبول کریں تو مجازو آپ کو ہر ہفتے کم از کم {{amount}} دیتا ہے۔", ro: "Jab aap hafte mein {{windows}}+ auqaat khule rakhein aur apni {{pct}}% offers qubool karein to Mjazo aapko har hafte kam az kam {{amount}} deta hai." },
+  minEarned: { en: "Earned since Monday: {{amount}}", ur: "پیر سے اب تک کمائی: {{amount}}", ro: "Peer se ab tak kamai: {{amount}}" },
+  minTopUp: { en: "If the week ended now, Mjazo would add {{amount}} on Monday.", ur: "اگر ہفتہ ابھی ختم ہو تو مجازو پیر کو {{amount}} شامل کرے گا۔", ro: "Agar hafta abhi khatam ho to Mjazo peer ko {{amount}} add karega." },
+  minReached: { en: "You've earned past the minimum this week.", ur: "اس ہفتے آپ کی کمائی کم از کم سے زیادہ ہو گئی۔", ro: "Is hafte aapki kamai minimum se zyada ho gayi." },
+  minWindows: { en: "Open windows this week: {{n}} (at least {{min}})", ur: "اس ہفتے کھلے اوقات: {{n}} (کم از کم {{min}})", ro: "Is hafte khule auqaat: {{n}} (kam az kam {{min}})" },
+  minOffers: { en: "Offers accepted: {{n}} of {{made}}", ur: "قبول کی گئی آفرز: {{made}} میں سے {{n}}", ro: "Qubool ki gayi offers: {{made}} mein se {{n}}" },
+  minVerified: { en: "Verification complete", ur: "تصدیق مکمل", ro: "Tasdeeq mukammal" },
+  minFirstWeeks: { en: "In your first {{weeks}} weeks with Mjazo", ur: "مجازو کے ساتھ آپ کے پہلے {{weeks}} ہفتوں میں", ro: "Mjazo ke saath aapke pehle {{weeks}} hafton mein" },
+  minFullWeek: { en: "It starts with your first full week (Monday to Sunday)", ur: "یہ آپ کے پہلے پورے ہفتے (پیر سے اتوار) سے شروع ہوتی ہے", ro: "Ye aapke pehle poore hafte (peer se itwaar) se shuru hoti hai" },
+  minTopUpKind: { en: "Weekly minimum top-up", ur: "ہفتہ وار کم از کم کی ادائیگی", ro: "Haftawar minimum top-up" },
 
   // Profile, ratings, availability
   rating: { en: "Your rating", ur: "آپ کی ریٹنگ", ro: "Aapki rating" },

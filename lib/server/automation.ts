@@ -471,7 +471,9 @@ async function runSchedules(ctx: Ctx) {
         const run = await draftPayoutRun(ctx.db, { periodStart: start, periodEnd: end, by: "automation", now: ctx.now })
         await store.markOnce(ctx.db, key, { runId: run.id })
         out.payoutRun = run.id
-        void notifyOps(`[Mjazo] Payout run ${run.id} ready to approve`, `Last week's payout run (${start} to ${end}, ${run.payouts.length} pros) is drafted. Finance: approve it in mission control → Money, then mark each payout paid.`)
+        const topUps = run.payouts.filter((x) => x.topUp > 0)
+        const minimum = topUps.length ? ` It tops up ${topUps.length} pro${topUps.length === 1 ? "" : "s"} to the weekly minimum (${formatPKR(topUps.reduce((s, x) => s + x.topUp, 0))} in all).` : ""
+        void notifyOps(`[Mjazo] Payout run ${run.id} ready to approve`, `Last week's payout run (${start} to ${end}, ${run.payouts.length} pros) is drafted.${minimum} Finance: approve it in mission control → Money, then mark each payout paid.`)
       } catch (e) {
         if (!(e instanceof InputError)) throw e
         // Nothing owed: done for the week. A run still open: try again later (and say so once).

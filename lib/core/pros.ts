@@ -2,7 +2,7 @@ import "server-only"
 import type { Db } from "./db"
 import { InputError } from "./errors"
 import { VERIFICATION_ITEMS, type VerificationItem, type VerificationKey } from "@/lib/ops/types"
-import { WINDOW_LABELS } from "@/lib/time"
+import { karachiNow, WINDOW_LABELS } from "@/lib/time"
 
 // A pro's profile beyond the basics (lib/core/jobs.ts savePro): the areas she covers, her daily
 // cap, commission, weekly windows, days off and the verification checklist; and the zones (the
@@ -50,16 +50,41 @@ export async function setProProfile(db: Db, proId: string, p: ProProfilePatch, a
     if (p.dailyCap !== undefined) set("daily_cap", p.dailyCap)
     if (p.commissionRate !== undefined) set("commission_rate", p.commissionRate)
     if (sets.length) await t.query(`update pros set ${sets.join(", ")}, updated_at = now() where id = $1`, vals)
+    // Pros' weekly minimum counts what she had open during the week (migration 0015 keeps the log).
+    const log = await availabilityLogReady(t)
     if (p.availability !== undefined) {
+      const before = log ? await hoursOf(t, proId) : null
       await t.query("delete from pro_availability where pro_id = $1", [proId])
       for (const [day, windows] of Object.entries(p.availability ?? {})) {
         const ordered = WINDOW_LABELS.filter((w) => windows.includes(w))
         await t.query("insert into pro_availability (pro_id, weekday, windows) values ($1, $2, $3)", [proId, Number(day), ordered])
       }
+      const after = log ? await hoursOf(t, proId) : null
+      if (log && JSON.stringify(before) !== JSON.stringify(after))
+        await t.query("insert into pro_availability_log (pro_id, kind, hours_before, hours_after) values ($1, 'hours', $2::jsonb, $3::jsonb)", [proId, JSON.stringify(before), JSON.stringify(after)])
     }
     for (const d of p.timeOff?.add ?? []) await t.query("insert into pro_time_off (pro_id, day) values ($1, $2) on conflict do nothing", [proId, d])
-    for (const d of p.timeOff?.remove ?? []) await t.query("delete from pro_time_off where pro_id = $1 and day = $2", [proId, d])
+    const today = karachiNow().date
+    for (const d of p.timeOff?.remove ?? []) {
+      const gone = await t.one("delete from pro_time_off where pro_id = $1 and day = $2 returning day", [proId, d])
+      // Taken back once the day had begun: it still counts as off for the minimum.
+      if (gone && log && d <= today) await t.query("insert into pro_availability_log (pro_id, kind, day) values ($1, 'day_off_undone', $2)", [proId, d])
+    }
   })
+}
+
+/** Her weekly hours as stored (null: none set, so every window, every day). Weekdays in order. */
+async function hoursOf(db: Db, proId: string): Promise<Record<string, string[]> | null> {
+  const rows = await db.query<{ weekday: number; windows: string[] }>("select weekday, windows from pro_availability where pro_id = $1 order by weekday", [proId])
+  return rows.length ? Object.fromEntries(rows.map((r) => [String(r.weekday), r.windows])) : null
+}
+
+/** Whether migration 0015 (the availability log) has run. Remembered once it has. */
+let logReady = false
+export async function availabilityLogReady(db: Db) {
+  if (logReady) return true
+  logReady = Boolean(await db.one("select 1 from information_schema.tables where table_name = 'pro_availability_log'"))
+  return logReady
 }
 
 /**

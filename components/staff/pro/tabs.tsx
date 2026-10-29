@@ -24,6 +24,7 @@ const KIND: Record<string, Record<Lang, string>> = {
   payment: { en: "Payment collected", ur: "ادائیگی وصول", ro: "Payment wasool" },
   cash_handed_in: { en: "Cash handed in", ur: "نقد جمع کروایا", ro: "Cash jama karwaya" },
   payout: { en: "Payout", ur: "ادائیگی", ro: "Payout" },
+  minimum_topup: T.minTopUpKind,
 }
 
 const Card = ({ children, className }: { children: React.ReactNode; className?: string }) => <div className={cn("rounded-[28px] bg-white/[0.06] p-5", className)}>{children}</div>
@@ -209,6 +210,35 @@ export function OffersTab({ lang, onAnswered, toast }: { lang: Lang; onAnswered:
 // Earnings
 // ---------------------------------------------------------------------------
 
+/** Her week so far against the weekly minimum: each condition, and what Mjazo would add. */
+function MinimumCard({ m, lang }: { m: NonNullable<Earnings["minimum"]>; lang: Lang }) {
+  const ur = urCls(lang)
+  const checks = [
+    { ok: m.checks.verified, text: T.minVerified[lang] },
+    // Shown only in the week she joined: it counts from her first full week.
+    { ok: m.checks.fullWeek, text: T.minFullWeek[lang], hide: m.checks.fullWeek },
+    { ok: m.checks.firstWeeks, text: fill(T.minFirstWeeks[lang], { weeks: m.weeks }), hide: !m.weeks },
+    { ok: m.checks.windows, text: fill(T.minWindows[lang], { n: m.windows, min: m.minWindows }) },
+    { ok: m.checks.offers, text: fill(T.minOffers[lang], { n: m.offers.accepted, made: m.offers.made }), hide: !m.offers.made },
+  ].filter((c) => !c.hide)
+  return (
+    <Card>
+      <Title lang={lang}>{T.minTitle[lang]}</Title>
+      <p className={cn("text-sm text-white/70", ur)}>{fill(T.minBody[lang], { amount: formatPKR(m.amount), windows: m.minWindows, pct: Math.round(m.minAcceptance * 100) })}</p>
+      <p className={cn("mt-3 font-medium", ur)}>{fill(T.minEarned[lang], { amount: formatPKR(m.earned) })}</p>
+      <ul className="mt-2 space-y-1 text-sm">
+        {checks.map((c) => (
+          <li key={c.text} className={cn("flex gap-2", c.ok ? "text-emerald-300" : "text-amber-300", ur)}>
+            <span aria-hidden>{c.ok ? "✓" : "•"}</span>
+            {c.text}
+          </li>
+        ))}
+      </ul>
+      {m.eligible && <p className={cn("mt-3 rounded-2xl bg-white/[0.06] px-4 py-3 text-sm", ur)}>{m.topUp > 0 ? fill(T.minTopUp[lang], { amount: formatPKR(m.topUp) }) : T.minReached[lang]}</p>}
+    </Card>
+  )
+}
+
 export function MoneyTab({ lang }: { lang: Lang }) {
   const ur = urCls(lang)
   const { data, error } = useData<Earnings>("/api/v1/pro/earnings", 60_000)
@@ -245,6 +275,7 @@ export function MoneyTab({ lang }: { lang: Lang }) {
           </div>
         ))}
       </div>
+      {data.minimum && <MinimumCard m={data.minimum} lang={lang} />}
       <section>
         <Title lang={lang}>{T.payouts[lang]}</Title>
         {!data.payouts.length ? (
@@ -261,6 +292,7 @@ export function MoneyTab({ lang }: { lang: Lang }) {
                 </p>
                 <p className={cn("text-xs text-white/50 mt-1", ur)}>
                   {p.status === "paid" ? `${p.amount >= 0 ? T.paidYou[lang] : T.handedIn[lang]}${p.reference ? ` · ${p.reference}` : ""}` : `${p.amount >= 0 ? T.payYou[lang] : T.handIn[lang]} · ${T.approved[lang]}`}
+                  {p.topUp > 0 && ` · ${T.minTopUpKind[lang]} +${formatPKR(p.topUp)}`}
                 </p>
               </li>
             ))}

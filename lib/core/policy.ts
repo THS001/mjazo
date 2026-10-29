@@ -3,17 +3,19 @@ import type { Db } from "./db"
 import { writeAudit } from "./audit"
 import { InputError } from "./errors"
 import { DEFAULT_GUARANTEE, DEFAULT_PAIR_RATE, DEFAULT_TAX, guaranteeProblems, pairRateProblems, taxProblems, taxTermsOn, type GuaranteePolicy, type PairRatePolicy, type TaxPolicy, type TaxTerms } from "@/lib/ops/policy"
+import { DEFAULT_MINIMUM, minimumProblems, type MinimumPolicy } from "@/lib/ops/minimum"
 import { karachiNow } from "@/lib/time"
 
-// The money policies (lib/ops/policy.ts), one row each in core_meta ("policy:<key>"). Finance or an
-// Owner changes them in mission control → Money → Policies; every change is in the audit log.
+// The money policies (lib/ops/policy.ts, lib/ops/minimum.ts), one row each in core_meta
+// ("policy:<key>"). Finance or an Owner changes them in mission control → Money → Policies; every
+// change is in the audit log.
 
-type Policies = { tax: TaxPolicy; pair_rate: PairRatePolicy; guarantee: GuaranteePolicy }
+type Policies = { tax: TaxPolicy; pair_rate: PairRatePolicy; guarantee: GuaranteePolicy; pro_minimum: MinimumPolicy }
 export type PolicyKey = keyof Policies
 
-const DEFAULTS: { [K in PolicyKey]: Policies[K] } = { tax: DEFAULT_TAX, pair_rate: DEFAULT_PAIR_RATE, guarantee: DEFAULT_GUARANTEE }
-const PROBLEMS: { [K in PolicyKey]: (p: Partial<Policies[K]>) => string[] } = { tax: taxProblems, pair_rate: pairRateProblems, guarantee: guaranteeProblems }
-const LABELS: Record<PolicyKey, string> = { tax: "sales tax", pair_rate: "regular customer rate", guarantee: "favourite-pro guarantee" }
+const DEFAULTS: { [K in PolicyKey]: Policies[K] } = { tax: DEFAULT_TAX, pair_rate: DEFAULT_PAIR_RATE, guarantee: DEFAULT_GUARANTEE, pro_minimum: DEFAULT_MINIMUM }
+const PROBLEMS: { [K in PolicyKey]: (p: Partial<Policies[K]>) => string[] } = { tax: taxProblems, pair_rate: pairRateProblems, guarantee: guaranteeProblems, pro_minimum: minimumProblems }
+const LABELS: Record<PolicyKey, string> = { tax: "sales tax", pair_rate: "regular customer rate", guarantee: "favourite-pro guarantee", pro_minimum: "pros' weekly minimum" }
 const metaKey = (k: PolicyKey) => `policy:${k}`
 
 export async function policy<K extends PolicyKey>(db: Db, key: K): Promise<Policies[K]> {

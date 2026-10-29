@@ -3,14 +3,17 @@ import { aiEnabled } from "@/lib/ai/anthropic"
 import { readReceipt } from "@/lib/ai/staff-agents"
 import { formatPKR } from "@/lib/catalog"
 import { getCatalog } from "@/lib/cms/read"
-import { requireCore } from "@/lib/core/db"
+import { requireCore, type Db } from "@/lib/core/db"
 import { emit } from "@/lib/core/events"
 import { earnedSince, proBalances, proShare, proStatement, visitsEarned } from "@/lib/core/ledger"
+import { minimumReady, minimumWeeks } from "@/lib/core/minimum"
 import { pairRates } from "@/lib/core/pairs"
+import { policy } from "@/lib/core/policy"
 import { proPayouts, proRatings } from "@/lib/core/pro-history"
 import { setProProfile, type ProProfilePatch } from "@/lib/core/pros"
 import { saveLocation } from "@/lib/core/tracking"
 import { jobMinutes, windowIndex } from "@/lib/ops/logic"
+import { weekStartOf } from "@/lib/ops/minimum"
 import { DEFAULT_COMMISSION, keepPct, type VisitRate } from "@/lib/ops/policy"
 import { isVerified, type Job, type PaymentRecord, type Pro } from "@/lib/ops/types"
 import { karachiNow, WINDOW_LABELS } from "@/lib/time"
@@ -262,10 +265,22 @@ export async function proEarnings(pro: Pro) {
     proStatement(db, pro.id, 60),
     proPayouts(db, pro.id),
   ])
-  // owed > cash: Mjazo pays her the difference; cash > owed: she hands the difference in. A
-  // finished visit's memo ("Regular customer: …") is for staff, in English: her statement leaves it out.
-  const lines = statement.map((l) => (l.kind === "visit_completed" ? { ...l, memo: null } : l))
-  return { balances: { owed: bal.payable, cashHeld: bal.cashHeld, net: bal.payable - bal.cashHeld }, week, month, statement: lines, payouts }
+  // owed > cash: Mjazo pays her the difference; cash > owed: she hands the difference in. The memos
+  // of finished visits ("Regular customer: …") and top-ups are for staff, in English: her statement
+  // leaves them out (the app names the entry).
+  const lines = statement.map((l) => (l.kind === "visit_completed" || l.kind === "minimum_topup" ? { ...l, memo: null } : l))
+  return { balances: { owed: bal.payable, cashHeld: bal.cashHeld, net: bal.payable - bal.cashHeld }, week, month, statement: lines, payouts, minimum: await minimumThisWeek(db, pro, today) }
+}
+
+/**
+ * Her week so far against the weekly minimum (null when it's off): what she's earned since Monday,
+ * her open windows and offers, the conditions, and the top-up if the week ended now.
+ */
+async function minimumThisWeek(db: Db, pro: Pro, today: string) {
+  const p = await policy(db, "pro_minimum")
+  if (!p.on || p.amount <= 0 || !(await minimumReady(db))) return null
+  const w = (await minimumWeeks(db, p, weekStartOf(today), { proIds: [pro.id] })).get(pro.id)
+  return w ? { ...w, minWindows: p.minWindows, minAcceptance: p.minAcceptance, weeks: p.weeks } : null
 }
 
 export async function proRatingSummary(pro: Pro) {

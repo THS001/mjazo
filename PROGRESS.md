@@ -1,6 +1,6 @@
 # Mjazo: project progress
 
-_Last updated 29 October 2026 (the favourite-pro guarantee)._
+_Last updated 29 October 2026 (pros' weekly minimum)._
 
 - **Live site:** https://mjazo.vercel.app
 - **Code:** https://github.com/THS001/mjazo (branch `main`)
@@ -45,6 +45,7 @@ accounts, and what's left.
 | **Receipts and sales tax** (a numbered receipt for every visit; Sindh sales tax set in mission control → Money → Policies) | **Built 29 Oct 2026** (section 3k). To go live: run `--migrate` (0013, 0014), then deploy. Sales tax stays off until Finance sets it, once the written tax opinion is in |
 | **The regular customer rate** (Mjazo takes less from a customer's 2nd visit with the same pro) | **Built 29 Oct 2026** (section 3l). No migration: it's live with the next deploy, **on at 15%** (a placeholder, section 8) |
 | **The favourite-pro guarantee** (book her again: her free windows marked; if she can't come, well-rated pros asked first and the customer told; credit if nobody could come) | **Built 29 Oct 2026** (section 3m). No migration: on with the next deploy; **the credit stays off** until switched on in Money → Policies (section 8) |
+| **Pros' weekly minimum** (a new pro who stays available and takes her offers earns at least PKR 10,000 a week; Monday's payout run tops up the rest) | **Built 29 Oct 2026** (section 3n). To go live: run `--migrate` (0015, with 0013 and 0014), then deploy. **Off** until Finance switches it on in Money → Policies (section 8) |
 | **Platform stage 6: the phone apps** (Mjazo and Mjazo Pro, Expo, in `mobile/`) | **Built 21 Oct 2026** (section 3g); its API is **live** (deployed the same day and checked). Next: try both apps on a phone with Expo Go, then store builds with your Expo account |
 
 ---
@@ -66,6 +67,7 @@ accounts, and what's left.
 | 5 Oct 2026 | **Supabase connected and phases 2 to 7 deployed.** The owner ran `scripts/setup-supabase.mjs`; both Owners can sign in, with two-step sign-in |
 | 5 Oct 2026 | **CMS phase 7 finished:** permission matrix tests and fixes, backup and restore, two-step sign-in, history compare, a smaller page payload, and the team handbook PDF |
 | 21 Oct 2026 | **Platform plan approved** (core + mission control first, real Expo apps, all four automations, email-link sign-in). **Stage 1, the core engine, built:** relational bookings and pros, a double-entry money ledger, server-side pricing and real slot capacity at checkout |
+| 29 Oct 2026 | **Pros' weekly minimum built:** once Finance switches it on, a pro in her first 12 weeks who kept 10+ windows open and accepted 80%+ of her offers earns at least PKR 10,000 a week (placeholders); Monday's payout run tops up the rest for the week just finished, paid with her payout once a second person approves. She sees her week's progress on the earnings tab (web and Mjazo Pro), and her open windows count what she had open during the week |
 | 29 Oct 2026 | **The favourite-pro guarantee built:** booking a pro again, checkout marks the windows she's free and promises well-rated pros first if she can't come; auto-assign and the board's suggestion ask pros rated 4.5★ or more (3+ ratings) first; the customer is told who's coming instead and can move the visit to keep their own pro; and, once switched on, PKR 500 credit when nobody could come (ops tick it when cancelling, or the window started half an hour ago without a pro) |
 | 29 Oct 2026 | **The regular customer rate built:** from a customer's 2nd visit with the same pro within 180 days, Mjazo takes 15% instead of her usual share (placeholders, set in Money → Policies), so a pro earns more by keeping her regulars on Mjazo. She sees "Regular customer · you keep 85%" on the offer and the visit (web and Mjazo Pro), and the ledger posts it |
 | 29 Oct 2026 | **Receipts and sales tax built:** every finished visit gets a numbered receipt (MJR-000001…) with what was charged, in the account, the app, mission control and a "Your receipt" message, and its link opens without signing in. Finance sets Sindh sales tax in mission control → Money → Policies (from a day, inside the price or on top, on the whole booking or only Mjazo's share); the ledger owes it to the SRB, and Money shows each month's tax with a CSV for the return |
@@ -531,6 +533,36 @@ The blueprint analysis (C6) lists a guaranteed substitute when the favourite pro
   - Ops gave a visit Stage5 had asked Hina for to Sana: "Your pro can't make it" was logged ("…so Sana (new to Mjazo) is coming instead").
   - With the credit on: ops cancelling a visit for the customer gave no credit; ticking "Nobody could come" gave PKR 500, once over two automation runs. The tick box shows only for a visit no pro has.
 
+## 3n. Pros' weekly minimum (29 Oct 2026)
+
+The blueprint analysis (C6) lists a weekly minimum for new pros among the benefits only the platform gives. Migration **0015** (`payouts.top_up` and `pro_availability_log`). Code: `lib/ops/minimum.ts` (the rules, pure), `lib/core/minimum.ts` (each pro's week from the records), `lib/core/money.ts` (payout runs), `lib/core/ledger.ts` (`minimumTopUp`, the expense account `mjazo:minimums`), `lib/core/pros.ts` (the availability log), mission control → Money → Policies → **Pros' weekly minimum**.
+
+- **The rule:** when it's on, a pro is paid at least **PKR 10,000 a week** in her **first 12 weeks**, for a Monday-to-Sunday week in which she was:
+  - verified and active, and with Mjazo since its Monday;
+  - open **10 or more arrival windows**: her weekly hours less her days off. Each day counts the fewest windows she had open that day, and a day off she took back once the day had begun still counts as off;
+  - and accepted **80% or more** of the offers made to her (declined and expired ones count against her; a week with no offers passes).
+- **The top-up** is the minimum less what she earned that week (her share of the visits finished, from the ledger).
+  - Monday's payout run adds it, only for a whole week that's over, and includes a pro who's owed nothing else.
+  - It's posted to the ledger only when her payout is marked paid ("Pro weekly minimum top-ups", `mjazo:minimums`), once per pro and week. Cancelling a run posts nothing.
+  - Monday's email to ops says how many pros are topped up, and the total.
+- **Mission control:** a run shows a "Weekly minimum top-up" column when a payout has one. Money → Policies sets on or off, the amount, the weeks, the windows and the share of offers, all audited. It can't be switched on before migration 0015 has run.
+- **The pro** (`/pro` and Mjazo Pro → Earnings, in English, Urdu and Roman Urdu) sees her week so far: earned since Monday, each condition met or not, and what Mjazo would add if the week ended now. A payout shows its top-up, and her statement has a "Weekly minimum top-up" line.
+- **Off by default.** Until migration 0015 runs, everything works as before.
+- **Reviewed** by a small review workflow (3 reviewers and a skeptic, 29 Oct 2026). It found and I fixed:
+  - a run drafted for a week still running topped up on part of the week, then closed it (now only a week that's over)
+  - a top-up paid after a later run's cut-off threw that run's balances off (it now counts with the payout that paid it)
+  - a pro could close her windows for the week and open them again before the run to get the full minimum (now each day counts the fewest windows she had open, from the log)
+  - the pro's card blamed "your first 12 weeks" when she had joined mid-week (now: "It starts with your first full week")
+- **Tests:** 503 in total. New:
+  - the rules: whole weeks, open windows and the fewest each day, the conditions, joining mid-week, what Finance types
+  - on the database: the week from the ledger; a run topping up a pro owed nothing else; none while the week is running, or in a run that isn't one whole week; a cancel posting nothing; the top-up posted once with the books balanced; the balances at an earlier cut-off; the windows from the log
+  - the permission row
+- **Checked locally (29 Oct 2026),** with test pro Hina backdated and verified on the local database:
+  - Money → Policies refused 120% and "10,5x", then switched it on.
+  - A run for this week (not over) had no top-ups. Last week's run topped Hina up by PKR 2,050 (she earned 7,950): owed 3,375 + 2,050 − cash 4,500 = pay 925. The owner approved it, both payouts were marked paid, the books balanced, and there was one top-up entry of PKR 2,050.
+  - Hina closed all her windows and opened them again: her week went from 42 windows to 18, then 36 (today stays closed).
+  - `/pro` → Earnings in English, Urdu and Roman Urdu; Mjazo Pro → Earnings with the payout's top-up and the statement line, in English and Urdu.
+
 ## 4. Brand kit
 
 Saved in `F:\mjazo\brand\`, outside this repo. A copy of the PDF is in the user's Downloads folder.
@@ -754,6 +786,7 @@ All are listed with explanations in [.env.example](.env.example).
 15. **For packs:** run `node scripts/setup-supabase.mjs --migrate` (0013) **before** deploying, then deploy. Then check the three packs' prices in `/admin` → Catalogue → Packs (or hide them) and, for WhatsApp, make templates for "Your pack is ready" and "Time for your next visit" in Meta and name them in mission control → Automations.
 16. **For receipts and sales tax:** run `--migrate` (0014, with 0013) **before** deploying, then deploy. Receipts start by themselves. Sales tax stays off: once the written tax opinion is in, Finance sets it in mission control → Money → Policies (the start day, the rate, inside or on top, the base, and the SRB registration). For WhatsApp, make a "Your receipt" template in Meta and name it in mission control → Automations.
 17. **For the favourite-pro guarantee:** nothing to migrate; it's on with the next deploy. Once the real pros are in mission control, switch on its credit in Money → Policies. For WhatsApp, make templates for "Your pro can't make it" and "Nobody could come" in Meta and name them in mission control → Automations.
+18. **For pros' weekly minimum:** run `--migrate` (0015, with 0013 and 0014) **before** deploying, then deploy. It stays off: confirm the numbers (section 8), then switch it on in Money → Policies once the real pros are in mission control.
 
 ---
 
@@ -775,6 +808,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
 - **Sales tax** (mission control → Money → Policies): off. It needs the written tax opinion: the rate (8% for beauty services or 15% standard), inside the price or on top, on the whole booking or only Mjazo's share, the start day, and Mjazo's SRB registration number.
 - **The regular customer rate** (mission control → Money → Policies): **on**, Mjazo takes 15% (instead of the pro's usual 25%) from a customer's 2nd visit with the same pro within 180 days.
 - **The favourite-pro guarantee** (mission control → Money → Policies): **on**; stand-ins rated 4.5★ or more on 3+ rated visits; the credit when nobody could come **off**, at PKR 500 (switch it on once the real pros are in mission control).
+- **Pros' weekly minimum** (mission control → Money → Policies): **off**; PKR 10,000 a week in a pro's first 12 weeks, for 10+ open windows a week and 80%+ of offers accepted. Mjazo pays the top-up.
 - **Referral rewards:** PKR 500 for the friend, PKR 500 for the referrer.
 - **Legal text:** needs a lawyer's review.
 - **Ops:** the pro share (75%) and the protocol manual.
@@ -797,7 +831,7 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
    9. **Receipts and sales tax** (section 3k): built 29 October. To do: `--migrate` (0014), deploy; set sales tax once the tax opinion is in (section 7, item 16).
    10. **The regular customer rate** (section 3l): built 29 October. No migration; on at 15% with the next deploy: confirm the numbers (section 8).
    11. **The favourite-pro guarantee** (section 3m): built 29 October. No migration; on with the next deploy, the credit off: confirm the numbers and switch the credit on when the real pros are in (section 8).
-   12. **Still to build** (the plan of 27 October): pros' weekly minimum.
+   12. **Pros' weekly minimum** (section 3n): built 29 October. To do: `--migrate` (0015), deploy; confirm the numbers and switch it on when the real pros are in (section 8).
 3. **Owner setup:** section 7 (rotate secrets, SMTP, `CRON_SECRET` and pingers, `SESSION_SECRET` for the pro app, staff roles).
 4. **Re-test the live flows** that need Supabase: booking → ops console, apply → interview, complaint → Trust Desk.
 5. **Urdu content:** the AI translation pass, a human review (including the new interface Urdu), then switching on the Urdu site.
@@ -860,5 +894,5 @@ These are all editable in `/admin` (Settings and the Catalogue) once Supabase is
   - Wallet credit is set aside on the booking (`credit_used`) and posted with `applyCredit` when the visit completes (`postLedger` in `lib/core/jobs.ts`). What the pro collects is total − credit.
   - Locally, `/login` offers the test sign-in (`/api/v1/customer/dev-login`); the browser keeps its token in localStorage.
 - **Staff tools locally:** start the `mjazo-web-staff` preview configuration (`.claude/launch.json`). Without Supabase, `/ops` offers "Continue as local …" for any role (`/api/ops/dev-login`, refused in production); pros get PINs from ops.
-- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (491 tests), then `npx next build` (870 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
+- **Checks before pushing:** `npx tsc --noEmit`, then `npm test` (503 tests), then `npx next build` (870 pages, plus two per published block page). For the phone apps: `npm run typecheck` in `mobile/`.
 - **New API routes on the dev server:** a route added while an older `.next/dev` cache exists can answer 404 (the request falls through to the page catch-all). Touch the new `route.ts` and it's picked up.
