@@ -315,6 +315,12 @@ export default function Checkout() {
 
       <Section title={t.when} />
       {cart.rebook && <Notice tone={proGone ? "amber" : "sky"} text={proGone ? fill(t.proUnavailable, { name: cart.rebook.firstName }) : fill(t.withPro, { name: cart.rebook.firstName })} />}
+      {cart.rebook && proId && slots?.guarantee && (
+        <Txt v="muted">
+          {fill(t.guarantee, { name: cart.rebook.firstName, stars: slots.guarantee.stars })}
+          {slots.guarantee.credit ? ` ${fill(t.guaranteeCredit, { amount: formatPKR(slots.guarantee.credit) })}` : ""}
+        </Txt>
+      )}
       {!area ? (
         <Txt v="muted">{t.pickArea}</Txt>
       ) : slotsError ? (
@@ -332,7 +338,7 @@ export default function Checkout() {
           {day && (
             <Row wrap>
               {day.windows.map((w) => (
-                <Chip key={w.label} label={windowLabel(w.label, lang)} sub={w.open ? undefined : t.full} disabled={!w.open} selected={win === w.label} onPress={() => setWin(w.label)} />
+                <Chip key={w.label} label={windowLabel(w.label, lang)} sub={!w.open ? t.full : proId && w.pro && cart.rebook ? fill(t.proFree, { name: cart.rebook.firstName }) : undefined} disabled={!w.open} selected={win === w.label} onPress={() => setWin(w.label)} />
               ))}
             </Row>
           )}

@@ -60,6 +60,14 @@ export const MESSAGES = {
     subject: "Your Mjazo receipt {{no}}",
     text: "Thank you, {{name}}! Your receipt {{no}} for {{amount}} is here: {{link}}",
   },
+  favouriteBusy: {
+    subject: "{{asked}} can't make it: {{pro}} is coming",
+    text: "Hi {{name}}, {{asked}} can't make your visit on {{date}}, {{window}}, so {{pro}} ({{rating}}) is coming instead. Rather wait for {{asked}}? Move your visit here: {{link}}",
+  },
+  noProCredit: {
+    subject: "We're sorry: here's {{amount}} credit",
+    text: "We're sorry, {{name}}: no pro could make your visit on {{date}}, {{window}}. We've added {{amount}} Mjazo credit to your account for your next booking: {{link}}",
+  },
 }
 
 export type MessageTexts = typeof MESSAGES
@@ -118,6 +126,14 @@ export const MESSAGES_UR: MessageTexts = {
     subject: "آپ کی مجازو رسید {{no}}",
     text: "شکریہ {{name}}! {{amount}} کی آپ کی رسید {{no}} یہاں ہے: {{link}}",
   },
+  favouriteBusy: {
+    subject: "{{asked}} نہیں آ سکیں: {{pro}} آ رہی ہیں",
+    text: "{{name}}، {{asked}} {{date}}، {{window}} کے وزٹ پر نہیں آ سکیں، اس لیے {{pro}} ({{rating}}) آ رہی ہیں۔ {{asked}} کا انتظار کرنا چاہیں؟ اپنا وزٹ یہاں بدلیں: {{link}}",
+  },
+  noProCredit: {
+    subject: "معذرت: آپ کے لیے {{amount}} کریڈٹ",
+    text: "معذرت {{name}}، {{date}}، {{window}} کے آپ کے وزٹ پر کوئی پرو نہیں آ سکی۔ ہم نے آپ کی اگلی بکنگ کے لیے آپ کے اکاؤنٹ میں {{amount}} مجازو کریڈٹ ڈال دیا ہے: {{link}}",
+  },
 }
 
 const GROUPS: Record<MessageKey, string> = {
@@ -134,6 +150,8 @@ const GROUPS: Record<MessageKey, string> = {
   packWelcome: "Your pack is ready",
   packDue: "Time for your next pack visit",
   receipt: "Your receipt (after each visit)",
+  favouriteBusy: "Your pro can't make it (favourite-pro guarantee)",
+  noProCredit: "Nobody could come: credit (favourite-pro guarantee)",
 }
 
 register<MessageTexts, MessageTexts>({
@@ -142,7 +160,7 @@ register<MessageTexts, MessageTexts>({
   group: "Settings",
   kind: "singleton",
   icon: "MessageCircle",
-  description: "The messages Mjazo sends by itself: booking confirmed, the day-before reminder, \"your pro is on the way\", \"rate your visit\", the opt-in reminders and win-backs, visit offers to pros, referral credit, the Plus welcome, the pack messages and receipts. Each one can be switched on or off in mission control → Automations. Keep the {{tokens}}.",
+  description: "The messages Mjazo sends by itself: booking confirmed, the day-before reminder, \"your pro is on the way\", \"rate your visit\", the opt-in reminders and win-backs, visit offers to pros, referral credit, the Plus welcome, the pack messages, receipts and the favourite-pro guarantee. Each one can be switched on or off in mission control → Automations. Keep the {{tokens}}.",
   fields: stringFields(MESSAGES, GROUPS),
   defaults: () => MESSAGES,
   translations: { ur: () => MESSAGES_UR },

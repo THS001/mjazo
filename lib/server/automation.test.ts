@@ -469,3 +469,79 @@ describe("previews", () => {
       }
   })
 })
+
+describe("the favourite-pro guarantee", () => {
+  it("tells the customer when another pro is coming instead of the one they asked for, and not when it's her", async () => {
+    const b = await book({ phone: "03019990020", name: "Mehwish Ali" })
+    await cj.mutateJob(db, b.id, (j) => void (j.preferredProId = "P-SANA"))
+    await cj.mutateJob(db, b.id, (j) => {
+      j.proId = "P-HINA"
+      j.status = "assigned"
+      j.events.push({ type: "assigned", at: new Date().toISOString(), by: "ops", actor: "test" })
+    })
+    await A.runAutomation()
+    const sent = await forBooking(b.id, "favouriteBusy")
+    expect(sent).toHaveLength(1)
+    expect(sent[0].body).toContain("Sana can't make your visit")
+    expect(sent[0].body).toMatch(/Hina \((rated [\d.]+★|new to Mjazo)\) is coming/)
+    expect(sent[0].params[3]).toMatch(/^(rated [\d.]+★|new to Mjazo)$/)
+    // Her own pro: no such message.
+    const c = await book({ phone: "03019990021" })
+    await cj.mutateJob(db, c.id, (j) => void (j.preferredProId = "P-SANA"))
+    await cj.mutateJob(db, c.id, (j) => Object.assign(j, { proId: "P-SANA", status: "assigned" }))
+    await A.runAutomation()
+    expect(await forBooking(c.id, "favouriteBusy")).toHaveLength(0)
+  })
+
+  it("gives credit once when nobody could come, never for any other cancellation, and only when switched on", async () => {
+    const { savePolicy } = await import("@/lib/core/policy")
+    const { creditFor } = await import("@/lib/core/customers")
+    // `nobody`: ops ticked "Nobody could come" when cancelling (lib/server/ops.ts markNobodyCame).
+    const cancel = async (id: string, by: "ops" | "customer", nobody = false) => {
+      if (nobody) await S.markOnce(db, S.nobodyCameKey(id))
+      await cj.mutateJob(db, id, (j) => {
+        j.status = "cancelled"
+        j.events.push({ type: "cancelled", at: new Date().toISOString(), by, actor: "test" })
+      })
+    }
+    // Off (the starting value): nothing.
+    const off = await book({ phone: "03019990022" })
+    await cancel(off.id, "ops", true)
+    await A.runAutomation()
+    expect((await creditFor(db, await customerOf(off.id))).balance).toBe(0)
+
+    await savePolicy(db, "guarantee", { creditOn: true, credit: 500 }, "finance@mjazo.test")
+    try {
+      const a = await book({ phone: "03019990023", name: "Iqra Shah" })
+      await cancel(a.id, "ops", true)
+      await A.runAutomation()
+      await A.runAutomation()
+      expect((await creditFor(db, await customerOf(a.id))).balance).toBe(500)
+      const sent = await forBooking(a.id, "noProCredit")
+      expect(sent).toHaveLength(1)
+      expect(sent[0].body).toContain("PKR 500")
+      // Ops cancelling for another reason (the customer asked on WhatsApp, a duplicate): none.
+      const asked = await book({ phone: "03019990026" })
+      await cancel(asked.id, "ops")
+      await A.runAutomation()
+      expect((await creditFor(db, await customerOf(asked.id))).balance).toBe(0)
+      // The customer's own cancellation: none.
+      const mine = await book({ phone: "03019990024" })
+      await cancel(mine.id, "customer")
+      await A.runAutomation()
+      expect((await creditFor(db, await customerOf(mine.id))).balance).toBe(0)
+      // The timer: half an hour into the window with no pro.
+      const late = await book({ phone: "03019990025", date: today, window: "9–11 am" })
+      const k = (hm: string) => new Date(today + "T" + hm + ":00+05:00")
+      {
+        await A.runAutomation(k("09:15"))
+        expect((await creditFor(db, await customerOf(late.id))).balance).toBe(0)
+        await A.runAutomation(k("09:45"))
+        await A.runAutomation(k("10:30"))
+        expect((await creditFor(db, await customerOf(late.id))).balance).toBe(500)
+      }
+    } finally {
+      await savePolicy(db, "guarantee", { creditOn: false }, "finance@mjazo.test")
+    }
+  })
+})

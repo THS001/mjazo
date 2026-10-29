@@ -1,10 +1,22 @@
 import "server-only"
 import type { Db } from "./db"
+import type { RatingSummary } from "@/lib/ops/policy"
 
 // What a pro sees about her own record in the pro app: her ratings and her payouts. Read only.
 // Customers stay anonymous here: a rating shows the day, the services and what was said.
 
 export type ProRating = { bookingId: string; day: string; services: string[]; stars: number; tags: string[]; comment: string | null; at: string }
+
+/** Every pro's ratings (average to one decimal, and how many): who can stand in for another. */
+export async function ratingsByPro(db: Db, proIds?: string[]): Promise<Map<string, RatingSummary>> {
+  const rows = await db.query<{ pro_id: string; avg: number; n: number }>(
+    `select b.pro_id, avg(r.stars)::float8 as avg, count(*)::int as n
+     from booking_ratings r join bookings b on b.id = r.booking_id
+     where b.pro_id is not null and ($1::text[] is null or b.pro_id = any($1::text[])) group by b.pro_id`,
+    [proIds ?? null],
+  )
+  return new Map(rows.map((r) => [r.pro_id, { stars: Math.round(r.avg * 10) / 10, count: r.n }]))
+}
 
 export async function proRatings(db: Db, proId: string, limit = 30) {
   const rows = await db.query<{ booking_id: string; day: string; stars: number; tags: string[]; comment: string | null; at: string; services: string[] }>(

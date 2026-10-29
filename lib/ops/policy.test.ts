@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { DEFAULT_PAIR_RATE, DEFAULT_TAX, keepPct, pairRateProblems, taxAmount, taxPct, taxProblems, taxTermsOn, totalWithTax, visitRate } from "./policy"
+import { DEFAULT_GUARANTEE, DEFAULT_PAIR_RATE, DEFAULT_TAX, guaranteeProblems, keepPct, standsIn, pairRateProblems, taxAmount, taxPct, taxProblems, taxTermsOn, totalWithTax, visitRate } from "./policy"
 
 // The money policies' pure rules: sales tax terms by day, and the tax inside or on top of the
 // price, on the whole booking or on Mjazo's share.
@@ -66,5 +66,25 @@ describe("the regular customer rate", () => {
     expect(pairRateProblems({ fromVisit: 1 })).toHaveLength(1)
     expect(pairRateProblems({ fromVisit: 2.5 })).toHaveLength(1)
     expect(pairRateProblems({ days: 10 })).toHaveLength(1)
+  })
+})
+
+describe("the favourite-pro guarantee", () => {
+  it("lets a pro stand in only when she's rated well enough on enough visits", () => {
+    expect(standsIn({ stars: 4.8, count: 5 }, DEFAULT_GUARANTEE)).toBe(true)
+    expect(standsIn({ stars: 4.5, count: 3 }, DEFAULT_GUARANTEE)).toBe(true)
+    expect(standsIn({ stars: 4.4, count: 30 }, DEFAULT_GUARANTEE)).toBe(false)
+    expect(standsIn({ stars: 5, count: 2 }, DEFAULT_GUARANTEE)).toBe(false)
+    expect(standsIn(undefined, DEFAULT_GUARANTEE)).toBe(false)
+    expect(standsIn(undefined, { minStars: 4.5, minRatings: 0 })).toBe(false)
+  })
+
+  it("starts with the credit off, and refuses values out of range", () => {
+    expect(DEFAULT_GUARANTEE).toMatchObject({ on: true, creditOn: false, credit: 500 })
+    expect(guaranteeProblems(DEFAULT_GUARANTEE)).toEqual([])
+    expect(guaranteeProblems({ minStars: 2.5 })).toHaveLength(1)
+    expect(guaranteeProblems({ minStars: 4.55 })).toHaveLength(1)
+    expect(guaranteeProblems({ minRatings: -1 })).toHaveLength(1)
+    expect(guaranteeProblems({ credit: 2500 })).toHaveLength(1)
   })
 })

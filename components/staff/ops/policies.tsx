@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Download } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { keepPct, taxPct, type PairRatePolicy, type TaxPolicy } from "@/lib/ops/policy"
+import { keepPct, taxPct, type GuaranteePolicy, type PairRatePolicy, type TaxPolicy } from "@/lib/ops/policy"
 import { api, Btn, Empty, pkr } from "../kit"
 import { inputCls } from "./context"
 import { Section } from "./money"
@@ -12,7 +12,7 @@ import { Section } from "./money"
 // sales tax on receipts by month for the SRB return. Every change is in the audit log.
 
 type TaxMonth = { month: string; receipts: number; total: number; taxable: number; tax: number }
-type Overview = { ready: boolean; tax: TaxPolicy; taxMonths: TaxMonth[]; pairRate: PairRatePolicy }
+type Overview = { ready: boolean; tax: TaxPolicy; taxMonths: TaxMonth[]; pairRate: PairRatePolicy; guarantee: GuaranteePolicy }
 
 const Choice = <T extends string | boolean>({ value, set, options }: { value: T; set: (v: T) => void; options: readonly (readonly [T, string])[] }) => (
   <div className="flex flex-wrap gap-1.5">
@@ -38,6 +38,7 @@ export function Policies() {
       {!d.ready && <p className="rounded-2xl bg-amber-50 text-amber-900 px-4 py-3 text-sm">Run the database update (migration 0014) to switch on receipts and sales tax.</p>}
       <TaxCard d={d} onSaved={setD} />
       <PairRateCard d={d} onSaved={setD} />
+      <GuaranteeCard d={d} onSaved={setD} />
     </div>
   )
 }
@@ -190,6 +191,64 @@ function PairRateCard({ d, onSaved }: { d: Overview; onSaved: (o: Overview) => v
           {msg && <span className={cn("text-sm", msg.ok ? "text-emerald-700" : "text-red-600")}>{msg.text}</span>}
         </div>
         <p className="text-xs text-zinc-400">Applies to visits finished from now on, and to what pros see on their offers and visits.</p>
+      </div>
+    </Section>
+  )
+}
+
+function GuaranteeCard({ d, onSaved }: { d: Overview; onSaved: (o: Overview) => void }) {
+  const p = d.guarantee
+  const [on, setOn] = useState(p.on)
+  const [minStars, setMinStars] = useState(String(p.minStars))
+  const [minRatings, setMinRatings] = useState(String(p.minRatings))
+  const [creditOn, setCreditOn] = useState(p.creditOn)
+  const [credit, setCredit] = useState(String(p.credit))
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const save = async () => {
+    const stars = Number(minStars)
+    if (!minStars.trim() || !(stars >= 3 && stars <= 5)) return setMsg({ text: "Enter a rating from 3.0 to 5.0", ok: false })
+    setBusy(true)
+    setMsg(null)
+    try {
+      onSaved(await api<Overview>("/api/ops/policy", { action: "guarantee", on, minStars: Math.round(stars * 10) / 10, minRatings: Number(minRatings), creditOn, credit: Number(credit) }))
+      setMsg({ text: "Saved", ok: true })
+    } catch (e) {
+      setMsg({ text: (e as Error).message, ok: false })
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Section title="Favourite-pro guarantee" hint="When a customer books a pro again, checkout marks the windows she's free. If she can't come after all, auto-assign and the board's suggestion put pros rated well enough first, and the customer is told who's coming. When nobody could come (ops or the system cancel a visit no pro took, or its window started half an hour ago without one), the customer can get credit once. Never for a customer's own cancellation.">
+      <div className="rounded-3xl bg-white border border-black/[0.06] p-5 space-y-3 max-w-xl">
+        <p className={cn("text-sm rounded-2xl px-3 py-2", p.on ? "bg-emerald-50 text-emerald-800" : "bg-zinc-50 text-zinc-600")}>
+          {p.on ? "On: stand-ins rated " + p.minStars + "★ or more on " + p.minRatings + "+ rated visits. " + (p.creditOn ? pkr(p.credit) + " credit when nobody could come." : "No credit when nobody could come (off).") : "Off: booking a pro again shows her free windows only."}
+        </p>
+        <Choice value={on} set={setOn} options={[[true, "On"], [false, "Off"]] as const} />
+        <div className="grid sm:grid-cols-2 gap-3">
+          <label className="text-xs text-zinc-500 space-y-1">
+            <span>A stand-in is rated at least (★)</span>
+            <input inputMode="decimal" value={minStars} onChange={(e) => setMinStars(e.target.value)} className={inputCls} />
+          </label>
+          <label className="text-xs text-zinc-500 space-y-1">
+            <span>On at least (rated visits)</span>
+            <input inputMode="numeric" value={minRatings} onChange={(e) => setMinRatings(e.target.value)} className={inputCls} />
+          </label>
+        </div>
+        <p className="text-xs text-zinc-500">Credit when nobody could come</p>
+        <Choice value={creditOn} set={setCreditOn} options={[[false, "Off"], [true, "On"]] as const} />
+        <label className="text-xs text-zinc-500 space-y-1 block max-w-[12rem]">
+          <span>Credit (PKR, up to 2,000)</span>
+          <input inputMode="numeric" value={credit} onChange={(e) => setCredit(e.target.value)} className={inputCls} />
+        </label>
+        <div className="flex items-center gap-3">
+          <Btn busy={busy} onClick={() => void save()}>
+            Save
+          </Btn>
+          {msg && <span className={cn("text-sm", msg.ok ? "text-emerald-700" : "text-red-600")}>{msg.text}</span>}
+        </div>
+        <p className="text-xs text-zinc-400">Switch the credit on only once every visit gets its pro in mission control: a visit given to a pro outside it looks like nobody came.</p>
       </div>
     </Section>
   )

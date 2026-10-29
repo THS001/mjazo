@@ -343,4 +343,50 @@ describe("booking a pro again", () => {
     expect(hers.days).toHaveLength(7)
     expect(await slots({ area: "dha", proId: "P-AC", items: [{ category: "womens-salon", service: "full-body-wax", qty: 1 }] })).toMatchObject({ mode: "unavailable", days: [] })
   })
+
+  it("with the favourite-pro guarantee: every open window, hers marked, and its terms; without it, hers only", async () => {
+    const slots = (b: unknown) => call(R.slots.POST!, { body: b }).then(json)
+    const body = { area: "dha", proId: "P-SANA", items: [{ category: "womens-salon", service: "full-body-wax", qty: 1 }] }
+    const on = await slots(body)
+    expect(on.guarantee).toEqual({ stars: 4.5, credit: null })
+    const windows = on.days.flatMap((d: { windows: { open: boolean; pro?: boolean }[] }) => d.windows)
+    expect(windows.every((w: { pro?: boolean }) => typeof w.pro === "boolean")).toBe(true)
+    expect(windows.filter((w: { pro?: boolean }) => w.pro).every((w: { open: boolean }) => w.open)).toBe(true)
+    const { savePolicy } = await import("@/lib/core/policy")
+    await savePolicy(db, "guarantee", { creditOn: true, credit: 700 }, "finance@mjazo.test")
+    expect((await slots(body)).guarantee).toEqual({ stars: 4.5, credit: 700 })
+    await savePolicy(db, "guarantee", { on: false, creditOn: false }, "finance@mjazo.test")
+    try {
+      const off = await slots(body)
+      expect(off.guarantee).toBeUndefined()
+      expect(off.days.flatMap((d: { windows: { pro?: boolean }[] }) => d.windows).some((w: { pro?: boolean }) => "pro" in w)).toBe(false)
+    } finally {
+      await savePolicy(db, "guarantee", { on: true }, "finance@mjazo.test")
+    }
+  })
+
+  it("never offers a window that booking would turn down (the area's daily cap), guarantee on or off", async () => {
+    const slots = (b: unknown) => call(R.slots.POST!, { body: b }).then(json)
+    const body = { area: "dha", proId: "P-SANA", items: [{ category: "womens-salon", service: "full-body-wax", qty: 1 }] }
+    const { ensureZones, setZoneCap } = await import("@/lib/core/pros")
+    const { savePolicy } = await import("@/lib/core/policy")
+    await ensureZones(db, [{ slug: "dha", name: "DHA" }])
+    await setZoneCap(db, "dha", 1)
+    try {
+      // What booking checks: the area's plan for anyone (placeBooking → windowOpen).
+      type Day = { date: string; windows: { label: string; open: boolean }[] }
+      const general = (await slots({ area: body.area, items: body.items })) as { days: Day[] }
+      const bookable = new Set(general.days.flatMap((d) => d.windows.filter((w) => w.open).map((w) => `${d.date} ${w.label}`)))
+      expect(general.days.some((d) => d.windows.every((w) => !w.open))).toBe(true) // the cap closed a whole day
+      for (const on of [true, false]) {
+        await savePolicy(db, "guarantee", { on }, "finance@mjazo.test")
+        const offered = ((await slots(body)) as { days: Day[] }).days.flatMap((d) => d.windows.filter((w) => w.open).map((w) => `${d.date} ${w.label}`))
+        expect(offered.length, `guarantee ${on}`).toBeGreaterThan(0)
+        expect(offered.filter((k) => !bookable.has(k)), `guarantee ${on}`).toEqual([])
+      }
+    } finally {
+      await setZoneCap(db, "dha", null)
+      await savePolicy(db, "guarantee", { on: true }, "finance@mjazo.test")
+    }
+  })
 })

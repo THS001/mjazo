@@ -2,7 +2,7 @@ import { z } from "zod"
 import { audit } from "@/lib/server/audit"
 import { handle, readJson } from "@/lib/server/api"
 import { requireStaff } from "@/lib/server/staff"
-import { addBookingNote, addJobEvent, bookingDetail, decideMoney, getPros, publicPro, requestMoney, rescheduleJob } from "@/lib/server/ops"
+import { addBookingNote, addJobEvent, bookingDetail, decideMoney, getPros, markNobodyCame, publicPro, requestMoney, rescheduleJob } from "@/lib/server/ops"
 
 // The booking page: timeline, items, payments and ledger entries, notes, reschedule and cancel,
 // and refunds and credits (asked for here, approved by a second person with the money permission).
@@ -10,7 +10,7 @@ import { addBookingNote, addJobEvent, bookingDetail, decideMoney, getPros, publi
 const body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("note"), id: z.string(), note: z.string().min(2).max(500) }),
   z.object({ action: z.literal("reschedule"), id: z.string(), date: z.string(), window: z.string(), reason: z.string().max(200).optional(), force: z.boolean().optional() }),
-  z.object({ action: z.literal("cancel"), id: z.string(), reason: z.string().min(2, "Say why").max(300) }),
+  z.object({ action: z.literal("cancel"), id: z.string(), reason: z.string().min(2, "Say why").max(300), noPro: z.boolean().optional() }),
   z.object({ action: z.literal("request"), id: z.string(), kind: z.enum(["refund", "credit"]), amount: z.number().int().positive(), reason: z.string().min(3).max(500) }),
   z.object({ action: z.literal("decide"), id: z.string(), requestId: z.string(), approve: z.boolean(), note: z.string().max(500).optional(), reference: z.string().max(120).optional() }),
 ])
@@ -39,8 +39,11 @@ export async function POST(req: Request) {
       await audit(me.email, b.force ? "rescheduled a booking over capacity" : "rescheduled a booking", b.id, `${b.date}, ${b.window}${b.reason ? `: ${b.reason}` : ""}`)
     } else if (b.action === "cancel") {
       const me = await requireStaff("ops.bookings")
+      // "Nobody could come": the favourite-pro guarantee's credit follows (lib/server/automation.ts).
+      // Only ops say so; any other cancellation (one the customer asked for, a duplicate) gets none.
+      if (b.noPro) await markNobodyCame(b.id, me.email)
       await addJobEvent(b.id, "cancelled", "ops", { actor: me.email, note: b.reason })
-      await audit(me.email, "cancelled a booking", b.id, b.reason)
+      await audit(me.email, b.noPro ? "cancelled a booking: nobody could come" : "cancelled a booking", b.id, b.reason)
     } else if (b.action === "request") {
       const me = await requireStaff("ops.money.request")
       await requestMoney({ kind: b.kind, bookingId: b.id, amount: b.amount, reason: b.reason, by: me.email })

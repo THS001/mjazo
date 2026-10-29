@@ -37,7 +37,8 @@ export type Catalog = {
 /** A line in the cart, as a booking sends it (options by their English key, add-ons by id). */
 export type CartItem = { key: string; name: string; category: string; service: string; options: string[]; optionLabels: string[]; addOns: string[]; addOnNames: string[]; qty: number; unitPrice: number; duration: number }
 
-export type Slots = { mode: "off" | "open" | "capacity" | "unavailable"; days: { date: string; windows: { label: string; open: boolean }[] }[] }
+/** `pro`: booking a pro again, the windows she's free; `guarantee`: the favourite-pro guarantee's terms then. */
+export type Slots = { mode: "off" | "open" | "capacity" | "unavailable"; days: { date: string; windows: { label: string; open: boolean; pro?: boolean }[] }[]; guarantee?: { stars: number; credit: number | null } }
 
 // ---------------------------------------------------------------------------
 // The customer (/api/v1/customer)

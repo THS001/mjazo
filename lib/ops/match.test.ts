@@ -47,3 +47,19 @@ describe("ranking pros for a visit", () => {
     expect(rankPros(job("MJ-1"), [pro("P-NEW", { verification: undefined })], [], cat)[0].reasons).toContain("not verified")
   })
 })
+
+describe("the favourite-pro guarantee in the ranking", () => {
+  it("puts pros rated well enough first when the asked-for pro can't come", () => {
+    const pros = [pro("P-NEAR"), pro("P-STAR", { area: "gulshan" }), pro("P-ASKED", { timeOff: [DAY] })]
+    const ratings = new Map([["P-STAR", { stars: 4.8, count: 6 }], ["P-NEAR", { stars: 4.9, count: 2 }]])
+    const standIn = { ratings, minStars: 4.5, minRatings: 3 }
+    // Nobody asked for: the nearest, as before.
+    expect(rankPros(job("MJ-1"), pros, [], cat, { standIn })[0].proId).toBe("P-NEAR")
+    // She asked for a pro who's off that day: the well-rated pro comes first (P-NEAR has too few ratings).
+    const ranked = rankPros(job("MJ-1", { preferredProId: "P-ASKED" }), pros, [], cat, { standIn })
+    expect(ranked.map((c) => c.proId)).toEqual(["P-STAR", "P-NEAR"])
+    expect(ranked[0].reasons).toContain("rated 4.8")
+    // The asked-for pro, when free, still comes first.
+    expect(rankPros(job("MJ-1", { preferredProId: "P-NEAR" }), pros, [], cat, { standIn })[0].proId).toBe("P-NEAR")
+  })
+})

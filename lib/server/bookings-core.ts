@@ -5,6 +5,7 @@ import { slots, windowOpen, type SlotNeed } from "@/lib/core/capacity"
 import { createBooking, listJobs, listPros } from "@/lib/core/jobs"
 import { checkPromo, PromoError } from "@/lib/core/promos"
 import { PackError, packForBooking } from "@/lib/core/packs"
+import { policy } from "@/lib/core/policy"
 import { normalisePhone } from "@/lib/core/phone"
 import { eligible } from "@/lib/ops/logic"
 import { zoneCaps } from "@/lib/core/pros"
@@ -99,7 +100,17 @@ export async function slotsFor(raw: unknown) {
     const her = pros.find((p) => p.id === b.proId && p.status === "active")
     const probe = { id: "", createdAt: "", date: "", window: "", area: b.area, address: "", customer: { name: "", phone: "" }, items: need.items, total: 0, payment: "", status: "new" as const, events: [] }
     if (!her || !eligible(her, probe, cat)) return { mode: "unavailable" as const, days: [] }
-    return slots(nextDays(7).map((d) => d.iso), jobs.filter((j) => j.proId === her.id), [her], need, cat, settings.policy.leadHours)
+    const hers = slots(nextDays(7).map((d) => d.iso), jobs.filter((j) => j.proId === her.id), [her], need, cat, settings.policy.leadHours)
+    const free = new Set(hers.days.flatMap((d) => d.windows.filter((w) => w.open).map((w) => `${d.date} ${w.label}`)))
+    // Booking checks the whole area's plan (zone caps, other open visits): only its open windows
+    // can be booked, whoever comes.
+    const all = slots(nextDays(7).map((d) => d.iso), jobs, pros, need, cat, settings.policy.leadHours, { zoneCaps: caps })
+    // Without the favourite-pro guarantee: her own free windows only. With it: every open window,
+    // the ones she's free marked (`pro`); if she can't come after all, well-rated pros are asked first.
+    const g = await policy(db, "guarantee")
+    const days = all.days.map((d) => ({ ...d, windows: d.windows.map((w) => ({ ...w, pro: w.open && free.has(`${d.date} ${w.label}`) })) }))
+    if (!g.on) return { mode: hers.mode, days: days.map((d) => ({ ...d, windows: d.windows.map(({ label, pro }) => ({ label, open: pro })) })) }
+    return { mode: all.mode, days, guarantee: { stars: g.minStars, credit: g.creditOn && g.credit > 0 ? g.credit : null } }
   }
   return slots(nextDays(7).map((d) => d.iso), jobs, pros, need, cat, settings.policy.leadHours, { zoneCaps: caps })
 }

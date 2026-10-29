@@ -92,6 +92,9 @@ export function CheckoutFlow() {
   const [packId, setPackId] = useState<string | null>(null)
   const [pack, setPack] = useState<CustomerPackView | null>(null)
   const [proNote, setProNote] = useState("")
+  // Booking her again: the windows she's free, and the favourite-pro guarantee's terms (from the slots).
+  const [proFree, setProFree] = useState<Record<string, Record<string, boolean>> | null>(null)
+  const [guarantee, setGuarantee] = useState<{ stars: number; credit: number | null } | null>(null)
   const [taxTerms, setTaxTerms] = useState<TaxTerms | null>(null)
   const started = useRef(false)
   const days = useMemo(() => nextDays(7, { locale, today: t.duration.today, tomorrow: t.duration.tomorrow }), [locale, t])
@@ -241,7 +244,7 @@ export function CheckoutFlow() {
     const timer = setTimeout(() => {
       fetch("/api/v1/slots", { method: "POST", headers: { "content-type": "application/json" }, signal: ctl.signal, body: JSON.stringify({ area, proId: withPro?.id, items: list.map((i) => ({ category: i.category, service: i.service, qty: i.qty })) }) })
         .then((r) => r.json())
-        .then((r: { mode: string; days: { date: string; windows: { label: string; open: boolean }[] }[] }) => {
+        .then((r: { mode: string; days: { date: string; windows: { label: string; open: boolean; pro?: boolean }[] }[]; guarantee?: { stars: number; credit: number | null } }) => {
           if (r.mode === "unavailable" && withPro) {
             // She can't do this booking: any available pro instead.
             setProNote(fill(m.proUnavailable, { name: withPro.name }))
@@ -249,6 +252,9 @@ export function CheckoutFlow() {
             return
           }
           setSlotMap(r.mode === "capacity" ? Object.fromEntries(r.days.map((d) => [d.date, Object.fromEntries(d.windows.map((w) => [w.label, w.open]))])) : null)
+          const marked = r.days.some((d) => d.windows.some((w) => w.pro !== undefined))
+          setProFree(marked ? Object.fromEntries(r.days.map((d) => [d.date, Object.fromEntries(d.windows.map((w) => [w.label, Boolean(w.pro)]))])) : null)
+          setGuarantee(r.guarantee ?? null)
         })
         .catch(() => {})
     }, 250)
@@ -465,6 +471,12 @@ export function CheckoutFlow() {
               </button>
             </p>
           )}
+          {withPro && guarantee && (
+            <p className="mb-4 text-sm text-zinc-600">
+              {fill(m.guarantee, { name: withPro.name, stars: String(guarantee.stars) })}
+              {guarantee.credit ? ` ${fill(m.guaranteeCredit, { amount: formatPKR(guarantee.credit) })}` : ""}
+            </p>
+          )}
           {proNote && <p className="mb-4 text-sm text-zinc-600">{proNote}</p>}
           <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
             {days.map((d) => {
@@ -488,6 +500,7 @@ export function CheckoutFlow() {
                 <button key={w} type="button" disabled={!ok} aria-pressed={win === w} onClick={() => setWin(w)} className={cn("rounded-2xl border h-12 text-sm transition-colors disabled:opacity-35", !full && "disabled:line-through", win === w ? "bg-foreground text-background border-foreground" : "border-zinc-200 hover:border-zinc-400")}>
                   {windowLabel(w, locale)}
                   {full && <span className="block text-[10px] uppercase tracking-wide text-zinc-500">{t.checkout.windowFull}</span>}
+                  {!full && ok && withPro && proFree?.[date]?.[w] && <span className={cn("block text-[10px]", win === w ? "text-white/70" : "text-brand-ink")}>{fill(m.proFree, { name: withPro.name })}</span>}
                 </button>
               )
             })}

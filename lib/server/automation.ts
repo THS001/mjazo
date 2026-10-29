@@ -11,13 +11,16 @@ import { rewardReferral } from "@/lib/core/growth"
 import { draftPayoutRun } from "@/lib/core/money"
 import { listOffers, offerJob } from "@/lib/core/offers"
 import { pairRates } from "@/lib/core/pairs"
+import { issueCredit } from "@/lib/core/ledger"
+import { policy } from "@/lib/core/policy"
+import { ratingsByPro } from "@/lib/core/pro-history"
 import { packsDue } from "@/lib/core/packs"
 import { ensureReceipt } from "@/lib/core/receipts"
 import { normalisePhone } from "@/lib/core/phone"
 import { rankPros } from "@/lib/ops/match"
 import type { Job, Pro } from "@/lib/ops/types"
 import { SITE_URL } from "@/lib/site"
-import { formatBookingDate, karachiNow, windowLabel } from "@/lib/time"
+import { formatBookingDate, karachiNow, WINDOW_HOURS, WINDOW_LABELS, windowLabel } from "@/lib/time"
 import { visitEarning } from "./pro-api"
 import { receiptUrl } from "./receipts"
 import { listSubmissions, notifyOps } from "./store"
@@ -37,7 +40,7 @@ import { listSubmissions, notifyOps } from "./store"
 // The rules
 // ---------------------------------------------------------------------------
 
-export type RuleKey = "confirm" | "reminder" | "onTheWay" | "rateVisit" | "receipt" | "autoAssign" | "proOffer" | "weeklyPayout" | "pulseNudges" | "winBack" | "referralReward" | "plusWelcome" | "packWelcome" | "packDue"
+export type RuleKey = "confirm" | "reminder" | "onTheWay" | "rateVisit" | "receipt" | "favouriteBusy" | "noProCredit" | "autoAssign" | "proOffer" | "weeklyPayout" | "pulseNudges" | "winBack" | "referralReward" | "plusWelcome" | "packWelcome" | "packDue"
 export type AssignMode = "off" | "suggest" | "auto"
 
 type RuleDef = {
@@ -57,6 +60,8 @@ export const RULES: RuleDef[] = [
   { key: "onTheWay", label: "Your pro is on the way", description: "When the pro taps \"On my way\".", on: true, messages: ["onTheWay"], params: { onTheWay: ["pro", "services", "arrive", "id"] } },
   { key: "rateVisit", label: "Rate your visit (review request)", description: "Two hours after the visit, between 10 am and 8 pm, if it isn't rated yet.", on: true, messages: ["rateVisit"], params: { rateVisit: ["name", "pro", "link"] } },
   { key: "receipt", label: "Your receipt", description: "When a visit is done: its receipt number, the total and a link to the receipt (it opens without signing in).", on: true, messages: ["receipt"], params: { receipt: ["name", "no", "amount", "link"] } },
+  { key: "favouriteBusy", label: "Your pro can't make it", description: "When a visit booked with a pro the customer asked for goes to another pro: who's coming, her rating (or that she's new), and a link to move the visit to keep their own pro.", on: true, messages: ["favouriteBusy"], params: { favouriteBusy: ["name", "asked", "pro", "rating", "date", "window", "link"] } },
+  { key: "noProCredit", label: "Nobody could come (credit)", description: "When ops cancel a visit no pro took and tick \"Nobody could come\", or its window started half an hour ago without a pro: the favourite-pro guarantee's credit (Money → Policies, when it's switched on) and this message; ops are told. Any other cancellation gets nothing.", on: true, messages: ["noProCredit"], params: { noProCredit: ["name", "date", "window", "amount", "link"] } },
   { key: "autoAssign", label: "Auto-assign", description: "Off; suggest the best pro on the board; or offer the visit to the best pro by itself (then the next if she declines). Only verified pros are offered automatically. Ops can always assign or offer by hand.", on: true },
   { key: "proOffer", label: "Tell a pro about an offer", description: "When a visit is offered to a pro: a push to the Mjazo Pro app, or WhatsApp.", on: true, messages: ["proOffer"], params: { proOffer: ["services", "area", "date", "window", "earn", "until", "link"] } },
   { key: "weeklyPayout", label: "Weekly payout run", description: "Every Monday from 9 am: a draft payout run for last week (Monday to Sunday). Finance approves it and marks each payout paid.", on: true },
@@ -261,7 +266,7 @@ async function autoOffer(ctx: Ctx, bookingId: string) {
   if (offers.some((o) => o.status === "pending")) return "offered already"
   const turnedDown = offers.filter((o) => o.status === "declined" || o.status === "expired").map((o) => o.proId)
   const day = (await cj.listJobs(ctx.db, { sinceDays: 0 })).filter((x) => x.date === j.date)
-  const best = rankPros(j, ctx.pros, day, ctx.cat, { exclude: turnedDown, verifiedOnly: true })
+  const best = rankPros(j, ctx.pros, day, ctx.cat, { exclude: turnedDown, verifiedOnly: true, standIn: await standInFor(ctx.db, j) })
   for (const c of best) {
     try {
       await offerJob(ctx.db, { bookingId, proId: c.proId, by: "automation", now: ctx.now })
@@ -275,6 +280,42 @@ async function autoOffer(ctx: Ctx, bookingId: string) {
   const tried = turnedDown.length
   if (await store.markOnce(ctx.db, `nopro:${bookingId}:${tried}`)) void notifyOps(`[Mjazo] Needs a pro: ${bookingId}`, `Auto-assign couldn't place ${bookingId} (${j.date}, ${j.window}, ${j.area}). ${tried ? `${tried} pro(s) turned it down. ` : ""}Assign it in mission control.`)
   return "nobody"
+}
+
+// ---------------------------------------------------------------------------
+// The favourite-pro guarantee
+// ---------------------------------------------------------------------------
+
+/** Who can stand in when the customer asked for a pro: everyone's ratings, and the policy's bar. */
+async function standInFor(db: Db, j: Job) {
+  const g = await policy(db, "guarantee")
+  return g.on && j.preferredProId ? { ratings: await ratingsByPro(db), minStars: g.minStars, minRatings: g.minRatings } : undefined
+}
+
+/** Their visit went to another pro than the one they asked for: who's coming (her rating, or that she's new), and how to keep their own. */
+async function favouriteBusy(ctx: Ctx, j: Job, eventId: number) {
+  const asked = ctx.pros.find((p) => p.id === j.preferredProId)
+  if (!asked) return
+  const r = (await ratingsByPro(ctx.db, [j.proId!])).get(j.proId!)
+  const ur = (await customerOf(ctx.db, await bookingCustomer(ctx.db, j.id)))?.lang === "ur"
+  const rating = r ? (ur ? `ریٹنگ ${r.stars}★` : `rated ${r.stars}★`) : ur ? "مجازو پر نئی" : "new to Mjazo"
+  await messageForBooking(ctx, "favouriteBusy", "favouriteBusy", j, `favouriteBusy:${j.id}:${j.proId}`, { asked: firstName(asked.name), rating }, eventId)
+}
+
+/**
+ * Nobody could come: the guarantee's credit, once per visit (when it's switched on in Money →
+ * Policies), a message, and a note to ops.
+ */
+async function noProCredit(ctx: Ctx, j: Job, why: string, eventId?: number) {
+  const g = await policy(ctx.db, "guarantee")
+  if (!g.on || !g.creditOn || g.credit <= 0) return false
+  const customerId = await bookingCustomer(ctx.db, j.id)
+  if (!customerId) return false
+  const entry = await issueCredit(ctx.db, { customerId, amount: g.credit, reason: `Favourite-pro guarantee: nobody could come to ${j.id} (${why})`, bookingId: j.id, actor: "automation", key: `guarantee:${j.id}` })
+  if (!entry) return false
+  await messageForBooking(ctx, "noProCredit", "noProCredit", j, `noProCredit:${j.id}`, { amount: formatPKR(g.credit) }, eventId)
+  void notifyOps(`[Mjazo] Nobody could come: ${j.id}`, `${j.id} (${j.date}, ${j.window}, ${j.area}): ${why}. ${formatPKR(g.credit)} credit was given to the customer by the favourite-pro guarantee.`)
+  return true
 }
 
 // ---------------------------------------------------------------------------
@@ -305,6 +346,12 @@ async function handleEvents(ctx: Ctx) {
           await messageForBooking(ctx, "onTheWay", "onTheWay", j, `onTheWay:${j.id}:${e.id}`, {}, e.id)
         } else if ((e.type === "booking.new" || e.type === "offer.declined" || e.type === "offer.expired") && j && mode === "auto") {
           await autoOffer(ctx, j.id)
+        } else if ((e.type === "booking.assigned" || e.type === "booking.reassigned") && j?.proId && j.preferredProId && j.proId !== j.preferredProId && age < FRESH.confirm) {
+          await favouriteBusy(ctx, j, e.id)
+        } else if (e.type === "booking.cancelled" && j && !j.proId && age < FRESH.confirm) {
+          // Ops cancelled a visit no pro took because nobody could come (they say so when cancelling;
+          // a cancellation the customer asked for, or a duplicate, gets nothing).
+          if (await store.nobodyCame(ctx.db, j.id)) await noProCredit(ctx, j, "ops cancelled it: nobody could come", e.id)
         } else if (e.type === "booking.completed" && j) {
           // The visit's receipt, with its link.
           if (ctx.rules.receipt.enabled && age < FRESH.confirm) {
@@ -388,6 +435,17 @@ async function runSchedules(ctx: Ctx) {
     let n = 0
     for (const j of jobs.filter((x) => x.date === addDays(today, 1) && ["new", "assigned"].includes(x.status))) if (await messageForBooking(ctx, "reminder", "reminder", j, `reminder:${j.id}:${j.date}`)) n++
     out.reminders = n
+  }
+
+  // The guarantee: a visit whose window started half an hour ago with no pro (once per visit;
+  // today's and yesterday's only, so switching the credit on never pays for older ones).
+  const g = await policy(ctx.db, "guarantee")
+  if (g.on && g.creditOn && g.credit > 0) {
+    let n = 0
+    const started = (x: Job) => x.date === addDays(today, -1) || (x.date === today && (WINDOW_HOURS[WINDOW_LABELS.indexOf(x.window)] ?? 24) + 0.5 <= hour)
+    for (const j of jobs.filter((x) => x.status === "new" && !x.proId && started(x)))
+      if (await noProCredit(ctx, j, "no pro half an hour into the window")) n++
+    if (n) out.guarantee = n
   }
 
   // "Rate your visit": two hours after it was done, within three days, if not rated.
@@ -551,7 +609,7 @@ export function tickAutomation() {
 
 /** A message as it would read, for mission control's preview. */
 export function previewMessage(texts: MessageTexts, key: MessageKey, lang = "en") {
-  const sample: Record<string, string> = { name: "Ayesha", services: "Full body waxing", date: formatBookingDate("2026-10-23", lang), window: windowLabel("3–5 pm", lang), id: "MJ-EXAMPLE", link: accountLink(lang), pro: "Sana", arrive: "3:40 pm", title: "AC service", area: "DHA", earn: "PKR 3,375", until: key === "plusWelcome" ? longDate("2027-10-21T12:00:00Z", lang) : "1:30 pm", amount: key === "receipt" ? "PKR 4,500" : "PKR 500", friend: "Sana", pct: "10", no: "MJR-000123" }
+  const sample: Record<string, string> = { name: "Ayesha", services: "Full body waxing", date: formatBookingDate("2026-10-23", lang), window: windowLabel("3–5 pm", lang), id: "MJ-EXAMPLE", link: accountLink(lang), pro: "Sana", arrive: "3:40 pm", title: "AC service", area: "DHA", earn: "PKR 3,375", until: key === "plusWelcome" ? longDate("2027-10-21T12:00:00Z", lang) : "1:30 pm", amount: key === "receipt" ? "PKR 4,500" : "PKR 500", friend: "Sana", pct: "10", no: "MJR-000123", asked: "Hina", rating: lang === "ur" ? "ریٹنگ 4.8★" : "rated 4.8★" }
   return { subject: fillText(texts[key].subject, sample), text: fillText(texts[key].text, sample) }
 }
 
@@ -566,8 +624,10 @@ export async function boardSuggestions(dayJobs: Job[], pros: Pro[]): Promise<{ m
   if (mode === "off") return { mode, byJob: {} }
   const cat = await getCatalog("en")
   const byJob: Record<string, { proId: string; reasons: string[] }> = {}
+  const g = await policy(db, "guarantee")
+  const ratings = g.on ? await ratingsByPro(db) : new Map()
   for (const j of dayJobs.filter((x) => x.status === "new" && !x.proId)) {
-    const best = rankPros(j, pros, dayJobs, cat)[0]
+    const best = rankPros(j, pros, dayJobs, cat, { standIn: g.on && j.preferredProId ? { ratings, minStars: g.minStars, minRatings: g.minRatings } : undefined })[0]
     if (best) byJob[j.id] = { proId: best.proId, reasons: best.reasons }
   }
   return { mode, byJob }

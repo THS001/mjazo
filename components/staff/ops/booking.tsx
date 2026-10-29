@@ -296,7 +296,7 @@ function Body({ d, pros, act, refresh }: { d: Detail; pros: OpsPro[]; act: Act; 
           {can("ops.bookings") && notStarted && (
             <>
               <Reschedule job={j} act={act} onDone={(t) => setMsg({ tone: "ok", text: t })} />
-              <CancelForm busy={busy === "cancel"} onCancel={(reason) => run("cancel", () => act({ action: "cancel", reason }), "Booking cancelled")} />
+              <CancelForm busy={busy === "cancel"} noProOption={!j.proId} onCancel={(reason, noPro) => run("cancel", () => act({ action: "cancel", reason, ...(noPro ? { noPro } : {}) }), "Booking cancelled")} />
             </>
           )}
         </Card>
@@ -480,9 +480,10 @@ function Reschedule({ job, act, onDone }: { job: Job; act: Act; onDone: (text: s
   )
 }
 
-function CancelForm({ onCancel, busy }: { onCancel: (reason: string) => Promise<unknown>; busy: boolean }) {
+function CancelForm({ onCancel, busy, noProOption }: { onCancel: (reason: string, noPro: boolean) => Promise<unknown>; busy: boolean; noProOption: boolean }) {
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState("")
+  const [noPro, setNoPro] = useState(false)
   if (!open)
     return (
       <Btn size="sm" variant="ghost" className="text-red-600 mt-4" onClick={() => setOpen(true)}>
@@ -490,11 +491,19 @@ function CancelForm({ onCancel, busy }: { onCancel: (reason: string) => Promise<
       </Btn>
     )
   return (
-    <div className="mt-4 pt-4 border-t border-black/[0.06] flex gap-2">
-      <input className={inputCls} placeholder="Why is it cancelled?" value={reason} onChange={(e) => setReason(e.target.value)} aria-label="Cancellation reason" />
-      <Btn variant="danger" busy={busy} disabled={reason.trim().length < 2} onClick={() => onCancel(reason.trim())}>
-        Cancel booking
-      </Btn>
+    <div className="mt-4 pt-4 border-t border-black/[0.06] space-y-2">
+      <div className="flex gap-2">
+        <input className={inputCls} placeholder="Why is it cancelled?" value={reason} onChange={(e) => setReason(e.target.value)} aria-label="Cancellation reason" />
+        <Btn variant="danger" busy={busy} disabled={reason.trim().length < 2} onClick={() => onCancel(reason.trim(), noProOption && noPro)}>
+          Cancel booking
+        </Btn>
+      </div>
+      {noProOption && (
+        <label className="flex items-start gap-2 text-sm text-zinc-600">
+          <input type="checkbox" checked={noPro} onChange={(e) => setNoPro(e.target.checked)} className="mt-0.5 w-4 h-4 accent-black" />
+          <span>Nobody could come. The customer gets the favourite-pro guarantee's credit, when it's on in Money → Policies. Leave it unticked when the customer asked to cancel.</span>
+        </label>
+      )}
     </div>
   )
 }

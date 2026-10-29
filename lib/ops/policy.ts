@@ -96,3 +96,30 @@ export function visitRate(proRate: number, prior: number, p: PairRatePolicy): Vi
 
 /** What the pro keeps, as people say it: a 15% share → 85. */
 export const keepPct = (rate: number) => Math.round((1 - rate) * 10000) / 100
+
+// ---------------------------------------------------------------------------
+// The favourite-pro guarantee
+// ---------------------------------------------------------------------------
+
+/**
+ * When a customer books a pro again: checkout marks the windows she's free, and if she can't come
+ * after all, a pro rated at least `minStars` (on `minRatings` rated visits or more) is offered
+ * first. When nobody could come (ops or the system cancel a visit no pro took, or its window
+ * started half an hour ago without one), the customer gets `credit` once, if `creditOn`.
+ */
+export type GuaranteePolicy = { on: boolean; minStars: number; minRatings: number; creditOn: boolean; credit: number }
+export const DEFAULT_GUARANTEE: GuaranteePolicy = { on: true, minStars: 4.5, minRatings: 3, creditOn: false, credit: 500 }
+
+export function guaranteeProblems(p: Partial<GuaranteePolicy>): string[] {
+  const out: string[] = []
+  if (p.minStars !== undefined && !(p.minStars >= 3 && p.minStars <= 5 && Math.abs(Math.round(p.minStars * 10) - p.minStars * 10) < 1e-6)) out.push("The rating to stand in is from 3.0 to 5.0 stars")
+  if (p.minRatings !== undefined && !(Number.isInteger(p.minRatings) && p.minRatings >= 0 && p.minRatings <= 50)) out.push("Ask for 0 to 50 rated visits")
+  if (p.credit !== undefined && !(Number.isInteger(p.credit) && p.credit >= 0 && p.credit <= 2000)) out.push("The credit is from PKR 0 to 2,000")
+  return out
+}
+
+/** A pro's ratings: the average (one decimal) and how many. */
+export type RatingSummary = { stars: number; count: number }
+
+/** Whether a pro is rated well enough to stand in for the one a customer asked for. */
+export const standsIn = (r: RatingSummary | undefined, p: Pick<GuaranteePolicy, "minStars" | "minRatings">) => Boolean(r && r.count >= p.minRatings && r.stars >= p.minStars)

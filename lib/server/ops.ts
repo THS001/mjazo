@@ -14,6 +14,7 @@ import * as promos from "@/lib/core/promos"
 import * as cpros from "@/lib/core/pros"
 import * as creq from "@/lib/core/requests"
 import { listAudit, type AuditFilter } from "@/lib/core/audit"
+import { markOnce, nobodyCameKey } from "@/lib/core/automation"
 import { ensureReceipt } from "@/lib/core/receipts"
 import { pairRates } from "@/lib/core/pairs"
 import { receiptUrl } from "./receipts"
@@ -394,6 +395,15 @@ export async function bookingDetail(id: string) {
 }
 
 export const addBookingNote = (id: string, note: string, actor: string) => addJobEvent(id, "note", "ops", { note, actor })
+
+/** Ops are cancelling a visit no pro took because nobody could come (the favourite-pro guarantee's credit follows). */
+export async function markNobodyCame(id: string, by: string) {
+  const job = await getJob(id)
+  if (!job) throw new OpsError("Booking not found")
+  if (job.proId) throw new OpsError("A pro has this visit: unassign her first, or cancel it without the guarantee")
+  const db = await opsDb()
+  if (db) await markOnce(db, nobodyCameKey(id), { by })
+}
 
 /**
  * Moves a booking to another day or window, before the visit starts. Checks capacity first (the

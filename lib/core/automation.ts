@@ -162,3 +162,7 @@ export const pushTokenCount = async (db: Db) => (await db.one<{ n: number }>("se
 export async function markOnce(db: Db, key: string, value: Record<string, unknown> = {}) {
   return Boolean(await db.one("insert into core_meta (key, value) values ($1, $2::jsonb) on conflict (key) do nothing returning key", [key, JSON.stringify(value)]))
 }
+
+/** Ops cancelled this visit because nobody could come: the favourite-pro guarantee's credit follows. */
+export const nobodyCameKey = (bookingId: string) => `guarantee:nobody:${bookingId}`
+export const nobodyCame = async (db: Db, bookingId: string) => Boolean(await db.one("select 1 from core_meta where key = $1", [nobodyCameKey(bookingId)]))
